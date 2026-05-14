@@ -19,8 +19,6 @@ input:focus{outline:none;border-color:#FFE000!important;box-shadow:0 0 0 3px rgb
 .logo{background:#FFE000;padding:4px 10px;border-radius:5px;font-family:'Arial Black',sans-serif;font-size:20px;font-weight:900;color:#1A1A1A;letter-spacing:-.5px;line-height:1}
 .nav-btn{padding:7px 16px;border-radius:10px;border:none;font-weight:800;font-size:13px;cursor:pointer;transition:all .2s}
 .sidebar{width:208px;background:#fff;border-right:2px solid #E2E2DA;min-height:calc(100vh - 58px);padding:14px 10px;flex-shrink:0}
-.branch-btn{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:10px;border:2px solid transparent;background:transparent;margin-bottom:3px;cursor:pointer}
-.branch-btn.active{border-color:#FFE000;background:#FFE000}
 .content{flex:1;padding:20px;overflow:auto}
 .bay-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
 .bay-card{background:#fff;border:2px solid #E2E2DA;border-radius:12px;padding:14px;min-height:160px;position:relative;transition:all .2s}
@@ -42,6 +40,7 @@ td{padding:10px 14px;border-bottom:1px solid #E2E2DA}
 </style>
 </head>
 <body>
+
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:10px">
     <div class="logo">COCKPIT</div>
@@ -82,50 +81,53 @@ let branchData = null;
 let refreshTimer = null;
 let bayLoading = {};
 
-// ── API ────────────────────────────────────────
+// ── API ─────────────────────────────────────────
 async function apiFetch(path, opts={}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000); // timeout 15 วิ
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), 20000);
   try {
-    const r = await fetch(API+path, {headers:{"Content-Type":"application/json"}, signal: controller.signal, ...opts});
-    clearTimeout(timer);
+    const r = await fetch(API+path, {headers:{"Content-Type":"application/json"}, signal:ctrl.signal, ...opts});
+    clearTimeout(t);
     if(!r.ok) throw new Error("API "+r.status);
     return r.json();
-  } catch(e) {
-    clearTimeout(timer);
-    throw e;
-  }
+  } catch(e) { clearTimeout(t); throw e; }
 }
 
-// ── Toast ───────────────────────────────────────
+// ── Toast ────────────────────────────────────────
 function toast(msg, type="success") {
   const wrap = document.getElementById("toast-wrap");
   const el = document.createElement("div");
   el.className = "toast";
-  const colors = {success:{bg:"#1A1A1A",color:"#FFE000",border:"#FFE000",icon:"✅"}, line:{bg:"#06c755",color:"#fff",border:"#04a844",icon:"💬"}, error:{bg:"#dc2626",color:"#fff",border:"#991b1b",icon:"❌"}};
-  const c = colors[type]||colors.success;
+  const cfg = {
+    success: {bg:"#1A1A1A", color:"#FFE000", border:"#FFE000", icon:"✅"},
+    line:    {bg:"#06c755", color:"#fff",    border:"#04a844", icon:"💬"},
+    error:   {bg:"#dc2626", color:"#fff",    border:"#991b1b", icon:"❌"},
+    info:    {bg:"#2563eb", color:"#fff",    border:"#1d4ed8", icon:"ℹ️"},
+  };
+  const c = cfg[type]||cfg.success;
   el.style.cssText = `background:${c.bg};color:${c.color};border-left:4px solid ${c.border}`;
   el.innerHTML = `<span>${c.icon}</span><span>${msg}</span>`;
   wrap.appendChild(el);
   setTimeout(()=>el.remove(), 4000);
 }
 
-// ── Nav ─────────────────────────────────────────
+// ── Modal ────────────────────────────────────────
+function closeModal() { document.getElementById("modal-wrap").innerHTML = ""; }
+
+// ── Nav ──────────────────────────────────────────
 function setView(v) {
   currentView = v;
   document.getElementById("sidebar").style.display = v==="branch"?"block":"none";
   document.getElementById("btn-branch").style.cssText = v==="branch"?"background:#FFE000;color:#1A1A1A":"background:transparent;color:#6b7280";
   document.getElementById("btn-admin").style.cssText = v==="admin"?"background:#1A1A1A;color:#FFE000":"background:transparent;color:#6b7280";
   clearInterval(refreshTimer);
-  if(v==="branch") loadBranch();
-  else loadAdmin();
+  v==="branch" ? loadBranch() : loadAdmin();
 }
 
-// ── Sidebar ─────────────────────────────────────
+// ── Sidebar ──────────────────────────────────────
 function renderSidebar() {
-  const el = document.getElementById("branch-list");
-  el.innerHTML = BRANCHES.map(b=>`
-    <button class="branch-btn ${b.id===currentBranch.id?"active":""}" onclick="selectBranch('${b.id}')">
+  document.getElementById("branch-list").innerHTML = BRANCHES.map(b=>`
+    <button onclick="selectBranch('${b.id}')" style="display:block;width:100%;text-align:left;padding:10px 12px;border-radius:10px;border:2px solid ${b.id===currentBranch.id?"#FFE000":"transparent"};background:${b.id===currentBranch.id?"#FFE000":"transparent"};margin-bottom:3px">
       <div style="font-size:12px;font-weight:800;color:#1A1A1A;margin-bottom:2px">${b.name}</div>
       <div style="font-size:11px;color:${b.id===currentBranch.id?"#5a4c00":"#9ca3af"}">${b.id} · ${b.lineOA}</div>
     </button>`).join("");
@@ -137,37 +139,49 @@ function selectBranch(id) {
   loadBranch();
 }
 
-// ── Branch View ─────────────────────────────────
+// ── Helper ───────────────────────────────────────
+function getJob(bay) {
+  if(!branchData) return null;
+  const m = branchData.baysData || branchData.bays_data || branchData.bays || {};
+  return m[String(bay)] || m[bay] || null;
+}
+
+async function reloadData() {
+  try {
+    branchData = await apiFetch("/api/branch/"+currentBranch.id);
+    renderBranch(branchData);
+  } catch {}
+}
+
+function refreshBayCard(bay) {
+  const el = document.getElementById("bay-"+bay);
+  if(el) el.outerHTML = renderBayCard(bay, getJob(bay));
+}
+
+// ── Branch View ──────────────────────────────────
 async function loadBranch() {
   clearInterval(refreshTimer);
-  const content = document.getElementById("main-content");
-  content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:80px;flex-direction:column;gap:16px"><div class="spin"></div><p style="color:#9ca3af;font-weight:600">กำลังโหลดจาก Firebase...</p></div>`;
+  document.getElementById("main-content").innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:80px;flex-direction:column;gap:16px"><div class="spin"></div><p style="color:#9ca3af;font-weight:600">กำลังโหลดจาก Firebase...</p></div>`;
   try {
     const d = await apiFetch("/api/branch/"+currentBranch.id);
-    console.log("API response:", JSON.stringify(d, null, 2));
     branchData = d;
     renderBranch(d);
     refreshTimer = setInterval(async()=>{
-      try{ const nd=await apiFetch("/api/branch/"+currentBranch.id); branchData=nd; renderBranch(nd); }catch{}
+      try { branchData = await apiFetch("/api/branch/"+currentBranch.id); renderBranch(branchData); } catch {}
     }, 30000);
   } catch(e) {
-    content.innerHTML = `<div style="padding:40px;text-align:center;color:#dc2626">⚠️ โหลดไม่ได้: ${e.message}<br><br><button onclick="loadBranch()" style="background:#1A1A1A;color:#FFE000;border:none;padding:10px 20px;border-radius:8px;font-weight:800">ลองใหม่</button></div>`;
+    document.getElementById("main-content").innerHTML = `<div style="padding:40px;text-align:center;color:#dc2626">⚠️ โหลดไม่ได้: ${e.message}<br><br><button onclick="loadBranch()" style="background:#1A1A1A;color:#FFE000;border:none;padding:10px 20px;border-radius:8px;font-weight:800">ลองใหม่</button></div>`;
   }
 }
 
 function renderBranch(d) {
-  // API ใหม่ส่ง totalBays (number) และ baysData (object) แยกกัน
   const total = d.totalBays || currentBranch.bays || 8;
-  const baysMap = d.baysData || {};
+  const baysMap = d.baysData || d.bays_data || {};
   const active = Object.values(baysMap).filter(Boolean).length;
   const empty = total - active;
   const now = new Date().toLocaleTimeString("th");
-
   let baysHtml = "";
-  for(let i=1;i<=total;i++){
-    const job = baysMap[String(i)] || baysMap[i] || null;
-    baysHtml += renderBayCard(i, job);
-  }
+  for(let i=1;i<=total;i++) baysHtml += renderBayCard(i, baysMap[String(i)]||baysMap[i]||null);
 
   document.getElementById("main-content").innerHTML = `
     <div style="padding-bottom:40px">
@@ -177,9 +191,11 @@ function renderBranch(d) {
           <div style="font-size:20px;font-weight:900;color:#fff;font-family:'Arial Black',sans-serif">${d.name||currentBranch.name}</div>
           <div style="font-size:12px;color:#6b7280;margin-top:4px">💬 ${d.lineOA||currentBranch.lineOA}</div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
-          <button onclick="loadBranch()" style="background:rgba(255,224,0,.1);border:1.5px solid #FFE000;color:#FFE000;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:800">🔄 รีเฟรช</button>
-          <button onclick="openSetBaysModal(${total})" style="background:rgba(255,224,0,.1);border:1.5px solid #FFE000;color:#FFE000;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:800">⚙️ ตั้งค่าช่อง (${total})</button>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+          <div style="display:flex;gap:8px">
+            <button onclick="loadBranch()" style="background:rgba(255,224,0,.1);border:1.5px solid #FFE000;color:#FFE000;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:800">🔄 รีเฟรช</button>
+            <button onclick="openSetBaysModal(${total})" style="background:rgba(255,224,0,.1);border:1.5px solid #FFE000;color:#FFE000;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:800">⚙️ ช่องซ่อม (${total})</button>
+          </div>
           <div style="display:flex;gap:10px">
             ${[{v:empty,l:"ว่าง",c:"#4ade80"},{v:active,l:"ไม่ว่าง",c:"#FFE000"},{v:total,l:"ทั้งหมด",c:"#9ca3af"}].map(s=>`
             <div style="text-align:center;background:rgba(255,255,255,.07);padding:10px 14px;border-radius:10px;border:2px solid ${s.c==="#FFE000"?"#FFE000":"transparent"}">
@@ -196,8 +212,9 @@ function renderBranch(d) {
 function renderBayCard(num, job) {
   const empty = !job;
   const active = job?.bayStatus==="in_service";
+
   if(empty) return `
-    <div class="bay-card" style="border-color:#E2E2DA" id="bay-${num}">
+    <div class="bay-card" id="bay-${num}">
       ${bayLoading[num]?'<div class="overlay"><div class="spin"></div></div>':""}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="display:flex;align-items:center;gap:7px">
@@ -213,19 +230,18 @@ function renderBayCard(num, job) {
       </div>
     </div>`;
 
-  const statusCfg = {waiting_entry:{l:"รอเข้าช่อง",bg:"#fef9c3",c:"#713f12"},in_service:{l:"กำลังซ่อม",bg:"#FFE000",c:"#1A1A1A"},done:{l:"เสร็จแล้ว",bg:"#d1fae5",c:"#065f46"}};
-  const sc = statusCfg[job.bayStatus]||statusCfg.waiting_entry;
+  const sc = {waiting_entry:{l:"รอเข้าช่อง",bg:"#fef9c3",c:"#713f12"},in_service:{l:"กำลังซ่อม",bg:"#FFE000",c:"#1A1A1A"},done:{l:"เสร็จแล้ว",bg:"#d1fae5",c:"#065f46"}}[job.bayStatus]||{l:"รอ",bg:"#fef9c3",c:"#713f12"};
+
   const jobsHtml = (job.jobs||[]).map((j,i)=>{
-    const colors = {waiting:{bg:"#f3f4f6",c:"#6b7280"},in_progress:{bg:"#FFE000",c:"#1A1A1A"},done:{bg:"#d1fae5",c:"#047857"}};
-    const jc = colors[j.status]||colors.waiting;
+    const jc = {waiting:{bg:"#f3f4f6",c:"#6b7280"},in_progress:{bg:"#FFE000",c:"#1A1A1A"},done:{bg:"#d1fae5",c:"#047857"}}[j.status]||{bg:"#f3f4f6",c:"#6b7280"};
     const icon = j.status==="done"?"✓ ":j.status==="in_progress"?"⚙ ":"";
     const td = j.status==="done"?"text-decoration:line-through":"";
     const nextS = {waiting:"in_progress",in_progress:"done",done:"waiting"}[j.status];
-    return `<div style="display:inline-flex;align-items:center;gap:2px;margin-bottom:2px">
+    return `<div style="display:inline-flex;align-items:center;gap:2px;margin-bottom:3px">
       <button class="tag" onclick="updateJob(${num},${i},'${nextS}')" style="background:${jc.bg};color:${jc.c};${td}">${icon}${j.name}</button>
       <button onclick="removeJob(${num},${i})" title="ลบงานนี้" style="background:#fee2e2;color:#dc2626;border:none;border-radius:4px;width:18px;height:18px;font-size:10px;font-weight:900;cursor:pointer;padding:0;line-height:1">✕</button>
     </div>`;
-  }).join("");
+  }).join(" ");
 
   return `
     <div class="bay-card ${active?"active-bay":"waiting-bay"}" id="bay-${num}">
@@ -241,7 +257,7 @@ function renderBayCard(num, job) {
         <div style="font-size:15px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif">🚗 ${job.plate}</div>
         <div style="font-size:11px;color:#9ca3af">${job.phone}</div>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">${jobsHtml}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:10px">${jobsHtml}</div>
       <div style="display:flex;gap:6px;margin-bottom:6px">
         <button onclick="openAddJobModal(${num})" style="flex:1;background:#f3f4f6;color:#374151;border:none;padding:7px 0;border-radius:8px;font-size:11px;font-weight:800">➕ เพิ่มงาน</button>
       </div>
@@ -254,151 +270,55 @@ function renderBayCard(num, job) {
 
 // ── Bay Actions ──────────────────────────────────
 async function closeJob(bay) {
-  if(!confirm("ปิดงานช่องที่ "+bay+" ใช่ไหม?")) return;
+  if(!confirm("ปิดงานช่องที่ "+bay+"?")) return;
+  const job = getJob(bay);
   bayLoading[bay]=true; refreshBayCard(bay);
-  try{
-    const job = getJob(bay);
+  try {
     await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/close",{method:"POST"});
     toast("ปิดงาน "+job?.plate+" – ช่องว่างแล้ว");
     if(job) setTimeout(()=>toast("LINE แจ้ง "+job.plate+" รถพร้อมรับ 🎉","line"),600);
     await reloadData();
-  }catch{toast("ปิดงานไม่สำเร็จ","error");}
-  finally{bayLoading[bay]=false;}
-}
-
-// ── Add Job Modal ─────────────────────────────────
-function openAddJobModal(bay) {
-  const job = getJob(bay);
-  const existingJobs = (job?.jobs || []).map(j => j.name);
-  const plate = job?.plate || "";
-  const availableJobs = JOB_TYPES.filter(j => !existingJobs.includes(j));
-
-  const existingHtml = existingJobs.length ? `
-    <div style="margin-bottom:14px;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1.5px solid #e5e7eb">
-      <div style="font-size:11px;font-weight:800;color:#6b7280;margin-bottom:6px">มีอยู่แล้ว</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px">
-        ${existingJobs.map(j=>`<span style="padding:3px 10px;border-radius:6px;background:#e5e7eb;color:#9ca3af;font-size:12px;font-weight:700;text-decoration:line-through">✓ ${j}</span>`).join("")}
-      </div>
-    </div>` : "";
-
-  const availableHtml = availableJobs.length ? availableJobs.map(j =>
-    `<button onclick="toggleAddJob(this,'${j}')" data-job="${j}" style="padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700">${j}</button>`
-  ).join("") : `<p style="color:#9ca3af;font-size:13px">ไม่มีงานเพิ่มเติมแล้ว</p>`;
-
-  document.getElementById("modal-wrap").innerHTML = `
-    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
-      <div class="modal">
-        <div class="modal-head">
-          <div>
-            <div style="font-size:10px;font-weight:800;color:#7a6200;letter-spacing:1.5px">ช่องที่ ${bay} · 🚗 ${plate}</div>
-            <div style="font-size:18px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif">➕ เพิ่มงาน</div>
-          </div>
-          <button onclick="closeModal()" style="background:rgba(0,0,0,.12);border:none;border-radius:8px;width:32px;height:32px;font-size:18px">✕</button>
-        </div>
-        <div class="modal-body">
-          ${existingHtml}
-          <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:8px">เลือกงานที่ต้องการเพิ่ม</label>
-          <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px" id="add-job-tags">${availableHtml}</div>
-          <p style="font-size:11px;color:#9ca3af;margin-bottom:16px">* งานใหม่จะเริ่มด้วยสถานะ "รอ" และแจ้ง LINE ลูกค้าอัตโนมัติ</p>
-          <div style="display:flex;gap:10px">
-            <button onclick="closeModal()" style="flex:1;padding:11px 0;border-radius:10px;border:2px solid #E2E2DA;background:#fff;color:#6b7280;font-weight:700">ยกเลิก</button>
-            ${availableJobs.length ? `<button id="add-job-btn" onclick="confirmAddJob(${bay})" style="flex:2;padding:11px 0;border-radius:10px;border:none;background:#1A1A1A;color:#FFE000;font-weight:900;font-size:14px">➕ เพิ่มงาน</button>` : ""}
-          </div>
-        </div>
-      </div>
-    </div>`;
-}
-
-function toggleAddJob(btn, job) {
-  const active = btn.dataset.active === "1";
-  if(active) {
-    btn.dataset.active = "0";
-    btn.style.cssText = "padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700";
-  } else {
-    btn.dataset.active = "1";
-    btn.style.cssText = "padding:7px 14px;border-radius:8px;border:2px solid #1A1A1A;background:#FFE000;color:#1A1A1A;font-size:13px;font-weight:700";
-  }
-}
-
-async function confirmAddJob(bay) {
-  const newJobs = [...document.querySelectorAll("#add-job-tags button[data-active='1']")].map(b => b.dataset.job);
-  if(!newJobs.length) { alert("กรุณาเลือกงานที่ต้องการเพิ่ม"); return; }
-
-  // ปิด modal ทันที แล้วค่อย call API เพื่อไม่ให้ค้าง
-  closeModal();
-  toast("กำลังเพิ่มงาน "+newJobs.join(", ")+"...");
-
-  try {
-    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/addjobs", {
-      method: "POST",
-      body: JSON.stringify({ jobs: newJobs })
-    });
-    toast("✅ เพิ่มงาน "+newJobs.join(", ")+" สำเร็จ");
-  } catch(e) {
-    // Render อาจช้า แต่งานอาจบันทึกสำเร็จแล้ว
-    toast("รีเฟรชข้อมูล...");
-  }
-  await reloadData();
-}
-
-// ── Remove Job ────────────────────────────────────
-async function removeJob(bay, idx) {
-  if(!confirm("ยืนยันลบงานนี้ออก?")) return;
-  bayLoading[bay] = true; refreshBayCard(bay);
-  try {
-    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/removejob", {
-      method: "POST",
-      body: JSON.stringify({ jobIdx: idx })
-    });
-    toast("ลบงานสำเร็จ");
-    await reloadData();
-  } catch {
-    toast("ลบงานไม่สำเร็จ","error");
-  } finally {
-    bayLoading[bay] = false;
-  }
+  } catch { toast("ปิดงานไม่สำเร็จ","error"); }
+  finally { bayLoading[bay]=false; }
 }
 
 async function updateJob(bay, idx, status) {
   bayLoading[bay]=true; refreshBayCard(bay);
-  try{
+  try {
     await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/job/"+idx,{method:"PATCH",body:JSON.stringify({status})});
     toast("อัปเดตสถานะงานแล้ว");
     await reloadData();
-  }catch{toast("อัปเดตไม่สำเร็จ","error");}
-  finally{bayLoading[bay]=false;}
+  } catch { toast("อัปเดตไม่สำเร็จ","error"); }
+  finally { bayLoading[bay]=false; }
+}
+
+async function removeJob(bay, idx) {
+  if(!confirm("ลบงานนี้ออกจากรายการ?")) return;
+  const job = getJob(bay);
+  if(job && job.jobs.length <= 1) { alert("ไม่สามารถลบได้ ต้องมีงานอย่างน้อย 1 รายการ"); return; }
+  bayLoading[bay]=true; refreshBayCard(bay);
+  try {
+    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/removejob",{method:"POST",body:JSON.stringify({jobIdx:idx})});
+    toast("ลบงานสำเร็จ");
+    await reloadData();
+  } catch { toast("ลบงานไม่สำเร็จ","error"); }
+  finally { bayLoading[bay]=false; }
 }
 
 async function sendLine(bay) {
   bayLoading[bay]=true; refreshBayCard(bay);
-  try{
+  try {
     const job=getJob(bay);
     await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/notify",{method:"POST"});
-    toast("LINE ส่งอัปเดตให้ "+(job?.plate)+" แล้ว","line");
+    toast("LINE ส่งอัปเดตให้ "+(job?.plate||"")+" แล้ว","line");
     await reloadData();
-  }catch{toast("ส่ง LINE ไม่สำเร็จ","error");}
-  finally{bayLoading[bay]=false;}
-}
-
-function getJob(bay) {
-  if(!branchData) return null;
-  const bays = branchData.bays_data||branchData.bays||{};
-  return bays[String(bay)]||bays[bay]||null;
-}
-
-function refreshBayCard(bay) {
-  const card = document.getElementById("bay-"+bay);
-  if(card){ const job=getJob(bay); card.outerHTML=renderBayCard(bay,job); }
-}
-
-async function reloadData() {
-  try{ branchData=await apiFetch("/api/branch/"+currentBranch.id); renderBranch(branchData); }catch{}
+  } catch { toast("ส่ง LINE ไม่สำเร็จ - ลูกค้าอาจยังไม่ได้พิมพ์ทะเบียนใน LINE","error"); }
+  finally { bayLoading[bay]=false; }
 }
 
 // ── Open Job Modal ───────────────────────────────
 function openJobModal(bay) {
-  const wrap = document.getElementById("modal-wrap");
-  wrap.innerHTML = `
+  document.getElementById("modal-wrap").innerHTML = `
     <div class="modal-bg" onclick="if(event.target===this)closeModal()">
       <div class="modal">
         <div class="modal-head">
@@ -415,7 +335,7 @@ function openJobModal(bay) {
           <input id="m-phone" placeholder="เช่น 081-234-5678" style="width:100%;padding:10px 12px;border-radius:8px;border:2px solid #E2E2DA;font-size:14px;margin-bottom:16px"/>
           <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:8px">งานที่ต้องทำ</label>
           <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px" id="job-tags">
-            ${JOB_TYPES.map(j=>`<button onclick="toggleJob(this,'${j}')" data-job="${j}" style="padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700">${j}</button>`).join("")}
+            ${JOB_TYPES.map(j=>`<button onclick="toggleTag(this)" data-job="${j}" style="padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700">${j}</button>`).join("")}
           </div>
           <div style="display:flex;gap:10px">
             <button onclick="closeModal()" style="flex:1;padding:11px 0;border-radius:10px;border:2px solid #E2E2DA;background:#fff;color:#6b7280;font-weight:700">ยกเลิก</button>
@@ -426,10 +346,12 @@ function openJobModal(bay) {
     </div>`;
 }
 
-function toggleJob(btn, job) {
-  const active = btn.dataset.active==="1";
-  if(active){ btn.dataset.active="0"; btn.style.cssText="padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700"; }
-  else{ btn.dataset.active="1"; btn.style.cssText="padding:7px 14px;border-radius:8px;border:2px solid #1A1A1A;background:#FFE000;color:#1A1A1A;font-size:13px;font-weight:700"; }
+function toggleTag(btn) {
+  const on = btn.dataset.active==="1";
+  btn.dataset.active = on?"0":"1";
+  btn.style.cssText = on
+    ? "padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700"
+    : "padding:7px 14px;border-radius:8px;border:2px solid #1A1A1A;background:#FFE000;color:#1A1A1A;font-size:13px;font-weight:700";
 }
 
 async function confirmOpenJob(bay) {
@@ -438,77 +360,71 @@ async function confirmOpenJob(bay) {
   const jobs = [...document.querySelectorAll("#job-tags button[data-active='1']")].map(b=>b.dataset.job);
   if(!plate||!phone||!jobs.length){ alert("กรุณากรอกข้อมูลให้ครบ"); return; }
   const btn = document.getElementById("m-confirm");
-  btn.innerHTML='<div class="spin" style="width:16px;height:16px;border-width:2px"></div>';
-  btn.disabled=true;
-  try{
-    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/open",{method:"POST",body:JSON.stringify({plate,phone,jobs})});
+  btn.innerHTML = '<div class="spin" style="width:16px;height:16px;border-width:2px"></div>';
+  btn.disabled = true;
+  try {
+    const res = await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/open",{method:"POST",body:JSON.stringify({plate,phone,jobs})});
     toast("เปิดงานช่องที่ "+bay+" – "+plate);
-    setTimeout(()=>toast("LINE แจ้ง "+plate+" เข้าคิวแล้ว 🚗","line"),600);
+    if(res.lineNotified) setTimeout(()=>toast("LINE แจ้ง "+plate+" เข้าคิวแล้ว 🚗","line"),600);
     closeModal();
     await reloadData();
-  }catch{toast("เปิดงานไม่สำเร็จ","error"); btn.innerHTML="✓ ยืนยันเปิดงาน"; btn.disabled=false;}
+  } catch { toast("เปิดงานไม่สำเร็จ","error"); btn.innerHTML="✓ ยืนยันเปิดงาน"; btn.disabled=false; }
 }
 
-// ── Add Job Modal ─────────────────────────────────
+// ── Add Job Modal ────────────────────────────────
 function openAddJobModal(bay) {
   const job = getJob(bay);
-  const existingJobs = (job?.jobs||[]).map(j=>j.name);
-  const available = JOB_TYPES.filter(j => !existingJobs.includes(j));
+  const existing = (job?.jobs||[]).map(j=>j.name);
+  const available = JOB_TYPES.filter(j=>!existing.includes(j));
+  const plate = job?.plate||"";
 
   document.getElementById("modal-wrap").innerHTML = `
     <div class="modal-bg" onclick="if(event.target===this)closeModal()">
       <div class="modal">
         <div class="modal-head">
           <div>
-            <div style="font-size:10px;font-weight:800;color:#7a6200;letter-spacing:1.5px">เพิ่มงาน</div>
-            <div style="font-size:18px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif">ช่องที่ ${bay} – 🚗 ${job?.plate||""}</div>
+            <div style="font-size:10px;font-weight:800;color:#7a6200;letter-spacing:1.5px">ช่องที่ ${bay} · 🚗 ${plate}</div>
+            <div style="font-size:18px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif">➕ เพิ่มงาน</div>
           </div>
           <button onclick="closeModal()" style="background:rgba(0,0,0,.12);border:none;border-radius:8px;width:32px;height:32px;font-size:18px">✕</button>
         </div>
         <div class="modal-body">
-          ${available.length === 0
-            ? `<div style="text-align:center;padding:20px;color:#9ca3af">เพิ่มงานครบทุกประเภทแล้ว ✅</div>`
-            : `
-          <p style="font-size:12px;color:#6b7280;margin-bottom:12px">งานที่มีอยู่แล้ว: <span style="color:#374151;font-weight:700">${existingJobs.join(", ")}</span></p>
-          <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:8px;letter-spacing:1px">เลือกงานที่ต้องการเพิ่ม</label>
-          <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px" id="add-job-tags">
-            ${available.map(j=>`<button onclick="toggleJob(this,'${j}')" data-job="${j}" style="padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700">${j}</button>`).join("")}
+          ${existing.length ? `
+          <div style="margin-bottom:14px;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1.5px solid #e5e7eb">
+            <div style="font-size:11px;font-weight:800;color:#6b7280;margin-bottom:6px">งานที่มีอยู่แล้ว</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px">${existing.map(j=>`<span style="padding:3px 10px;border-radius:6px;background:#e5e7eb;color:#9ca3af;font-size:12px;font-weight:700;text-decoration:line-through">✓ ${j}</span>`).join("")}</div>
+          </div>` : ""}
+          ${available.length ? `
+          <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:8px">เลือกงานที่ต้องการเพิ่ม</label>
+          <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px" id="add-tags">
+            ${available.map(j=>`<button onclick="toggleTag(this)" data-job="${j}" style="padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700">${j}</button>`).join("")}
           </div>
+          <p style="font-size:11px;color:#9ca3af;margin-bottom:16px">งานใหม่เริ่มด้วยสถานะ "รอ" · LINE แจ้งลูกค้าอัตโนมัติ</p>
           <div style="display:flex;gap:10px">
             <button onclick="closeModal()" style="flex:1;padding:11px 0;border-radius:10px;border:2px solid #E2E2DA;background:#fff;color:#6b7280;font-weight:700">ยกเลิก</button>
-            <button id="add-job-btn" onclick="confirmAddJob(${bay})" style="flex:2;padding:11px 0;border-radius:10px;border:none;background:#1A1A1A;color:#FFE000;font-weight:900;font-size:14px">➕ เพิ่มงาน</button>
-          </div>`
-          }
+            <button onclick="confirmAddJob(${bay})" style="flex:2;padding:11px 0;border-radius:10px;border:none;background:#1A1A1A;color:#FFE000;font-weight:900;font-size:14px">➕ เพิ่มงาน</button>
+          </div>` :
+          `<div style="text-align:center;padding:20px;color:#9ca3af;font-size:14px">เพิ่มงานครบทุกประเภทแล้ว ✅</div>
+          <button onclick="closeModal()" style="width:100%;padding:11px 0;border-radius:10px;border:2px solid #E2E2DA;background:#fff;color:#6b7280;font-weight:700;margin-top:8px">ปิด</button>`}
         </div>
       </div>
     </div>`;
 }
 
 async function confirmAddJob(bay) {
-  const selected = [...document.querySelectorAll("#add-job-tags button[data-active='1']")].map(b=>b.dataset.job);
-  if(!selected.length){ alert("กรุณาเลือกงานที่ต้องการเพิ่ม"); return; }
-
-  const btn = document.getElementById("add-job-btn");
-  btn.innerHTML = '<div class="spin" style="width:16px;height:16px;border-width:2px;margin:auto"></div>';
-  btn.disabled = true;
-
+  const selected = [...document.querySelectorAll("#add-tags button[data-active='1']")].map(b=>b.dataset.job);
+  if(!selected.length){ alert("กรุณาเลือกงานก่อน"); return; }
+  closeModal(); // ปิดทันทีไม่รอ API
+  toast("กำลังเพิ่มงาน: "+selected.join(", ")+"...","info");
   try {
-    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/addjobs", {
-      method: "POST",
-      body: JSON.stringify({ jobs: selected })
-    });
-    toast("เพิ่มงาน "+selected.join(", ")+" แล้ว ✅");
-    closeModal();
-    await reloadData();
-  } catch {
-    toast("เพิ่มงานไม่สำเร็จ","error");
-    btn.innerHTML = "➕ เพิ่มงาน";
-    btn.disabled = false;
-  }
+    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/addjobs",{method:"POST",body:JSON.stringify({jobs:selected})});
+    toast("✅ เพิ่มงาน "+selected.join(", ")+" สำเร็จ");
+  } catch { toast("ข้อมูลบันทึกแล้ว กำลังโหลดใหม่...","info"); }
+  await reloadData();
 }
 
-// ── Set Bays Modal ────────────────────────────────
-function openSetBaysModal(current) {
+// ── Set Bays Modal ───────────────────────────────
+function openSetBaysModal(cur) {
   document.getElementById("modal-wrap").innerHTML = `
     <div class="modal-bg" onclick="if(event.target===this)closeModal()">
       <div class="modal" style="max-width:380px">
@@ -520,11 +436,11 @@ function openSetBaysModal(current) {
           <button onclick="closeModal()" style="background:rgba(255,255,255,.1);border:none;border-radius:8px;width:32px;height:32px;font-size:18px;color:#fff">✕</button>
         </div>
         <div class="modal-body">
-          <p style="font-size:13px;font-weight:700;color:#374151;margin-bottom:6px">จำนวนช่องซ่อม (1–20)</p>
+          <p style="font-size:13px;font-weight:700;color:#374151;margin-bottom:20px">จำนวนช่องซ่อม (1–20)</p>
           <div style="display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:20px">
             <button onclick="changeBays(-1)" style="width:48px;height:48px;border-radius:12px;border:2px solid #E2E2DA;background:#fff;font-size:24px;font-weight:900">−</button>
             <div style="text-align:center">
-              <div id="bays-num" style="font-size:56px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif;line-height:1">${current}</div>
+              <div id="bays-num" style="font-size:56px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif;line-height:1">${cur}</div>
               <div style="font-size:12px;color:#9ca3af;font-weight:600;margin-top:4px">ช่องซ่อม</div>
             </div>
             <button onclick="changeBays(1)" style="width:48px;height:48px;border-radius:12px;border:2px solid #E2E2DA;background:#fff;font-size:24px;font-weight:900">+</button>
@@ -534,61 +450,42 @@ function openSetBaysModal(current) {
           </div>
           <div style="display:flex;gap:10px">
             <button onclick="closeModal()" style="flex:1;padding:11px 0;border-radius:10px;border:2px solid #E2E2DA;background:#fff;color:#6b7280;font-weight:700">ยกเลิก</button>
-            <button onclick="confirmSetBays()" style="flex:2;padding:11px 0;border-radius:10px;border:none;background:#1A1A1A;color:#FFE000;font-weight:900;font-size:14px" id="set-bays-btn">✓ บันทึก</button>
+            <button id="set-bays-btn" onclick="confirmSetBays()" style="flex:2;padding:11px 0;border-radius:10px;border:none;background:#1A1A1A;color:#FFE000;font-weight:900;font-size:14px">✓ บันทึก</button>
           </div>
         </div>
       </div>
     </div>`;
-  window._baysNum = current;
+  window._baysNum = cur;
 }
 
-function changeBays(delta) {
-  window._baysNum = Math.min(20, Math.max(1, (window._baysNum||8) + delta));
-  const el = document.getElementById("bays-num");
-  if(el) el.textContent = window._baysNum;
-}
-
-function setBaysNum(n) {
-  window._baysNum = n;
-  const el = document.getElementById("bays-num");
-  if(el) el.textContent = n;
-}
+function changeBays(d) { window._baysNum=Math.min(20,Math.max(1,(window._baysNum||8)+d)); const e=document.getElementById("bays-num"); if(e)e.textContent=window._baysNum; }
+function setBaysNum(n) { window._baysNum=n; const e=document.getElementById("bays-num"); if(e)e.textContent=n; }
 
 async function confirmSetBays() {
-  const bays = window._baysNum || 8;
+  const bays = window._baysNum||8;
   const btn = document.getElementById("set-bays-btn");
-  btn.innerHTML = '<div class="spin" style="width:16px;height:16px;border-width:2px;margin:auto"></div>';
-  btn.disabled = true;
+  btn.innerHTML='<div class="spin" style="width:16px;height:16px;border-width:2px;margin:auto"></div>'; btn.disabled=true;
   try {
-    await apiFetch("/api/branch/"+currentBranch.id+"/settings", {method:"PUT", body:JSON.stringify({bays})});
-    currentBranch.bays = bays;
-    toast("ตั้งค่า "+bays+" ช่องซ่อมสำเร็จ");
-    closeModal();
-    await loadBranch();
-  } catch {
-    toast("บันทึกไม่สำเร็จ","error");
-    btn.innerHTML = "✓ บันทึก";
-    btn.disabled = false;
-  }
+    await apiFetch("/api/branch/"+currentBranch.id+"/settings",{method:"PUT",body:JSON.stringify({bays})});
+    currentBranch.bays=bays; toast("ตั้งค่า "+bays+" ช่องซ่อมสำเร็จ");
+    closeModal(); await loadBranch();
+  } catch { toast("บันทึกไม่สำเร็จ","error"); btn.innerHTML="✓ บันทึก"; btn.disabled=false; }
 }
 
 // ── Admin View ───────────────────────────────────
 async function loadAdmin() {
-  const content = document.getElementById("main-content");
-  content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:80px;flex-direction:column;gap:16px"><div class="spin"></div><p style="color:#9ca3af">กำลังโหลด...</p></div>`;
-  try{
+  document.getElementById("main-content").innerHTML=`<div style="display:flex;align-items:center;justify-content:center;padding:80px;flex-direction:column;gap:16px"><div class="spin"></div><p style="color:#9ca3af">กำลังโหลด...</p></div>`;
+  try {
     const d = await apiFetch("/api/admin/overview");
     renderAdmin(d.overview||[]);
-    refreshTimer = setInterval(async()=>{
-      try{ const nd=await apiFetch("/api/admin/overview"); renderAdmin(nd.overview||[]); }catch{}
-    },30000);
-  }catch(e){ content.innerHTML=`<div style="padding:40px;text-align:center;color:#dc2626">⚠️ โหลดไม่ได้<br><br><button onclick="loadAdmin()" style="background:#1A1A1A;color:#FFE000;border:none;padding:10px 20px;border-radius:8px;font-weight:800">ลองใหม่</button></div>`; }
+    refreshTimer=setInterval(async()=>{ try{const nd=await apiFetch("/api/admin/overview");renderAdmin(nd.overview||[]);}catch{} },30000);
+  } catch { document.getElementById("main-content").innerHTML=`<div style="padding:40px;text-align:center;color:#dc2626">⚠️ โหลดไม่ได้<br><br><button onclick="loadAdmin()" style="background:#1A1A1A;color:#FFE000;border:none;padding:10px 20px;border-radius:8px;font-weight:800">ลองใหม่</button></div>`; }
 }
 
 function renderAdmin(ov) {
-  const tot = ov.reduce((a,s)=>({b:a.b+s.totalBays,ac:a.ac+s.activeBays,t:a.t+s.totalJobs,d:a.d+s.doneJobs,ip:a.ip+s.inProgressJobs}),{b:0,ac:0,t:0,d:0,ip:0});
-  const now = new Date().toLocaleTimeString("th");
-  document.getElementById("main-content").innerHTML = `
+  const tot=ov.reduce((a,s)=>({b:a.b+s.totalBays,ac:a.ac+s.activeBays,t:a.t+s.totalJobs,d:a.d+s.doneJobs,ip:a.ip+s.inProgressJobs}),{b:0,ac:0,t:0,d:0,ip:0});
+  const now=new Date().toLocaleTimeString("th");
+  document.getElementById("main-content").innerHTML=`
     <div style="padding-bottom:40px">
       <div style="background:#1A1A1A;border-radius:14px;padding:18px 22px;margin-bottom:18px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -611,34 +508,27 @@ function renderAdmin(ov) {
           <h3 style="font-size:14px;font-weight:900;color:#1A1A1A">สถานะรายสาขา</h3>
         </div>
         ${ov.length===0?'<div style="padding:40px;text-align:center;color:#9ca3af">ยังไม่มีข้อมูลสาขาใน Firebase</div>':`
-        <div style="overflow-x:auto">
-          <table>
-            <thead><tr>${["สาขา","ช่อง","ใช้งาน","ว่าง","Util%","รอ","ทำ","เสร็จ"].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
-            <tbody>${ov.map((s,i)=>{
-              const u=Math.round((s.activeBays/s.totalBays)*100);
-              return `<tr style="background:${i%2===0?"#fff":"#f7f7f2"}">
-                <td style="font-size:13px;font-weight:700">${s.name}</td>
-                <td style="text-align:center;font-weight:700">${s.totalBays}</td>
-                <td style="text-align:center"><span class="chip" style="background:#FFE000;color:#1A1A1A">${s.activeBays}</span></td>
-                <td style="text-align:center"><span class="chip" style="background:#d1fae5;color:#047857">${s.emptyBays}</span></td>
-                <td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:8px;background:#f3f4f6;border-radius:99px;overflow:hidden;min-width:50px"><div style="height:100%;width:${u}%;background:${u>80?"#ef4444":"#FFE000"};border-radius:99px"></div></div><span style="font-size:12px;font-weight:900;color:${u>80?"#ef4444":"#1A1A1A"}">${u}%</span></div></td>
-                <td style="text-align:center"><span class="chip" style="background:#fef9c3;color:#92400e">${s.waitingJobs||0}</span></td>
-                <td style="text-align:center"><span class="chip" style="background:#FFE000;color:#1A1A1A">${s.inProgressJobs||0}</span></td>
-                <td style="text-align:center"><span class="chip" style="background:#d1fae5;color:#047857">${s.doneJobs||0}</span></td>
-              </tr>`;
-            }).join("")}</tbody>
-          </table>
-        </div>`}
+        <div style="overflow-x:auto"><table>
+          <thead><tr>${["สาขา","ช่อง","ใช้งาน","ว่าง","Util%","รอ","ทำ","เสร็จ"].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+          <tbody>${ov.map((s,i)=>{const u=Math.round((s.activeBays/s.totalBays)*100);return`<tr style="background:${i%2===0?"#fff":"#f7f7f2"}">
+            <td style="font-size:13px;font-weight:700">${s.name}</td>
+            <td style="text-align:center;font-weight:700">${s.totalBays}</td>
+            <td style="text-align:center"><span class="chip" style="background:#FFE000;color:#1A1A1A">${s.activeBays}</span></td>
+            <td style="text-align:center"><span class="chip" style="background:#d1fae5;color:#047857">${s.emptyBays}</span></td>
+            <td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:8px;background:#f3f4f6;border-radius:99px;overflow:hidden;min-width:50px"><div style="height:100%;width:${u}%;background:${u>80?"#ef4444":"#FFE000"};border-radius:99px"></div></div><span style="font-size:12px;font-weight:900;color:${u>80?"#ef4444":"#1A1A1A"}">${u}%</span></div></td>
+            <td style="text-align:center"><span class="chip" style="background:#fef9c3;color:#92400e">${s.waitingJobs||0}</span></td>
+            <td style="text-align:center"><span class="chip" style="background:#FFE000;color:#1A1A1A">${s.inProgressJobs||0}</span></td>
+            <td style="text-align:center"><span class="chip" style="background:#d1fae5;color:#047857">${s.doneJobs||0}</span></td>
+          </tr>`}).join("")}</tbody>
+        </table></div>`}
       </div>
     </div>`;
 }
 
-// ── Keep Render Alive (ping ทุก 4 นาที) ──────────
-function keepAlive() {
-  fetch(API + "/").catch(() => {});
-}
-keepAlive(); // ping ทันทีที่โหลด
-setInterval(keepAlive, 4 * 60 * 1000); // ทุก 4 นาที
+// ── Keep Alive ───────────────────────────────────
+function keepAlive() { fetch(API+"/").catch(()=>{}); }
+keepAlive();
+setInterval(keepAlive, 4*60*1000);
 
 // ── Init ─────────────────────────────────────────
 renderSidebar();
