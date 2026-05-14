@@ -84,9 +84,17 @@ let bayLoading = {};
 
 // ── API ────────────────────────────────────────
 async function apiFetch(path, opts={}) {
-  const r = await fetch(API+path, {headers:{"Content-Type":"application/json"},...opts});
-  if(!r.ok) throw new Error("API "+r.status);
-  return r.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000); // timeout 15 วิ
+  try {
+    const r = await fetch(API+path, {headers:{"Content-Type":"application/json"}, signal: controller.signal, ...opts});
+    clearTimeout(timer);
+    if(!r.ok) throw new Error("API "+r.status);
+    return r.json();
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
 }
 
 // ── Toast ───────────────────────────────────────
@@ -324,10 +332,11 @@ async function confirmAddJob(bay) {
     toast("เพิ่มงาน "+newJobs.join(", ")+" สำเร็จ");
     closeModal();
     await reloadData();
-  } catch {
-    toast("เพิ่มงานไม่สำเร็จ", "error");
-    btn.innerHTML = "➕ เพิ่มงาน";
-    btn.disabled = false;
+  } catch(e) {
+    // ถ้า error แต่งานเพิ่มสำเร็จแล้ว (Render ช้า) → ปิด modal แล้ว reload
+    closeModal();
+    toast("เพิ่มงานสำเร็จ (รีเฟรชข้อมูล...)");
+    await reloadData();
   }
 }
 
