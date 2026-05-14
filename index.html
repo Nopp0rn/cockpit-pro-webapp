@@ -84,7 +84,7 @@ let bayLoading = {};
 // ── API ─────────────────────────────────────────
 async function apiFetch(path, opts={}) {
   const ctrl = new AbortController();
-  const t = setTimeout(()=>ctrl.abort(), 20000);
+  const t = setTimeout(()=>ctrl.abort(), 60000); // เพิ่มเป็น 60 วินาที
   try {
     const r = await fetch(API+path, {headers:{"Content-Type":"application/json"}, signal:ctrl.signal, ...opts});
     clearTimeout(t);
