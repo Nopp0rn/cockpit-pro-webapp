@@ -72,11 +72,11 @@ td{padding:10px 14px;border-bottom:1px solid #E2E2DA}
 
 <script>
 const API = "https://cockpit-pro-backend.onrender.com";
-const BRANCHES = [{id:"BR107",name:"Cockpit บายพาส อุดรธานี",lineOA:"@027qubjk",bays:8}];
+let BRANCHES = []; // โหลดจาก Firebase อัตโนมัติ
 const JOB_TYPES = ["ยาง","ตั้งศูนย์","ถ่วงล้อ","แบตเตอรี่","เบรค","โช้คอัพ","น้ำมันเครื่อง","Cockpit Sure","อื่นๆ"];
 
 let currentView = "branch";
-let currentBranch = BRANCHES[0];
+let currentBranch = null;
 let branchData = null;
 let refreshTimer = null;
 let bayLoading = {};
@@ -530,9 +530,27 @@ function keepAlive() { fetch(API+"/").catch(()=>{}); }
 keepAlive();
 setInterval(keepAlive, 4*60*1000);
 
-// ── Init ─────────────────────────────────────────
-renderSidebar();
-setView("branch");
+// ── Init — โหลดสาขาจาก Firebase ─────────────────
+async function init() {
+  try {
+    const d = await apiFetch("/api/admin/overview");
+    BRANCHES = (d.overview||[]).map(b=>({
+      id: b.branchId,
+      name: b.name,
+      lineOA: b.lineOA||"",
+      bays: b.totalBays||8,
+    }));
+    if(!BRANCHES.length) throw new Error("no branches");
+  } catch {
+    // fallback ถ้า API ยังไม่พร้อม
+    BRANCHES = [{id:"BR107",name:"Cockpit บายพาส อุดรธานี",lineOA:"@027qubjk",bays:8}];
+  }
+  currentBranch = BRANCHES[0];
+  renderSidebar();
+  setView("branch");
+}
+
+init();
 </script>
 </body>
 </html>
