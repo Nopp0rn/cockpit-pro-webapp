@@ -633,6 +633,13 @@ function renderAdmin(ov) {
     </div>`;
 }
 
+// ── Keep Render Alive (ping ทุก 4 นาที) ──────────
+function keepAlive() {
+  fetch(API + "/").catch(() => {});
+}
+keepAlive(); // ping ทันทีที่โหลด
+setInterval(keepAlive, 4 * 60 * 1000); // ทุก 4 นาที
+
 // ── Init ─────────────────────────────────────────
 renderSidebar();
 setView("branch");
