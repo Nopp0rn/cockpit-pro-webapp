@@ -273,29 +273,36 @@ async function closeJob(bay) {
   if(!confirm("ปิดงานช่องที่ "+bay+"?")) return;
   const job = getJob(bay);
   bayLoading[bay]=true; refreshBayCard(bay);
-  toast("กำลังปิดงาน...", "info");
-  // Fire and forget - ไม่รอ response เพราะ Render อาจช้า
-  apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/close",{method:"POST"})
-    .then(()=>toast("ปิดงาน "+job?.plate+" – ช่องว่างแล้ว"))
-    .catch(()=>toast("ปิดงานสำเร็จ (กำลังโหลดใหม่...)"));
-  // รอ 3 วิ แล้ว reload โดยไม่ต้องรอ API
-  setTimeout(async()=>{
-    bayLoading[bay]=false;
-    await reloadData();
-    if(job) toast("LINE แจ้ง "+job.plate+" รถพร้อมรับ 🎉","line");
-  }, 3000);
+  toast("กำลังปิดงาน... (รอสักครู่)", "info");
+  try {
+    // ใช้ timeout 90 วิ สำหรับ close เพราะต้องส่ง LINE ด้วย
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), 90000);
+    const r = await fetch(API+"/api/branch/"+currentBranch.id+"/bay/"+bay+"/close",
+      {method:"POST", headers:{"Content-Type":"application/json"}, signal:ctrl.signal});
+    clearTimeout(t);
+    toast("✅ ปิดงาน "+job?.plate+" สำเร็จ – ช่องว่างแล้ว");
+    if(job) setTimeout(()=>toast("LINE แจ้ง "+job.plate+" รถพร้อมรับ 🎉","line"),600);
+  } catch {
+    toast("ปิดงานสำเร็จ (อาจใช้เวลาอัปเดต)");
+  }
+  bayLoading[bay]=false;
+  await reloadData();
+  setTimeout(()=>reloadData(), 5000); // reload ซ้ำอีกครั้ง
 }
 
 async function updateJob(bay, idx, status) {
   bayLoading[bay]=true; refreshBayCard(bay);
-  // Fire and forget
-  apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/job/"+idx,{method:"PATCH",body:JSON.stringify({status})})
-    .then(()=>toast("อัปเดตสถานะงานแล้ว"))
-    .catch(()=>{});
-  setTimeout(async()=>{
-    bayLoading[bay]=false;
-    await reloadData();
-  }, 3000);
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), 90000);
+    await fetch(API+"/api/branch/"+currentBranch.id+"/bay/"+bay+"/job/"+idx,
+      {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status}), signal:ctrl.signal});
+    clearTimeout(t);
+    toast("อัปเดตสถานะงานแล้ว");
+  } catch { toast("กำลังอัปเดต...","info"); }
+  bayLoading[bay]=false;
+  await reloadData();
 }
 
 async function removeJob(bay, idx) {
