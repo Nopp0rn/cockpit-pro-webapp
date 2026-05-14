@@ -136,6 +136,7 @@ async function loadBranch() {
   content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:80px;flex-direction:column;gap:16px"><div class="spin"></div><p style="color:#9ca3af;font-weight:600">กำลังโหลดจาก Firebase...</p></div>`;
   try {
     const d = await apiFetch("/api/branch/"+currentBranch.id);
+    console.log("API response:", JSON.stringify(d, null, 2));
     branchData = d;
     renderBranch(d);
     refreshTimer = setInterval(async()=>{
@@ -147,15 +148,29 @@ async function loadBranch() {
 }
 
 function renderBranch(d) {
-  const total = d.bays||8;
-  const bays = d.bays_data || d.bays || {};
-  const active = Object.values(bays).filter(Boolean).length;
+  // d.bays อาจเป็น object ของช่องซ่อม หรือตัวเลขจำนวนช่อง
+  // Backend v2 ส่ง: { name, lineOA, bays: 8, bays_data: {...} } หรือ { name, lineOA, bays: {...} }
+  let total, baysMap;
+  if(typeof d.bays === "number") {
+    total = d.bays;
+    baysMap = d.bays_data || {};
+  } else if(typeof d.bays === "object" && d.bays !== null) {
+    // bays เป็น map ของช่องซ่อม → ดึง totalBays จาก field อื่น
+    baysMap = d.bays;
+    total = d.totalBays || d.bayCount || Object.keys(baysMap).length || 8;
+    // ถ้ายังไม่ได้ค่า ใช้ค่าจาก currentBranch
+    if(!total || total === 0) total = currentBranch.bays || 8;
+  } else {
+    total = currentBranch.bays || 8;
+    baysMap = {};
+  }
+  const active = Object.values(baysMap).filter(Boolean).length;
   const empty = total - active;
   const now = new Date().toLocaleTimeString("th");
 
   let baysHtml = "";
   for(let i=1;i<=total;i++){
-    const job = bays[String(i)] || bays[i] || null;
+    const job = baysMap[String(i)] || baysMap[i] || null;
     baysHtml += renderBayCard(i, job);
   }
 
