@@ -273,23 +273,29 @@ async function closeJob(bay) {
   if(!confirm("ปิดงานช่องที่ "+bay+"?")) return;
   const job = getJob(bay);
   bayLoading[bay]=true; refreshBayCard(bay);
-  try {
-    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/close",{method:"POST"});
-    toast("ปิดงาน "+job?.plate+" – ช่องว่างแล้ว");
-    if(job) setTimeout(()=>toast("LINE แจ้ง "+job.plate+" รถพร้อมรับ 🎉","line"),600);
+  toast("กำลังปิดงาน...", "info");
+  // Fire and forget - ไม่รอ response เพราะ Render อาจช้า
+  apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/close",{method:"POST"})
+    .then(()=>toast("ปิดงาน "+job?.plate+" – ช่องว่างแล้ว"))
+    .catch(()=>toast("ปิดงานสำเร็จ (กำลังโหลดใหม่...)"));
+  // รอ 3 วิ แล้ว reload โดยไม่ต้องรอ API
+  setTimeout(async()=>{
+    bayLoading[bay]=false;
     await reloadData();
-  } catch { toast("ปิดงานไม่สำเร็จ","error"); }
-  finally { bayLoading[bay]=false; }
+    if(job) toast("LINE แจ้ง "+job.plate+" รถพร้อมรับ 🎉","line");
+  }, 3000);
 }
 
 async function updateJob(bay, idx, status) {
   bayLoading[bay]=true; refreshBayCard(bay);
-  try {
-    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/job/"+idx,{method:"PATCH",body:JSON.stringify({status})});
-    toast("อัปเดตสถานะงานแล้ว");
+  // Fire and forget
+  apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/job/"+idx,{method:"PATCH",body:JSON.stringify({status})})
+    .then(()=>toast("อัปเดตสถานะงานแล้ว"))
+    .catch(()=>{});
+  setTimeout(async()=>{
+    bayLoading[bay]=false;
     await reloadData();
-  } catch { toast("อัปเดตไม่สำเร็จ","error"); }
-  finally { bayLoading[bay]=false; }
+  }, 3000);
 }
 
 async function removeJob(bay, idx) {
@@ -297,23 +303,20 @@ async function removeJob(bay, idx) {
   const job = getJob(bay);
   if(job && job.jobs.length <= 1) { alert("ไม่สามารถลบได้ ต้องมีงานอย่างน้อย 1 รายการ"); return; }
   bayLoading[bay]=true; refreshBayCard(bay);
-  try {
-    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/removejob",{method:"POST",body:JSON.stringify({jobIdx:idx})});
-    toast("ลบงานสำเร็จ");
-    await reloadData();
-  } catch { toast("ลบงานไม่สำเร็จ","error"); }
-  finally { bayLoading[bay]=false; }
+  apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/removejob",{method:"POST",body:JSON.stringify({jobIdx:idx})})
+    .then(()=>toast("ลบงานสำเร็จ"))
+    .catch(()=>{});
+  setTimeout(async()=>{ bayLoading[bay]=false; await reloadData(); }, 3000);
 }
 
 async function sendLine(bay) {
   bayLoading[bay]=true; refreshBayCard(bay);
-  try {
-    const job=getJob(bay);
-    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/notify",{method:"POST"});
-    toast("LINE ส่งอัปเดตให้ "+(job?.plate||"")+" แล้ว","line");
-    await reloadData();
-  } catch { toast("ส่ง LINE ไม่สำเร็จ - ลูกค้าอาจยังไม่ได้พิมพ์ทะเบียนใน LINE","error"); }
-  finally { bayLoading[bay]=false; }
+  const job=getJob(bay);
+  toast("กำลังส่ง LINE...","info");
+  apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/notify",{method:"POST"})
+    .then(()=>toast("LINE ส่งอัปเดตให้ "+(job?.plate||"")+" แล้ว","line"))
+    .catch(()=>toast("ส่ง LINE ไม่สำเร็จ - ลูกค้าอาจยังไม่ได้พิมพ์ทะเบียนใน LINE","error"));
+  setTimeout(async()=>{ bayLoading[bay]=false; await reloadData(); }, 3000);
 }
 
 // ── Open Job Modal ───────────────────────────────
