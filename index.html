@@ -1,370 +1,413 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Cockpit Pro คิว</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Noto Sans Thai','Sarabun',sans-serif;background:#F7F7F2;min-height:100vh}
-    @keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    button{transition:opacity 0.15s,transform 0.1s;cursor:pointer}
-    button:active{transform:scale(0.96)}
-    input:focus{outline:none;border-color:#FFE000!important;box-shadow:0 0 0 3px rgba(255,224,0,0.25)}
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Cockpit Pro คิว</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans Thai',sans-serif;background:#F7F7F2;min-height:100vh}
+@keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{width:24px;height:24px;border:3px solid rgba(255,224,0,0.3);border-top:3px solid #FFE000;border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block}
+button{cursor:pointer;font-family:'Noto Sans Thai',sans-serif;transition:opacity .15s,transform .1s}
+button:active{transform:scale(.96)}
+input{font-family:'Noto Sans Thai',sans-serif}
+input:focus{outline:none;border-color:#FFE000!important;box-shadow:0 0 0 3px rgba(255,224,0,.25)}
+.topbar{background:#fff;border-bottom:3px solid #FFE000;padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:58px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.logo{background:#FFE000;padding:4px 10px;border-radius:5px;font-family:'Arial Black',sans-serif;font-size:20px;font-weight:900;color:#1A1A1A;letter-spacing:-.5px;line-height:1}
+.nav-btn{padding:7px 16px;border-radius:10px;border:none;font-weight:800;font-size:13px;cursor:pointer;transition:all .2s}
+.sidebar{width:208px;background:#fff;border-right:2px solid #E2E2DA;min-height:calc(100vh - 58px);padding:14px 10px;flex-shrink:0}
+.branch-btn{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:10px;border:2px solid transparent;background:transparent;margin-bottom:3px;cursor:pointer}
+.branch-btn.active{border-color:#FFE000;background:#FFE000}
+.content{flex:1;padding:20px;overflow:auto}
+.bay-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.bay-card{background:#fff;border:2px solid #E2E2DA;border-radius:12px;padding:14px;min-height:160px;position:relative;transition:all .2s}
+.bay-card.active-bay{border-color:#FFE000;box-shadow:0 0 0 3px rgba(255,224,0,.2)}
+.bay-card.waiting-bay{border-color:#fde047}
+.overlay{position:absolute;inset:0;background:rgba(255,255,255,.75);border-radius:10px;display:flex;align-items:center;justify-content:center;z-index:10}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:440px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+.modal-head{background:#FFE000;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+.modal-body{padding:20px}
+.tag{padding:3px 9px;border-radius:6px;font-size:11px;font-weight:800;border:none;cursor:pointer}
+.status-badge{padding:2px 10px;border-radius:99px;font-size:11px;font-weight:800}
+.toast-wrap{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{padding:12px 18px;border-radius:8px;font-size:13px;font-weight:700;box-shadow:0 4px 24px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px;animation:slideIn .3s ease;max-width:320px}
+table{width:100%;border-collapse:collapse}
+th{padding:10px 14px;text-align:left;font-size:11px;font-weight:900;background:#1A1A1A;color:#FFE000}
+td{padding:10px 14px;border-bottom:1px solid #E2E2DA}
+.chip{padding:2px 10px;border-radius:99px;font-size:12px;font-weight:800}
+</style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel">
-const { useState, useEffect, useCallback } = React;
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="logo">COCKPIT</div>
+    <div style="border-left:2px solid #E2E2DA;padding-left:10px">
+      <div style="font-size:13px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif">PRO คิว</div>
+      <div style="font-size:10px;color:#9ca3af">🔴 Live · Firebase + LINE OA</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:4px">
+    <button class="nav-btn" id="btn-branch" onclick="setView('branch')">สาขา</button>
+    <button class="nav-btn" id="btn-admin" onclick="setView('admin')">Admin</button>
+  </div>
+</div>
 
+<div style="display:flex">
+  <div class="sidebar" id="sidebar">
+    <p style="font-size:10px;font-weight:800;color:#9ca3af;letter-spacing:1.5px;margin:0 0 10px 6px">เลือกสาขา</p>
+    <div id="branch-list"></div>
+    <div style="margin:16px 6px 0;padding:10px 12px;background:#f0fdf4;border-radius:10px;border:1.5px solid #86efac">
+      <div style="font-size:11px;font-weight:800;color:#16a34a;margin-bottom:4px">🔴 Live Mode</div>
+      <div style="font-size:10px;color:#6b7280;line-height:1.5">เชื่อมต่อ Firebase + LINE OA จริง อัปเดตทุก 30 วิ</div>
+    </div>
+  </div>
+  <div class="content" id="main-content"></div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+<div id="modal-wrap"></div>
+
+<script>
 const API = "https://cockpit-pro-backend.onrender.com";
-const C = { yellow:"#FFE000", black:"#1A1A1A", bg:"#F7F7F2", border:"#E2E2DA", white:"#FFFFFF", green:"#16a34a", lineGreen:"#06c755" };
+const BRANCHES = [{id:"BR107",name:"Cockpit บายพาส อุดรธานี",lineOA:"@027qubjk",bays:8}];
 const JOB_TYPES = ["ยาง","ตั้งศูนย์","ถ่วงล้อ","แบตเตอรี่","เบรค","โช้คอัพ","น้ำมันเครื่อง","Cockpit Sure","อื่นๆ"];
-const JOB_DUR = {ยาง:45,ตั้งศูนย์:60,ถ่วงล้อ:30,แบตเตอรี่:20,เบรค:50,โช้คอัพ:90,น้ำมันเครื่อง:25,"Cockpit Sure":35,อื่นๆ:40};
 
-async function api(path, opts={}) {
+let currentView = "branch";
+let currentBranch = BRANCHES[0];
+let branchData = null;
+let refreshTimer = null;
+let bayLoading = {};
+
+// ── API ────────────────────────────────────────
+async function apiFetch(path, opts={}) {
   const r = await fetch(API+path, {headers:{"Content-Type":"application/json"},...opts});
   if(!r.ok) throw new Error("API "+r.status);
   return r.json();
 }
 
-function Spin({size=20}) {
-  return <div style={{width:size,height:size,border:"3px solid rgba(255,224,0,0.3)",borderTop:"3px solid #FFE000",borderRadius:"50%",animation:"spin 0.8s linear infinite",display:"inline-block"}}/>;
+// ── Toast ───────────────────────────────────────
+function toast(msg, type="success") {
+  const wrap = document.getElementById("toast-wrap");
+  const el = document.createElement("div");
+  el.className = "toast";
+  const colors = {success:{bg:"#1A1A1A",color:"#FFE000",border:"#FFE000",icon:"✅"}, line:{bg:"#06c755",color:"#fff",border:"#04a844",icon:"💬"}, error:{bg:"#dc2626",color:"#fff",border:"#991b1b",icon:"❌"}};
+  const c = colors[type]||colors.success;
+  el.style.cssText = `background:${c.bg};color:${c.color};border-left:4px solid ${c.border}`;
+  el.innerHTML = `<span>${c.icon}</span><span>${msg}</span>`;
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(), 4000);
 }
 
-function Logo() {
-  return <div style={{background:C.yellow,padding:"4px 10px",borderRadius:5,fontFamily:"Arial Black,Impact,sans-serif",fontSize:22,fontWeight:900,color:C.black,letterSpacing:"-0.5px",lineHeight:1}}>COCKPIT</div>;
+// ── Nav ─────────────────────────────────────────
+function setView(v) {
+  currentView = v;
+  document.getElementById("sidebar").style.display = v==="branch"?"block":"none";
+  document.getElementById("btn-branch").style.cssText = v==="branch"?"background:#FFE000;color:#1A1A1A":"background:transparent;color:#6b7280";
+  document.getElementById("btn-admin").style.cssText = v==="admin"?"background:#1A1A1A;color:#FFE000":"background:transparent;color:#6b7280";
+  clearInterval(refreshTimer);
+  if(v==="branch") loadBranch();
+  else loadAdmin();
 }
 
-function Toast({toasts}) {
-  return <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,display:"flex",flexDirection:"column",gap:8}}>
-    {toasts.map(t=><div key={t.id} style={{background:t.type==="line"?C.lineGreen:t.type==="error"?"#dc2626":C.black,color:t.type==="line"?"#fff":C.yellow,padding:"12px 18px",borderRadius:8,fontSize:13,fontWeight:700,boxShadow:"0 4px 24px rgba(0,0,0,0.4)",display:"flex",alignItems:"center",gap:8,animation:"slideIn 0.3s ease",maxWidth:320,borderLeft:`4px solid ${t.type==="line"?"#04a844":t.type==="error"?"#991b1b":C.yellow}`}}>
-      <span>{t.type==="success"?"✅":t.type==="line"?"💬":"❌"}</span>
-      <span>{t.message}</span>
-    </div>)}
-  </div>;
+// ── Sidebar ─────────────────────────────────────
+function renderSidebar() {
+  const el = document.getElementById("branch-list");
+  el.innerHTML = BRANCHES.map(b=>`
+    <button class="branch-btn ${b.id===currentBranch.id?"active":""}" onclick="selectBranch('${b.id}')">
+      <div style="font-size:12px;font-weight:800;color:#1A1A1A;margin-bottom:2px">${b.name}</div>
+      <div style="font-size:11px;color:${b.id===currentBranch.id?"#5a4c00":"#9ca3af"}">${b.id} · ${b.lineOA}</div>
+    </button>`).join("");
 }
 
-function StatusBadge({status}) {
-  const cfg={waiting_entry:{l:"รอเข้าช่อง",bg:"#fef9c3",c:"#713f12"},in_service:{l:"กำลังซ่อม",bg:C.yellow,c:C.black},done:{l:"เสร็จแล้ว",bg:"#d1fae5",c:"#065f46"}};
-  const x=cfg[status]||cfg.waiting_entry;
-  return <span style={{background:x.bg,color:x.c,padding:"2px 10px",borderRadius:99,fontSize:11,fontWeight:800}}>{x.l}</span>;
+function selectBranch(id) {
+  currentBranch = BRANCHES.find(b=>b.id===id);
+  renderSidebar();
+  loadBranch();
 }
 
-function BayCard({bayNum,job,loading,onOpen,onClose,onUpdate,onLine}) {
-  const empty=!job, active=job?.bayStatus==="in_service";
-  return <div style={{background:C.white,border:`2px solid ${empty?C.border:active?C.yellow:"#fde047"}`,borderRadius:12,padding:14,minHeight:160,boxShadow:active?"0 0 0 3px rgba(255,224,0,0.2)":"none",position:"relative"}}>
-    {loading&&<div style={{position:"absolute",inset:0,background:"rgba(255,255,255,0.75)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",zIndex:10}}><Spin/></div>}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-      <div style={{display:"flex",alignItems:"center",gap:7}}>
-        <div style={{width:30,height:30,borderRadius:6,background:empty?"#e5e7eb":active?C.yellow:"#fde047",display:"flex",alignItems:"center",justifyContent:"center",color:empty?"#9ca3af":C.black,fontFamily:"Arial Black,sans-serif",fontWeight:900,fontSize:14}}>{bayNum}</div>
-        <span style={{fontSize:12,fontWeight:700,color:"#374151"}}>ช่องที่ {bayNum}</span>
-      </div>
-      {empty?<span style={{fontSize:11,color:C.green,fontWeight:700}}>● ว่าง</span>:<StatusBadge status={job.bayStatus}/>}
-    </div>
-    {empty
-      ?<div style={{textAlign:"center",paddingTop:10}}>
-        <div style={{fontSize:32,marginBottom:6}}>🚗</div>
-        <p style={{color:"#9ca3af",fontSize:12,marginBottom:10}}>ไม่มีงาน</p>
-        <button onClick={()=>onOpen(bayNum)} style={{background:C.yellow,color:C.black,border:"none",padding:"7px 20px",borderRadius:8,fontSize:12,fontWeight:900,fontFamily:"inherit"}}>+ เปิดงาน</button>
-      </div>
-      :<div>
-        <div style={{marginBottom:8}}>
-          <div style={{fontSize:15,fontWeight:900,color:C.black,fontFamily:"Arial Black,sans-serif",letterSpacing:0.5}}>🚗 {job.plate}</div>
-          <div style={{fontSize:11,color:"#9ca3af"}}>{job.phone}</div>
-        </div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>
-          {(job.jobs||[]).map((j,i)=>{
-            const next={waiting:"in_progress",in_progress:"done",done:"waiting"}[j.status];
-            return <button key={i} onClick={()=>onUpdate(bayNum,i,next)} style={{background:j.status==="done"?"#d1fae5":j.status==="in_progress"?C.yellow:"#f3f4f6",color:j.status==="done"?"#047857":j.status==="in_progress"?C.black:"#6b7280",border:"none",borderRadius:6,padding:"3px 9px",fontSize:11,fontWeight:800,fontFamily:"inherit",textDecoration:j.status==="done"?"line-through":"none"}}>
-              {j.status==="done"?"✓ ":j.status==="in_progress"?"⚙ ":""}{j.name}
-            </button>;
-          })}
-        </div>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>onLine(bayNum)} style={{flex:1,background:C.lineGreen,color:"#fff",border:"none",padding:"7px 0",borderRadius:8,fontSize:11,fontWeight:800,fontFamily:"inherit"}}>💬 LINE</button>
-          <button onClick={()=>onClose(bayNum)} style={{flex:1.5,background:C.black,color:C.yellow,border:"none",padding:"7px 0",borderRadius:8,fontSize:11,fontWeight:900,fontFamily:"inherit"}}>✓ ปิดงาน</button>
-        </div>
-      </div>
-    }
-  </div>;
+// ── Branch View ─────────────────────────────────
+async function loadBranch() {
+  clearInterval(refreshTimer);
+  const content = document.getElementById("main-content");
+  content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:80px;flex-direction:column;gap:16px"><div class="spin"></div><p style="color:#9ca3af;font-weight:600">กำลังโหลดจาก Firebase...</p></div>`;
+  try {
+    const d = await apiFetch("/api/branch/"+currentBranch.id);
+    branchData = d;
+    renderBranch(d);
+    refreshTimer = setInterval(async()=>{
+      try{ const nd=await apiFetch("/api/branch/"+currentBranch.id); branchData=nd; renderBranch(nd); }catch{}
+    }, 30000);
+  } catch(e) {
+    content.innerHTML = `<div style="padding:40px;text-align:center;color:#dc2626">⚠️ โหลดไม่ได้: ${e.message}<br><br><button onclick="loadBranch()" style="background:#1A1A1A;color:#FFE000;border:none;padding:10px 20px;border-radius:8px;font-weight:800">ลองใหม่</button></div>`;
+  }
 }
 
-function OpenModal({bay,onConfirm,onClose,loading}) {
-  const [plate,setPlate]=useState(""), [phone,setPhone]=useState(""), [sel,setSel]=useState([]);
-  const toggle=j=>setSel(p=>p.includes(j)?p.filter(x=>x!==j):[...p,j]);
-  const ok=plate&&phone&&sel.length>0&&!loading;
-  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-    <div style={{background:C.white,borderRadius:16,width:"100%",maxWidth:440,overflow:"hidden",boxShadow:"0 24px 60px rgba(0,0,0,0.4)"}}>
-      <div style={{background:C.yellow,padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+function renderBranch(d) {
+  const total = d.bays||8;
+  const bays = d.bays_data || d.bays || {};
+  const active = Object.values(bays).filter(Boolean).length;
+  const empty = total - active;
+  const now = new Date().toLocaleTimeString("th");
+
+  let baysHtml = "";
+  for(let i=1;i<=total;i++){
+    const job = bays[String(i)] || bays[i] || null;
+    baysHtml += renderBayCard(i, job);
+  }
+
+  document.getElementById("main-content").innerHTML = `
+    <div style="padding-bottom:40px">
+      <div style="background:#1A1A1A;border-radius:14px;padding:18px 22px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div>
-          <div style={{fontSize:10,fontWeight:800,color:"#7a6200",letterSpacing:1.5}}>COCKPIT PRO คิว</div>
-          <div style={{fontSize:18,fontWeight:900,color:C.black,fontFamily:"Arial Black,sans-serif"}}>เปิดงาน – ช่องที่ {bay}</div>
+          <div style="font-size:10px;color:#FFE000;font-weight:800;letter-spacing:2px;margin-bottom:6px">COCKPIT PRO คิว · สาขา <span style="color:#6b7280;font-weight:400">อัปเดต ${now}</span></div>
+          <div style="font-size:20px;font-weight:900;color:#fff;font-family:'Arial Black',sans-serif">${d.name||currentBranch.name}</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:4px">💬 ${d.lineOA||currentBranch.lineOA}</div>
         </div>
-        <button onClick={onClose} style={{background:"rgba(0,0,0,0.12)",border:"none",borderRadius:8,width:32,height:32,fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
-      </div>
-      <div style={{padding:20}}>
-        <label style={{fontSize:11,fontWeight:800,color:"#374151",display:"block",marginBottom:5}}>ทะเบียนรถ</label>
-        <input value={plate} onChange={e=>setPlate(e.target.value)} placeholder="เช่น กข 1234" style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`2px solid ${C.border}`,fontSize:15,fontWeight:800,marginBottom:12,fontFamily:"inherit"}}/>
-        <label style={{fontSize:11,fontWeight:800,color:"#374151",display:"block",marginBottom:5}}>เบอร์โทรลูกค้า</label>
-        <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="เช่น 081-234-5678" style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`2px solid ${C.border}`,fontSize:14,marginBottom:16,fontFamily:"inherit"}}/>
-        <label style={{fontSize:11,fontWeight:800,color:"#374151",display:"block",marginBottom:8}}>งานที่ต้องทำ</label>
-        <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:20}}>
-          {JOB_TYPES.map(j=><button key={j} onClick={()=>toggle(j)} style={{padding:"7px 14px",borderRadius:8,fontFamily:"inherit",border:`2px solid ${sel.includes(j)?C.black:C.border}`,background:sel.includes(j)?C.yellow:C.white,color:C.black,fontSize:13,fontWeight:700}}>
-            {sel.includes(j)?"✓ ":""}{j}
-          </button>)}
-        </div>
-        <div style={{display:"flex",gap:10}}>
-          <button onClick={onClose} style={{flex:1,padding:"11px 0",borderRadius:10,border:`2px solid ${C.border}`,background:C.white,color:"#6b7280",fontWeight:700,fontFamily:"inherit"}}>ยกเลิก</button>
-          <button onClick={()=>ok&&onConfirm({plate,phone,jobs:sel})} style={{flex:2,padding:"11px 0",borderRadius:10,border:"none",fontFamily:"inherit",fontWeight:900,fontSize:14,background:ok?C.black:"#e5e7eb",color:ok?C.yellow:"#9ca3af",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-            {loading?<Spin size={16}/>:"✓ ยืนยันเปิดงาน"}
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>;
-}
-
-function BranchView({branch,addToast}) {
-  const [bays,setBays]=useState({});
-  const [info,setInfo]=useState(branch);
-  const [openModal,setOpenModal]=useState(null);
-  const [loading,setLoading]=useState(true);
-  const [bayLoad,setBayLoad]=useState({});
-  const [modalLoad,setModalLoad]=useState(false);
-  const [updated,setUpdated]=useState(null);
-
-  const load=useCallback(async()=>{
-    try{
-      const d=await api("/api/branch/"+branch.id);
-      setInfo(d); setBays(d.bays||{}); setUpdated(new Date());
-    }catch{addToast({type:"error",message:"โหลดข้อมูลไม่ได้"});}
-    finally{setLoading(false);}
-  },[branch.id]);
-
-  useEffect(()=>{setLoading(true);load();const t=setInterval(load,30000);return()=>clearInterval(t);},[load]);
-
-  const setBL=(bay,v)=>setBayLoad(p=>({...p,[bay]:v}));
-
-  const handleOpen=async(bay,data)=>{
-    setModalLoad(true);
-    try{
-      await api("/api/branch/"+branch.id+"/bay/"+bay+"/open",{method:"POST",body:JSON.stringify(data)});
-      addToast({type:"success",message:`เปิดงานช่องที่ ${bay} – ${data.plate}`});
-      setTimeout(()=>addToast({type:"line",message:`LINE แจ้ง ${data.plate} เข้าคิวแล้ว 🚗`}),600);
-      await load(); setOpenModal(null);
-    }catch{addToast({type:"error",message:"เปิดงานไม่สำเร็จ"});}
-    finally{setModalLoad(false);}
-  };
-
-  const handleClose=async(bay)=>{
-    const job=bays[String(bay)]||bays[bay];
-    setBL(bay,true);
-    try{
-      await api("/api/branch/"+branch.id+"/bay/"+bay+"/close",{method:"POST"});
-      addToast({type:"success",message:`ปิดงาน ${job?.plate} – ช่องว่างแล้ว`});
-      if(job) setTimeout(()=>addToast({type:"line",message:`LINE แจ้ง ${job.plate} รถพร้อมรับ 🎉`}),600);
-      await load();
-    }catch{addToast({type:"error",message:"ปิดงานไม่สำเร็จ"});}
-    finally{setBL(bay,false);}
-  };
-
-  const handleUpdate=async(bay,idx,status)=>{
-    setBL(bay,true);
-    try{
-      await api("/api/branch/"+branch.id+"/bay/"+bay+"/job/"+idx,{method:"PATCH",body:JSON.stringify({status})});
-      addToast({type:"success",message:"อัปเดตสถานะงานแล้ว"});
-      await load();
-    }catch{addToast({type:"error",message:"อัปเดตไม่สำเร็จ"});}
-    finally{setBL(bay,false);}
-  };
-
-  const handleLine=async(bay)=>{
-    setBL(bay,true);
-    try{
-      await api("/api/branch/"+branch.id+"/bay/"+bay+"/notify",{method:"POST"});
-      const job=bays[String(bay)]||bays[bay];
-      addToast({type:"line",message:`LINE ส่งอัปเดตให้ ${job?.plate} แล้ว`});
-      await load();
-    }catch{addToast({type:"error",message:"ส่ง LINE ไม่สำเร็จ"});}
-    finally{setBL(bay,false);}
-  };
-
-  const total=info.bays||8;
-  const active=Object.values(bays).filter(Boolean).length;
-
-  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:80,flexDirection:"column",gap:16}}><Spin size={40}/><p style={{color:"#9ca3af",fontWeight:600}}>กำลังโหลดจาก Firebase...</p></div>;
-
-  return <div style={{paddingBottom:40}}>
-    <div style={{background:C.black,borderRadius:14,padding:"18px 22px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-      <div>
-        <div style={{fontSize:10,color:C.yellow,fontWeight:800,letterSpacing:2,marginBottom:6}}>COCKPIT PRO คิว · สาขา {updated&&<span style={{color:"#6b7280",fontWeight:400}}>อัปเดต {updated.toLocaleTimeString("th")}</span>}</div>
-        <div style={{fontSize:20,fontWeight:900,color:C.white,fontFamily:"Arial Black,sans-serif"}}>{info.name}</div>
-        <div style={{fontSize:12,color:"#6b7280",marginTop:4}}>💬 {info.lineOA}</div>
-      </div>
-      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10}}>
-        <button onClick={load} style={{background:"rgba(255,224,0,0.1)",border:`1.5px solid ${C.yellow}`,color:C.yellow,padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:800,fontFamily:"inherit"}}>🔄 รีเฟรช</button>
-        <div style={{display:"flex",gap:10}}>
-          {[{v:total-active,l:"ว่าง",col:"#4ade80"},{v:active,l:"ไม่ว่าง",col:C.yellow},{v:total,l:"ทั้งหมด",col:"#9ca3af"}].map(s=>
-            <div key={s.l} style={{textAlign:"center",background:"rgba(255,255,255,0.07)",padding:"10px 14px",borderRadius:10,border:s.col===C.yellow?`2px solid ${C.yellow}`:"2px solid transparent"}}>
-              <div style={{fontSize:26,fontWeight:900,color:s.col,fontFamily:"Arial Black,sans-serif"}}>{s.v}</div>
-              <div style={{fontSize:10,color:"#6b7280"}}>{s.l}</div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
-      {Array.from({length:total},(_,i)=>i+1).map(bay=>
-        <BayCard key={bay} bayNum={bay} job={bays[String(bay)]||bays[bay]||null}
-          loading={!!bayLoad[bay]} onOpen={setOpenModal}
-          onClose={handleClose} onUpdate={handleUpdate} onLine={handleLine}/>
-      )}
-    </div>
-
-    {openModal&&<OpenModal bay={openModal} loading={modalLoad} onConfirm={d=>handleOpen(openModal,d)} onClose={()=>setOpenModal(null)}/>}
-  </div>;
-}
-
-function AdminView({addToast}) {
-  const [ov,setOv]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [updated,setUpdated]=useState(null);
-
-  const load=useCallback(async()=>{
-    try{const d=await api("/api/admin/overview");setOv(d.overview||[]);setUpdated(new Date());}
-    catch{addToast({type:"error",message:"โหลด Dashboard ไม่ได้"});}
-    finally{setLoading(false);}
-  },[]);
-
-  useEffect(()=>{load();const t=setInterval(load,30000);return()=>clearInterval(t);},[load]);
-
-  const tot=ov.reduce((a,s)=>({b:a.b+s.totalBays,ac:a.ac+s.activeBays,t:a.t+s.totalJobs,d:a.d+s.doneJobs,ip:a.ip+s.inProgressJobs}),{b:0,ac:0,t:0,d:0,ip:0});
-
-  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:80,flexDirection:"column",gap:16}}><Spin size={40}/><p style={{color:"#9ca3af"}}>กำลังโหลด...</p></div>;
-
-  return <div style={{paddingBottom:40}}>
-    <div style={{background:C.black,borderRadius:14,padding:"18px 22px",marginBottom:18}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-        <span style={{fontSize:16,fontWeight:900,color:C.white,fontFamily:"Arial Black,sans-serif"}}>📊 ADMIN DASHBOARD</span>
-        <span style={{fontSize:11,background:C.yellow,color:C.black,padding:"2px 10px",borderRadius:99,fontWeight:800}}>Firebase Live</span>
-        {updated&&<span style={{fontSize:11,color:"#6b7280",marginLeft:"auto"}}>อัปเดต {updated.toLocaleTimeString("th")}</span>}
-        <button onClick={load} style={{background:"rgba(255,224,0,0.1)",border:`1.5px solid ${C.yellow}`,color:C.yellow,padding:"5px 12px",borderRadius:8,fontSize:12,fontWeight:800,fontFamily:"inherit"}}>🔄 รีเฟรช</button>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:10}}>
-        {[{l:"ช่องทั้งหมด",v:tot.b},{l:"กำลังใช้งาน",v:tot.ac,hi:true},{l:"งานทั้งหมด",v:tot.t},{l:"เสร็จแล้ว",v:tot.d,hi:true},{l:"กำลังทำ",v:tot.ip}].map(s=>
-          <div key={s.l} style={{background:"rgba(255,255,255,0.07)",borderRadius:10,padding:"12px 14px",textAlign:"center",border:s.hi?`2px solid ${C.yellow}`:"2px solid transparent"}}>
-            <div style={{fontSize:28,fontWeight:900,color:s.hi?C.yellow:C.white,fontFamily:"Arial Black,sans-serif"}}>{s.v}</div>
-            <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{s.l}</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
+          <button onclick="loadBranch()" style="background:rgba(255,224,0,.1);border:1.5px solid #FFE000;color:#FFE000;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:800">🔄 รีเฟรช</button>
+          <div style="display:flex;gap:10px">
+            ${[{v:empty,l:"ว่าง",c:"#4ade80"},{v:active,l:"ไม่ว่าง",c:"#FFE000"},{v:total,l:"ทั้งหมด",c:"#9ca3af"}].map(s=>`
+            <div style="text-align:center;background:rgba(255,255,255,.07);padding:10px 14px;border-radius:10px;border:2px solid ${s.c==="#FFE000"?"#FFE000":"transparent"}">
+              <div style="font-size:26px;font-weight:900;color:${s.c};font-family:'Arial Black',sans-serif">${s.v}</div>
+              <div style="font-size:10px;color:#6b7280">${s.l}</div>
+            </div>`).join("")}
           </div>
-        )}
+        </div>
       </div>
-    </div>
+      <div class="bay-grid">${baysHtml}</div>
+    </div>`;
+}
 
-    <div style={{background:C.white,border:`2px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
-      <div style={{padding:"14px 20px",borderBottom:`2px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
-        <div style={{width:4,height:18,background:C.yellow,borderRadius:2}}/>
-        <h3 style={{fontSize:14,fontWeight:900,color:C.black}}>สถานะรายสาขา</h3>
+function renderBayCard(num, job) {
+  const empty = !job;
+  const active = job?.bayStatus==="in_service";
+  const cls = empty?"":"(active?"active-bay":"waiting-bay")";
+  const borderCls = empty?"":"bay-card "+(active?"active-bay":"waiting-bay");
+
+  if(empty) return `
+    <div class="bay-card" style="border-color:#E2E2DA" id="bay-${num}">
+      ${bayLoading[num]?'<div class="overlay"><div class="spin"></div></div>':""}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="width:30px;height:30px;border-radius:6px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-family:'Arial Black',sans-serif;font-weight:900;font-size:14px">${num}</div>
+          <span style="font-size:12px;font-weight:700;color:#374151">ช่องที่ ${num}</span>
+        </div>
+        <span style="font-size:11px;color:#16a34a;font-weight:700">● ว่าง</span>
       </div>
-      {ov.length===0
-        ?<div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>ยังไม่มีข้อมูลสาขาใน Firebase</div>
-        :<div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead><tr style={{background:C.black}}>
-              {["สาขา","ช่อง","ใช้งาน","ว่าง","Util%","รอ","ทำ","เสร็จ"].map(h=>
-                <th key={h} style={{padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:900,color:C.yellow}}>{h}</th>
-              )}
-            </tr></thead>
-            <tbody>{ov.map((s,i)=>{
+      <div style="text-align:center;padding-top:10px">
+        <div style="font-size:32px;margin-bottom:6px">🚗</div>
+        <p style="color:#9ca3af;font-size:12px;margin-bottom:10px">ไม่มีงาน</p>
+        <button onclick="openJobModal(${num})" style="background:#FFE000;color:#1A1A1A;border:none;padding:7px 20px;border-radius:8px;font-size:12px;font-weight:900">+ เปิดงาน</button>
+      </div>
+    </div>`;
+
+  const statusCfg = {waiting_entry:{l:"รอเข้าช่อง",bg:"#fef9c3",c:"#713f12"},in_service:{l:"กำลังซ่อม",bg:"#FFE000",c:"#1A1A1A"},done:{l:"เสร็จแล้ว",bg:"#d1fae5",c:"#065f46"}};
+  const sc = statusCfg[job.bayStatus]||statusCfg.waiting_entry;
+  const jobsHtml = (job.jobs||[]).map((j,i)=>{
+    const colors = {waiting:{bg:"#f3f4f6",c:"#6b7280"},in_progress:{bg:"#FFE000",c:"#1A1A1A"},done:{bg:"#d1fae5",c:"#047857"}};
+    const jc = colors[j.status]||colors.waiting;
+    const icon = j.status==="done"?"✓ ":j.status==="in_progress"?"⚙ ":"";
+    const td = j.status==="done"?"text-decoration:line-through":"";
+    const nextS = {waiting:"in_progress",in_progress:"done",done:"waiting"}[j.status];
+    return `<button class="tag" onclick="updateJob(${num},${i},'${nextS}')" style="background:${jc.bg};color:${jc.c};${td}">${icon}${j.name}</button>`;
+  }).join("");
+
+  return `
+    <div class="bay-card ${active?"active-bay":"waiting-bay"}" id="bay-${num}">
+      ${bayLoading[num]?'<div class="overlay"><div class="spin"></div></div>':""}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="width:30px;height:30px;border-radius:6px;background:${active?"#FFE000":"#fde047"};display:flex;align-items:center;justify-content:center;color:#1A1A1A;font-family:'Arial Black',sans-serif;font-weight:900;font-size:14px">${num}</div>
+          <span style="font-size:12px;font-weight:700;color:#374151">ช่องที่ ${num}</span>
+        </div>
+        <span class="status-badge" style="background:${sc.bg};color:${sc.c}">${sc.l}</span>
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="font-size:15px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif">🚗 ${job.plate}</div>
+        <div style="font-size:11px;color:#9ca3af">${job.phone}</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">${jobsHtml}</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="sendLine(${num})" style="flex:1;background:#06c755;color:#fff;border:none;padding:7px 0;border-radius:8px;font-size:11px;font-weight:800">💬 LINE</button>
+        <button onclick="closeJob(${num})" style="flex:1.5;background:#1A1A1A;color:#FFE000;border:none;padding:7px 0;border-radius:8px;font-size:11px;font-weight:900">✓ ปิดงาน</button>
+      </div>
+    </div>`;
+}
+
+// ── Bay Actions ──────────────────────────────────
+async function closeJob(bay) {
+  if(!confirm("ปิดงานช่องที่ "+bay+" ใช่ไหม?")) return;
+  bayLoading[bay]=true; refreshBayCard(bay);
+  try{
+    const job = getJob(bay);
+    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/close",{method:"POST"});
+    toast("ปิดงาน "+job?.plate+" – ช่องว่างแล้ว");
+    if(job) setTimeout(()=>toast("LINE แจ้ง "+job.plate+" รถพร้อมรับ 🎉","line"),600);
+    await reloadData();
+  }catch{toast("ปิดงานไม่สำเร็จ","error");}
+  finally{bayLoading[bay]=false;}
+}
+
+async function updateJob(bay, idx, status) {
+  bayLoading[bay]=true; refreshBayCard(bay);
+  try{
+    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/job/"+idx,{method:"PATCH",body:JSON.stringify({status})});
+    toast("อัปเดตสถานะงานแล้ว");
+    await reloadData();
+  }catch{toast("อัปเดตไม่สำเร็จ","error");}
+  finally{bayLoading[bay]=false;}
+}
+
+async function sendLine(bay) {
+  bayLoading[bay]=true; refreshBayCard(bay);
+  try{
+    const job=getJob(bay);
+    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/notify",{method:"POST"});
+    toast("LINE ส่งอัปเดตให้ "+(job?.plate)+" แล้ว","line");
+    await reloadData();
+  }catch{toast("ส่ง LINE ไม่สำเร็จ","error");}
+  finally{bayLoading[bay]=false;}
+}
+
+function getJob(bay) {
+  if(!branchData) return null;
+  const bays = branchData.bays_data||branchData.bays||{};
+  return bays[String(bay)]||bays[bay]||null;
+}
+
+function refreshBayCard(bay) {
+  const card = document.getElementById("bay-"+bay);
+  if(card){ const job=getJob(bay); card.outerHTML=renderBayCard(bay,job); }
+}
+
+async function reloadData() {
+  try{ branchData=await apiFetch("/api/branch/"+currentBranch.id); renderBranch(branchData); }catch{}
+}
+
+// ── Open Job Modal ───────────────────────────────
+function openJobModal(bay) {
+  const wrap = document.getElementById("modal-wrap");
+  wrap.innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <div class="modal-head">
+          <div>
+            <div style="font-size:10px;font-weight:800;color:#7a6200;letter-spacing:1.5px">COCKPIT PRO คิว</div>
+            <div style="font-size:18px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif">เปิดงาน – ช่องที่ ${bay}</div>
+          </div>
+          <button onclick="closeModal()" style="background:rgba(0,0,0,.12);border:none;border-radius:8px;width:32px;height:32px;font-size:18px">✕</button>
+        </div>
+        <div class="modal-body">
+          <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:5px">ทะเบียนรถ</label>
+          <input id="m-plate" placeholder="เช่น กข 1234" style="width:100%;padding:10px 12px;border-radius:8px;border:2px solid #E2E2DA;font-size:15px;font-weight:800;margin-bottom:12px"/>
+          <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:5px">เบอร์โทรลูกค้า</label>
+          <input id="m-phone" placeholder="เช่น 081-234-5678" style="width:100%;padding:10px 12px;border-radius:8px;border:2px solid #E2E2DA;font-size:14px;margin-bottom:16px"/>
+          <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:8px">งานที่ต้องทำ</label>
+          <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px" id="job-tags">
+            ${JOB_TYPES.map(j=>`<button onclick="toggleJob(this,'${j}')" data-job="${j}" style="padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700">${j}</button>`).join("")}
+          </div>
+          <div style="display:flex;gap:10px">
+            <button onclick="closeModal()" style="flex:1;padding:11px 0;border-radius:10px;border:2px solid #E2E2DA;background:#fff;color:#6b7280;font-weight:700">ยกเลิก</button>
+            <button id="m-confirm" onclick="confirmOpenJob(${bay})" style="flex:2;padding:11px 0;border-radius:10px;border:none;background:#1A1A1A;color:#FFE000;font-weight:900;font-size:14px">✓ ยืนยันเปิดงาน</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function toggleJob(btn, job) {
+  const active = btn.dataset.active==="1";
+  if(active){ btn.dataset.active="0"; btn.style.cssText="padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700"; }
+  else{ btn.dataset.active="1"; btn.style.cssText="padding:7px 14px;border-radius:8px;border:2px solid #1A1A1A;background:#FFE000;color:#1A1A1A;font-size:13px;font-weight:700"; }
+}
+
+async function confirmOpenJob(bay) {
+  const plate = document.getElementById("m-plate").value.trim();
+  const phone = document.getElementById("m-phone").value.trim();
+  const jobs = [...document.querySelectorAll("#job-tags button[data-active='1']")].map(b=>b.dataset.job);
+  if(!plate||!phone||!jobs.length){ alert("กรุณากรอกข้อมูลให้ครบ"); return; }
+  const btn = document.getElementById("m-confirm");
+  btn.innerHTML='<div class="spin" style="width:16px;height:16px;border-width:2px"></div>';
+  btn.disabled=true;
+  try{
+    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/open",{method:"POST",body:JSON.stringify({plate,phone,jobs})});
+    toast("เปิดงานช่องที่ "+bay+" – "+plate);
+    setTimeout(()=>toast("LINE แจ้ง "+plate+" เข้าคิวแล้ว 🚗","line"),600);
+    closeModal();
+    await reloadData();
+  }catch{toast("เปิดงานไม่สำเร็จ","error"); btn.innerHTML="✓ ยืนยันเปิดงาน"; btn.disabled=false;}
+}
+
+function closeModal() { document.getElementById("modal-wrap").innerHTML=""; }
+
+// ── Admin View ───────────────────────────────────
+async function loadAdmin() {
+  const content = document.getElementById("main-content");
+  content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:80px;flex-direction:column;gap:16px"><div class="spin"></div><p style="color:#9ca3af">กำลังโหลด...</p></div>`;
+  try{
+    const d = await apiFetch("/api/admin/overview");
+    renderAdmin(d.overview||[]);
+    refreshTimer = setInterval(async()=>{
+      try{ const nd=await apiFetch("/api/admin/overview"); renderAdmin(nd.overview||[]); }catch{}
+    },30000);
+  }catch(e){ content.innerHTML=`<div style="padding:40px;text-align:center;color:#dc2626">⚠️ โหลดไม่ได้<br><br><button onclick="loadAdmin()" style="background:#1A1A1A;color:#FFE000;border:none;padding:10px 20px;border-radius:8px;font-weight:800">ลองใหม่</button></div>`; }
+}
+
+function renderAdmin(ov) {
+  const tot = ov.reduce((a,s)=>({b:a.b+s.totalBays,ac:a.ac+s.activeBays,t:a.t+s.totalJobs,d:a.d+s.doneJobs,ip:a.ip+s.inProgressJobs}),{b:0,ac:0,t:0,d:0,ip:0});
+  const now = new Date().toLocaleTimeString("th");
+  document.getElementById("main-content").innerHTML = `
+    <div style="padding-bottom:40px">
+      <div style="background:#1A1A1A;border-radius:14px;padding:18px 22px;margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <span style="font-size:16px;font-weight:900;color:#fff;font-family:'Arial Black',sans-serif">📊 ADMIN DASHBOARD</span>
+          <span style="font-size:11px;background:#FFE000;color:#1A1A1A;padding:2px 10px;border-radius:99px;font-weight:800">Firebase Live</span>
+          <span style="font-size:11px;color:#6b7280;margin-left:auto">อัปเดต ${now}</span>
+          <button onclick="loadAdmin()" style="background:rgba(255,224,0,.1);border:1.5px solid #FFE000;color:#FFE000;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:800">🔄 รีเฟรช</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px">
+          ${[{l:"ช่องทั้งหมด",v:tot.b,hi:0},{l:"กำลังใช้งาน",v:tot.ac,hi:1},{l:"งานทั้งหมด",v:tot.t,hi:0},{l:"เสร็จแล้ว",v:tot.d,hi:1},{l:"กำลังทำ",v:tot.ip,hi:0}].map(s=>`
+          <div style="background:rgba(255,255,255,.07);border-radius:10px;padding:12px 14px;text-align:center;border:2px solid ${s.hi?"#FFE000":"transparent"}">
+            <div style="font-size:28px;font-weight:900;color:${s.hi?"#FFE000":"#fff"};font-family:'Arial Black',sans-serif">${s.v}</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:2px">${s.l}</div>
+          </div>`).join("")}
+        </div>
+      </div>
+      <div style="background:#fff;border:2px solid #E2E2DA;border-radius:14px;overflow:hidden">
+        <div style="padding:14px 20px;border-bottom:2px solid #E2E2DA;display:flex;align-items:center;gap:8px">
+          <div style="width:4px;height:18px;background:#FFE000;border-radius:2px"></div>
+          <h3 style="font-size:14px;font-weight:900;color:#1A1A1A">สถานะรายสาขา</h3>
+        </div>
+        ${ov.length===0?'<div style="padding:40px;text-align:center;color:#9ca3af">ยังไม่มีข้อมูลสาขาใน Firebase</div>':`
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>${["สาขา","ช่อง","ใช้งาน","ว่าง","Util%","รอ","ทำ","เสร็จ"].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+            <tbody>${ov.map((s,i)=>{
               const u=Math.round((s.activeBays/s.totalBays)*100);
-              return <tr key={s.branchId} style={{background:i%2===0?C.white:"#f7f7f2",borderBottom:`1px solid ${C.border}`}}>
-                <td style={{padding:"10px 14px",fontSize:13,fontWeight:700}}>{s.name}</td>
-                <td style={{padding:"10px 14px",textAlign:"center",fontWeight:700}}>{s.totalBays}</td>
-                <td style={{padding:"10px 14px",textAlign:"center"}}><span style={{background:C.yellow,color:C.black,padding:"2px 10px",borderRadius:99,fontSize:12,fontWeight:900}}>{s.activeBays}</span></td>
-                <td style={{padding:"10px 14px",textAlign:"center"}}><span style={{background:"#d1fae5",color:"#047857",padding:"2px 10px",borderRadius:99,fontSize:12,fontWeight:700}}>{s.emptyBays}</span></td>
-                <td style={{padding:"10px 14px"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{flex:1,height:8,background:"#f3f4f6",borderRadius:99,overflow:"hidden",minWidth:50}}>
-                      <div style={{height:"100%",width:u+"%",background:u>80?"#ef4444":C.yellow,borderRadius:99}}/>
-                    </div>
-                    <span style={{fontSize:12,fontWeight:900,color:u>80?"#ef4444":C.black}}>{u}%</span>
-                  </div>
-                </td>
-                <td style={{padding:"10px 14px",textAlign:"center"}}><span style={{background:"#fef9c3",color:"#92400e",padding:"2px 8px",borderRadius:6,fontSize:12,fontWeight:700}}>{s.waitingJobs}</span></td>
-                <td style={{padding:"10px 14px",textAlign:"center"}}><span style={{background:C.yellow,color:C.black,padding:"2px 8px",borderRadius:6,fontSize:12,fontWeight:900}}>{s.inProgressJobs}</span></td>
-                <td style={{padding:"10px 14px",textAlign:"center"}}><span style={{background:"#d1fae5",color:"#047857",padding:"2px 8px",borderRadius:6,fontSize:12,fontWeight:700}}>{s.doneJobs}</span></td>
-              </tr>;
-            })}</tbody>
+              return `<tr style="background:${i%2===0?"#fff":"#f7f7f2"}">
+                <td style="font-size:13px;font-weight:700">${s.name}</td>
+                <td style="text-align:center;font-weight:700">${s.totalBays}</td>
+                <td style="text-align:center"><span class="chip" style="background:#FFE000;color:#1A1A1A">${s.activeBays}</span></td>
+                <td style="text-align:center"><span class="chip" style="background:#d1fae5;color:#047857">${s.emptyBays}</span></td>
+                <td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:8px;background:#f3f4f6;border-radius:99px;overflow:hidden;min-width:50px"><div style="height:100%;width:${u}%;background:${u>80?"#ef4444":"#FFE000"};border-radius:99px"></div></div><span style="font-size:12px;font-weight:900;color:${u>80?"#ef4444":"#1A1A1A"}">${u}%</span></div></td>
+                <td style="text-align:center"><span class="chip" style="background:#fef9c3;color:#92400e">${s.waitingJobs||0}</span></td>
+                <td style="text-align:center"><span class="chip" style="background:#FFE000;color:#1A1A1A">${s.inProgressJobs||0}</span></td>
+                <td style="text-align:center"><span class="chip" style="background:#d1fae5;color:#047857">${s.doneJobs||0}</span></td>
+              </tr>`;
+            }).join("")}</tbody>
           </table>
-        </div>
-      }
-    </div>
-  </div>;
+        </div>`}
+      </div>
+    </div>`;
 }
 
-function App() {
-  const [view,setView]=useState("branch");
-  const [branches]=useState([{id:"BR107",name:"Cockpit บายพาส อุดรธานี",lineOA:"@027qubjk",bays:8}]);
-  const [branch,setBranch]=useState(branches[0]);
-  const [toasts,setToasts]=useState([]);
-
-  const addToast=t=>{
-    const id=Date.now()+Math.random();
-    setToasts(p=>[...p,{...t,id}]);
-    setTimeout(()=>setToasts(p=>p.filter(x=>x.id!==id)),4000);
-  };
-
-  const nav=[{id:"branch",l:"สาขา",bg:C.yellow,fg:C.black},{id:"admin",l:"Admin",bg:C.black,fg:C.yellow}];
-
-  return <div style={{fontFamily:"'Noto Sans Thai',Sarabun,sans-serif",background:C.bg,minHeight:"100vh"}}>
-    <div style={{background:C.white,borderBottom:`3px solid ${C.yellow}`,padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:58,position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 12px rgba(0,0,0,0.08)"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <Logo/>
-        <div style={{borderLeft:`2px solid ${C.border}`,paddingLeft:10}}>
-          <div style={{fontSize:13,fontWeight:900,color:C.black,fontFamily:"Arial Black,sans-serif"}}>PRO คิว</div>
-          <div style={{fontSize:10,color:"#9ca3af"}}>🔴 Live · Firebase + LINE OA</div>
-        </div>
-      </div>
-      <div style={{display:"flex",gap:4}}>
-        {nav.map(n=><button key={n.id} onClick={()=>setView(n.id)} style={{padding:"7px 16px",borderRadius:10,border:"none",fontFamily:"inherit",background:view===n.id?n.bg:"transparent",color:view===n.id?n.fg:"#6b7280",fontWeight:800,fontSize:13}}>{n.l}</button>)}
-      </div>
-    </div>
-
-    <div style={{display:"flex"}}>
-      {view==="branch"&&<div style={{width:208,background:C.white,borderRight:`2px solid ${C.border}`,minHeight:"calc(100vh - 58px)",padding:"14px 10px",flexShrink:0}}>
-        <p style={{fontSize:10,fontWeight:800,color:"#9ca3af",letterSpacing:1.5,margin:"0 0 10px 6px"}}>เลือกสาขา</p>
-        {branches.map(b=>{
-          const sel=branch.id===b.id;
-          return <button key={b.id} onClick={()=>setBranch(b)} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 12px",borderRadius:10,border:`2px solid ${sel?C.yellow:"transparent"}`,background:sel?C.yellow:"transparent",fontFamily:"inherit",marginBottom:3}}>
-            <div style={{fontSize:12,fontWeight:800,color:C.black,marginBottom:2}}>{b.name}</div>
-            <div style={{fontSize:11,color:sel?"#5a4c00":"#9ca3af"}}>{b.id} · {b.lineOA}</div>
-          </button>;
-        })}
-        <div style={{margin:"16px 6px 0",padding:"10px 12px",background:"#f0fdf4",borderRadius:10,border:"1.5px solid #86efac"}}>
-          <div style={{fontSize:11,fontWeight:800,color:"#16a34a",marginBottom:4}}>🔴 Live Mode</div>
-          <div style={{fontSize:10,color:"#6b7280",lineHeight:1.5}}>เชื่อมต่อ Firebase + LINE OA จริง อัปเดตทุก 30 วิ</div>
-        </div>
-      </div>}
-
-      <div style={{flex:1,padding:20,overflow:"auto"}}>
-        {view==="branch"&&<BranchView key={branch.id} branch={branch} addToast={addToast}/>}
-        {view==="admin"&&<AdminView addToast={addToast}/>}
-      </div>
-    </div>
-
-    <Toast toasts={toasts}/>
-  </div>;
-}
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+// ── Init ─────────────────────────────────────────
+renderSidebar();
+setView("branch");
 </script>
 </body>
 </html>
