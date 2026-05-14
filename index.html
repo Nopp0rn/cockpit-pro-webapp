@@ -267,38 +267,39 @@ async function closeJob(bay) {
 function openAddJobModal(bay) {
   const job = getJob(bay);
   const existingJobs = (job?.jobs || []).map(j => j.name);
+  const plate = job?.plate || "";
+  const availableJobs = JOB_TYPES.filter(j => !existingJobs.includes(j));
+
+  const existingHtml = existingJobs.length ? `
+    <div style="margin-bottom:14px;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1.5px solid #e5e7eb">
+      <div style="font-size:11px;font-weight:800;color:#6b7280;margin-bottom:6px">มีอยู่แล้ว</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        ${existingJobs.map(j=>`<span style="padding:3px 10px;border-radius:6px;background:#e5e7eb;color:#9ca3af;font-size:12px;font-weight:700;text-decoration:line-through">✓ ${j}</span>`).join("")}
+      </div>
+    </div>` : "";
+
+  const availableHtml = availableJobs.length ? availableJobs.map(j =>
+    `<button onclick="toggleAddJob(this,'${j}')" data-job="${j}" style="padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700">${j}</button>`
+  ).join("") : `<p style="color:#9ca3af;font-size:13px">ไม่มีงานเพิ่มเติมแล้ว</p>`;
 
   document.getElementById("modal-wrap").innerHTML = `
     <div class="modal-bg" onclick="if(event.target===this)closeModal()">
       <div class="modal">
         <div class="modal-head">
           <div>
-            <div style="font-size:10px;font-weight:800;color:#7a6200;letter-spacing:1.5px">ช่องที่ ${bay} · ${job?.plate||""}</div>
+            <div style="font-size:10px;font-weight:800;color:#7a6200;letter-spacing:1.5px">ช่องที่ ${bay} · 🚗 ${plate}</div>
             <div style="font-size:18px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif">➕ เพิ่มงาน</div>
           </div>
           <button onclick="closeModal()" style="background:rgba(0,0,0,.12);border:none;border-radius:8px;width:32px;height:32px;font-size:18px">✕</button>
         </div>
         <div class="modal-body">
-          <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:8px">เลือกงานที่ต้องเพิ่ม</label>
-          <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px" id="add-job-tags">
-            ${JOB_TYPES.map(j => {
-              const already = existingJobs.includes(j);
-              return `<button onclick="${already?"":"toggleAddJob(this,'"+j+"'"}" 
-                data-job="${j}" 
-                style="padding:7px 14px;border-radius:8px;border:2px solid ${already?"#e5e7eb":"#E2E2DA"};
-                background:${already?"#f3f4f6":"#fff"};
-                color:${already?"#9ca3af":"#1A1A1A"};
-                font-size:13px;font-weight:700;
-                cursor:${already?"not-allowed":"pointer"};
-                opacity:${already?0.5:1}">
-                ${already?"✓ ":""} ${j}${already?" (มีแล้ว)":""}
-              </button>`;
-            }).join("")}
-          </div>
-          <p style="font-size:11px;color:#9ca3af;margin-bottom:16px">* งานที่เพิ่มจะเริ่มด้วยสถานะ "รอดำเนินการ"</p>
+          ${existingHtml}
+          <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:8px">เลือกงานที่ต้องการเพิ่ม</label>
+          <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px" id="add-job-tags">${availableHtml}</div>
+          <p style="font-size:11px;color:#9ca3af;margin-bottom:16px">* งานใหม่จะเริ่มด้วยสถานะ "รอ" และแจ้ง LINE ลูกค้าอัตโนมัติ</p>
           <div style="display:flex;gap:10px">
             <button onclick="closeModal()" style="flex:1;padding:11px 0;border-radius:10px;border:2px solid #E2E2DA;background:#fff;color:#6b7280;font-weight:700">ยกเลิก</button>
-            <button id="add-job-btn" onclick="confirmAddJob(${bay})" style="flex:2;padding:11px 0;border-radius:10px;border:none;background:#1A1A1A;color:#FFE000;font-weight:900;font-size:14px">➕ เพิ่มงาน</button>
+            ${availableJobs.length ? `<button id="add-job-btn" onclick="confirmAddJob(${bay})" style="flex:2;padding:11px 0;border-radius:10px;border:none;background:#1A1A1A;color:#FFE000;font-weight:900;font-size:14px">➕ เพิ่มงาน</button>` : ""}
           </div>
         </div>
       </div>
