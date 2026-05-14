@@ -231,6 +231,9 @@ function renderBayCard(num, job) {
         <div style="font-size:11px;color:#9ca3af">${job.phone}</div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">${jobsHtml}</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <button onclick="openAddJobModal(${num})" style="flex:1;background:#f3f4f6;color:#374151;border:none;padding:7px 0;border-radius:8px;font-size:11px;font-weight:800">➕ เพิ่มงาน</button>
+      </div>
       <div style="display:flex;gap:6px">
         <button onclick="sendLine(${num})" style="flex:1;background:#06c755;color:#fff;border:none;padding:7px 0;border-radius:8px;font-size:11px;font-weight:800">💬 LINE</button>
         <button onclick="closeJob(${num})" style="flex:1.5;background:#1A1A1A;color:#FFE000;border:none;padding:7px 0;border-radius:8px;font-size:11px;font-weight:900">✓ ปิดงาน</button>
@@ -250,6 +253,82 @@ async function closeJob(bay) {
     await reloadData();
   }catch{toast("ปิดงานไม่สำเร็จ","error");}
   finally{bayLoading[bay]=false;}
+}
+
+// ── Add Job Modal ─────────────────────────────────
+function openAddJobModal(bay) {
+  const job = getJob(bay);
+  const existingJobs = (job?.jobs || []).map(j => j.name);
+
+  document.getElementById("modal-wrap").innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <div class="modal-head">
+          <div>
+            <div style="font-size:10px;font-weight:800;color:#7a6200;letter-spacing:1.5px">ช่องที่ ${bay} · ${job?.plate||""}</div>
+            <div style="font-size:18px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif">➕ เพิ่มงาน</div>
+          </div>
+          <button onclick="closeModal()" style="background:rgba(0,0,0,.12);border:none;border-radius:8px;width:32px;height:32px;font-size:18px">✕</button>
+        </div>
+        <div class="modal-body">
+          <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:8px">เลือกงานที่ต้องเพิ่ม</label>
+          <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px" id="add-job-tags">
+            ${JOB_TYPES.map(j => {
+              const already = existingJobs.includes(j);
+              return `<button onclick="${already?"":"toggleAddJob(this,'"+j+"'"}" 
+                data-job="${j}" 
+                style="padding:7px 14px;border-radius:8px;border:2px solid ${already?"#e5e7eb":"#E2E2DA"};
+                background:${already?"#f3f4f6":"#fff"};
+                color:${already?"#9ca3af":"#1A1A1A"};
+                font-size:13px;font-weight:700;
+                cursor:${already?"not-allowed":"pointer"};
+                opacity:${already?0.5:1}">
+                ${already?"✓ ":""} ${j}${already?" (มีแล้ว)":""}
+              </button>`;
+            }).join("")}
+          </div>
+          <p style="font-size:11px;color:#9ca3af;margin-bottom:16px">* งานที่เพิ่มจะเริ่มด้วยสถานะ "รอดำเนินการ"</p>
+          <div style="display:flex;gap:10px">
+            <button onclick="closeModal()" style="flex:1;padding:11px 0;border-radius:10px;border:2px solid #E2E2DA;background:#fff;color:#6b7280;font-weight:700">ยกเลิก</button>
+            <button id="add-job-btn" onclick="confirmAddJob(${bay})" style="flex:2;padding:11px 0;border-radius:10px;border:none;background:#1A1A1A;color:#FFE000;font-weight:900;font-size:14px">➕ เพิ่มงาน</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function toggleAddJob(btn, job) {
+  const active = btn.dataset.active === "1";
+  if(active) {
+    btn.dataset.active = "0";
+    btn.style.cssText = "padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700";
+  } else {
+    btn.dataset.active = "1";
+    btn.style.cssText = "padding:7px 14px;border-radius:8px;border:2px solid #1A1A1A;background:#FFE000;color:#1A1A1A;font-size:13px;font-weight:700";
+  }
+}
+
+async function confirmAddJob(bay) {
+  const newJobs = [...document.querySelectorAll("#add-job-tags button[data-active='1']")].map(b => b.dataset.job);
+  if(!newJobs.length) { alert("กรุณาเลือกงานที่ต้องการเพิ่ม"); return; }
+
+  const btn = document.getElementById("add-job-btn");
+  btn.innerHTML = '<div class="spin" style="width:16px;height:16px;border-width:2px;margin:auto"></div>';
+  btn.disabled = true;
+
+  try {
+    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/addjobs", {
+      method: "POST",
+      body: JSON.stringify({ jobs: newJobs })
+    });
+    toast("เพิ่มงาน "+newJobs.join(", ")+" สำเร็จ");
+    closeModal();
+    await reloadData();
+  } catch {
+    toast("เพิ่มงานไม่สำเร็จ", "error");
+    btn.innerHTML = "➕ เพิ่มงาน";
+    btn.disabled = false;
+  }
 }
 
 async function updateJob(bay, idx, status) {
@@ -342,7 +421,63 @@ async function confirmOpenJob(bay) {
   }catch{toast("เปิดงานไม่สำเร็จ","error"); btn.innerHTML="✓ ยืนยันเปิดงาน"; btn.disabled=false;}
 }
 
-function closeModal() { document.getElementById("modal-wrap").innerHTML=""; }
+// ── Add Job Modal ─────────────────────────────────
+function openAddJobModal(bay) {
+  const job = getJob(bay);
+  const existingJobs = (job?.jobs||[]).map(j=>j.name);
+  const available = JOB_TYPES.filter(j => !existingJobs.includes(j));
+
+  document.getElementById("modal-wrap").innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <div class="modal-head">
+          <div>
+            <div style="font-size:10px;font-weight:800;color:#7a6200;letter-spacing:1.5px">เพิ่มงาน</div>
+            <div style="font-size:18px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif">ช่องที่ ${bay} – 🚗 ${job?.plate||""}</div>
+          </div>
+          <button onclick="closeModal()" style="background:rgba(0,0,0,.12);border:none;border-radius:8px;width:32px;height:32px;font-size:18px">✕</button>
+        </div>
+        <div class="modal-body">
+          ${available.length === 0
+            ? `<div style="text-align:center;padding:20px;color:#9ca3af">เพิ่มงานครบทุกประเภทแล้ว ✅</div>`
+            : `
+          <p style="font-size:12px;color:#6b7280;margin-bottom:12px">งานที่มีอยู่แล้ว: <span style="color:#374151;font-weight:700">${existingJobs.join(", ")}</span></p>
+          <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:8px;letter-spacing:1px">เลือกงานที่ต้องการเพิ่ม</label>
+          <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px" id="add-job-tags">
+            ${available.map(j=>`<button onclick="toggleJob(this,'${j}')" data-job="${j}" style="padding:7px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:700">${j}</button>`).join("")}
+          </div>
+          <div style="display:flex;gap:10px">
+            <button onclick="closeModal()" style="flex:1;padding:11px 0;border-radius:10px;border:2px solid #E2E2DA;background:#fff;color:#6b7280;font-weight:700">ยกเลิก</button>
+            <button id="add-job-btn" onclick="confirmAddJob(${bay})" style="flex:2;padding:11px 0;border-radius:10px;border:none;background:#1A1A1A;color:#FFE000;font-weight:900;font-size:14px">➕ เพิ่มงาน</button>
+          </div>`
+          }
+        </div>
+      </div>
+    </div>`;
+}
+
+async function confirmAddJob(bay) {
+  const selected = [...document.querySelectorAll("#add-job-tags button[data-active='1']")].map(b=>b.dataset.job);
+  if(!selected.length){ alert("กรุณาเลือกงานที่ต้องการเพิ่ม"); return; }
+
+  const btn = document.getElementById("add-job-btn");
+  btn.innerHTML = '<div class="spin" style="width:16px;height:16px;border-width:2px;margin:auto"></div>';
+  btn.disabled = true;
+
+  try {
+    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/addjobs", {
+      method: "POST",
+      body: JSON.stringify({ jobs: selected })
+    });
+    toast("เพิ่มงาน "+selected.join(", ")+" แล้ว ✅");
+    closeModal();
+    await reloadData();
+  } catch {
+    toast("เพิ่มงานไม่สำเร็จ","error");
+    btn.innerHTML = "➕ เพิ่มงาน";
+    btn.disabled = false;
+  }
+}
 
 // ── Set Bays Modal ────────────────────────────────
 function openSetBaysModal(current) {
