@@ -148,22 +148,9 @@ async function loadBranch() {
 }
 
 function renderBranch(d) {
-  // d.bays อาจเป็น object ของช่องซ่อม หรือตัวเลขจำนวนช่อง
-  // Backend v2 ส่ง: { name, lineOA, bays: 8, bays_data: {...} } หรือ { name, lineOA, bays: {...} }
-  let total, baysMap;
-  if(typeof d.bays === "number") {
-    total = d.bays;
-    baysMap = d.bays_data || {};
-  } else if(typeof d.bays === "object" && d.bays !== null) {
-    // bays เป็น map ของช่องซ่อม → ดึง totalBays จาก field อื่น
-    baysMap = d.bays;
-    total = d.totalBays || d.bayCount || Object.keys(baysMap).length || 8;
-    // ถ้ายังไม่ได้ค่า ใช้ค่าจาก currentBranch
-    if(!total || total === 0) total = currentBranch.bays || 8;
-  } else {
-    total = currentBranch.bays || 8;
-    baysMap = {};
-  }
+  // API ใหม่ส่ง totalBays (number) และ baysData (object) แยกกัน
+  const total = d.totalBays || currentBranch.bays || 8;
+  const baysMap = d.baysData || {};
   const active = Object.values(baysMap).filter(Boolean).length;
   const empty = total - active;
   const now = new Date().toLocaleTimeString("th");
@@ -184,6 +171,7 @@ function renderBranch(d) {
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
           <button onclick="loadBranch()" style="background:rgba(255,224,0,.1);border:1.5px solid #FFE000;color:#FFE000;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:800">🔄 รีเฟรช</button>
+          <button onclick="openSetBaysModal(${total})" style="background:rgba(255,224,0,.1);border:1.5px solid #FFE000;color:#FFE000;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:800">⚙️ ตั้งค่าช่อง (${total})</button>
           <div style="display:flex;gap:10px">
             ${[{v:empty,l:"ว่าง",c:"#4ade80"},{v:active,l:"ไม่ว่าง",c:"#FFE000"},{v:total,l:"ทั้งหมด",c:"#9ca3af"}].map(s=>`
             <div style="text-align:center;background:rgba(255,255,255,.07);padding:10px 14px;border-radius:10px;border:2px solid ${s.c==="#FFE000"?"#FFE000":"transparent"}">
@@ -355,6 +343,71 @@ async function confirmOpenJob(bay) {
 }
 
 function closeModal() { document.getElementById("modal-wrap").innerHTML=""; }
+
+// ── Set Bays Modal ────────────────────────────────
+function openSetBaysModal(current) {
+  document.getElementById("modal-wrap").innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal" style="max-width:380px">
+        <div style="background:#1A1A1A;padding:16px 20px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:10px;font-weight:800;color:#FFE000;letter-spacing:1.5px">ตั้งค่าสาขา</div>
+            <div style="font-size:16px;font-weight:900;color:#fff;font-family:'Arial Black',sans-serif">${currentBranch.name}</div>
+          </div>
+          <button onclick="closeModal()" style="background:rgba(255,255,255,.1);border:none;border-radius:8px;width:32px;height:32px;font-size:18px;color:#fff">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:13px;font-weight:700;color:#374151;margin-bottom:6px">จำนวนช่องซ่อม (1–20)</p>
+          <div style="display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:20px">
+            <button onclick="changeBays(-1)" style="width:48px;height:48px;border-radius:12px;border:2px solid #E2E2DA;background:#fff;font-size:24px;font-weight:900">−</button>
+            <div style="text-align:center">
+              <div id="bays-num" style="font-size:56px;font-weight:900;color:#1A1A1A;font-family:'Arial Black',sans-serif;line-height:1">${current}</div>
+              <div style="font-size:12px;color:#9ca3af;font-weight:600;margin-top:4px">ช่องซ่อม</div>
+            </div>
+            <button onclick="changeBays(1)" style="width:48px;height:48px;border-radius:12px;border:2px solid #E2E2DA;background:#fff;font-size:24px;font-weight:900">+</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px">
+            ${[2,4,6,8,10,12,15,20].map(n=>`<button onclick="setBaysNum(${n})" style="padding:6px 14px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#1A1A1A;font-size:13px;font-weight:800">${n}</button>`).join("")}
+          </div>
+          <div style="display:flex;gap:10px">
+            <button onclick="closeModal()" style="flex:1;padding:11px 0;border-radius:10px;border:2px solid #E2E2DA;background:#fff;color:#6b7280;font-weight:700">ยกเลิก</button>
+            <button onclick="confirmSetBays()" style="flex:2;padding:11px 0;border-radius:10px;border:none;background:#1A1A1A;color:#FFE000;font-weight:900;font-size:14px" id="set-bays-btn">✓ บันทึก</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  window._baysNum = current;
+}
+
+function changeBays(delta) {
+  window._baysNum = Math.min(20, Math.max(1, (window._baysNum||8) + delta));
+  const el = document.getElementById("bays-num");
+  if(el) el.textContent = window._baysNum;
+}
+
+function setBaysNum(n) {
+  window._baysNum = n;
+  const el = document.getElementById("bays-num");
+  if(el) el.textContent = n;
+}
+
+async function confirmSetBays() {
+  const bays = window._baysNum || 8;
+  const btn = document.getElementById("set-bays-btn");
+  btn.innerHTML = '<div class="spin" style="width:16px;height:16px;border-width:2px;margin:auto"></div>';
+  btn.disabled = true;
+  try {
+    await apiFetch("/api/branch/"+currentBranch.id+"/settings", {method:"PUT", body:JSON.stringify({bays})});
+    currentBranch.bays = bays;
+    toast("ตั้งค่า "+bays+" ช่องซ่อมสำเร็จ");
+    closeModal();
+    await loadBranch();
+  } catch {
+    toast("บันทึกไม่สำเร็จ","error");
+    btn.innerHTML = "✓ บันทึก";
+    btn.disabled = false;
+  }
+}
 
 // ── Admin View ───────────────────────────────────
 async function loadAdmin() {
