@@ -7,88 +7,143 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Noto Sans Thai',sans-serif;background:#F7F7F2;min-height:100vh;padding-bottom:40px}
+html{font-size:18px}
+body{font-family:'Noto Sans Thai',sans-serif;background:#F7F7F2;min-height:100vh;padding-bottom:60px}
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.spin{width:28px;height:28px;border:3px solid rgba(255,224,0,0.3);border-top:3px solid #FFE000;border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block}
-.header{background:#1A1A1A;padding:20px;text-align:center;position:sticky;top:0;z-index:10}
-.logo{background:#FFE000;display:inline-block;padding:4px 12px;border-radius:6px;font-family:'Arial Black',sans-serif;font-size:22px;font-weight:900;color:#1A1A1A;margin-bottom:8px}
-.card{background:#fff;border-radius:16px;padding:20px;margin:16px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
-label{font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:6px;letter-spacing:.5px}
-input{width:100%;padding:12px 14px;border-radius:10px;border:2px solid #E2E2DA;font-size:16px;font-family:'Noto Sans Thai',sans-serif;font-weight:700;margin-bottom:4px;transition:border-color .2s}
-input:focus{outline:none;border-color:#FFE000;box-shadow:0 0 0 3px rgba(255,224,0,.2)}
-.province-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:4px;max-height:320px;overflow-y:auto;padding:2px}
-.pv-btn{padding:8px 4px;border-radius:8px;border:2px solid #E2E2DA;background:#fff;color:#374151;font-size:12px;font-weight:700;cursor:pointer;text-align:center;font-family:'Noto Sans Thai',sans-serif;transition:all .15s;line-height:1.3}
-.pv-btn:active{transform:scale(.95)}
-.pv-btn.selected{border-color:#1A1A1A;background:#FFE000;color:#1A1A1A}
-.pv-search{width:100%;padding:10px 12px;border-radius:10px;border:2px solid #E2E2DA;font-size:14px;font-family:'Noto Sans Thai',sans-serif;margin-bottom:8px}
-.pv-search:focus{outline:none;border-color:#FFE000}
-.submit-btn{width:100%;padding:16px;border-radius:12px;border:none;background:#1A1A1A;color:#FFE000;font-size:16px;font-weight:900;font-family:'Noto Sans Thai',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:opacity .2s}
-.submit-btn:disabled{opacity:.6;cursor:not-allowed}
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+.spin{width:36px;height:36px;border:4px solid rgba(255,224,0,0.3);border-top:4px solid #FFE000;border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block}
+
+/* Header */
+.header{background:#1A1A1A;padding:18px 20px;text-align:center;position:sticky;top:0;z-index:10;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.logo{background:#FFE000;display:inline-block;padding:6px 16px;border-radius:8px;font-family:'Arial Black',sans-serif;font-size:26px;font-weight:900;color:#1A1A1A;margin-bottom:6px}
+.header-sub{color:#9ca3af;font-size:15px;margin-top:2px}
+
+/* Card */
+.card{background:#fff;border-radius:20px;padding:24px;margin:16px;box-shadow:0 4px 20px rgba(0,0,0,.1)}
+
+/* Labels & Inputs */
+label{font-size:17px;font-weight:800;color:#1A1A1A;display:block;margin-bottom:8px}
+input{width:100%;padding:16px 18px;border-radius:12px;border:2.5px solid #E2E2DA;font-size:20px;font-family:'Noto Sans Thai',sans-serif;font-weight:700;margin-bottom:6px;transition:border-color .2s;background:#fafafa}
+input:focus{outline:none;border-color:#FFE000;box-shadow:0 0 0 4px rgba(255,224,0,.2);background:#fff}
+input::placeholder{color:#c4c4bc;font-weight:400}
+
+/* Province search */
+.pv-search{width:100%;padding:14px 18px;border-radius:12px;border:2.5px solid #E2E2DA;font-size:18px;font-family:'Noto Sans Thai',sans-serif;margin-bottom:12px;background:#fafafa}
+.pv-search:focus{outline:none;border-color:#FFE000;background:#fff}
+
+/* Province grid - 2 columns for readability */
+.province-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:8px;max-height:380px;overflow-y:auto;padding:4px 2px}
+.pv-btn{padding:14px 8px;border-radius:12px;border:2.5px solid #E2E2DA;background:#fff;color:#374151;font-size:17px;font-weight:700;cursor:pointer;text-align:center;font-family:'Noto Sans Thai',sans-serif;transition:all .15s;line-height:1.4;min-height:56px;display:flex;align-items:center;justify-content:center}
+.pv-btn:active{transform:scale(.96)}
+.pv-btn.selected{border-color:#1A1A1A;background:#FFE000;color:#1A1A1A;font-weight:900;font-size:18px}
+
+/* Selected province display */
+.selected-pv-badge{background:#FFE000;border-radius:10px;padding:12px 16px;text-align:center;margin-bottom:12px;display:none}
+.selected-pv-badge span{font-size:18px;font-weight:900;color:#1A1A1A}
+
+/* Buttons */
+.submit-btn{width:100%;padding:20px;border-radius:14px;border:none;background:#1A1A1A;color:#FFE000;font-size:20px;font-weight:900;font-family:'Noto Sans Thai',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;transition:opacity .2s;margin-top:8px;min-height:64px}
+.submit-btn:disabled{opacity:.5;cursor:not-allowed}
+.back-btn{background:none;border:none;color:#6b7280;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:16px;padding:4px 0;font-family:'Noto Sans Thai',sans-serif;display:flex;align-items:center;gap:6px}
+
+/* Error */
+.error-msg{background:#fee2e2;color:#dc2626;padding:12px 16px;border-radius:10px;font-size:16px;font-weight:700;margin-top:4px;display:none;border-left:4px solid #dc2626}
+
+/* Preview box */
+.preview-box{background:#f9fafb;border-radius:12px;padding:16px 18px;margin-bottom:20px;border:2px solid #e5e7eb}
+.preview-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:4px}
+.preview-value{font-size:24px;font-weight:900;color:#1A1A1A}
+
+/* Success */
 .success-wrap{text-align:center;padding:40px 20px;animation:fadeIn .4s ease}
-.error-msg{background:#fee2e2;color:#dc2626;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:700;margin-top:8px;display:none}
-.step-indicator{display:flex;justify-content:center;gap:8px;margin-bottom:16px}
-.step{width:8px;height:8px;border-radius:50%;background:#e5e7eb;transition:background .3s}
-.step.active{background:#FFE000;width:24px;border-radius:4px}
+.success-icon{font-size:80px;margin-bottom:20px;display:block}
+.success-title{font-size:26px;font-weight:900;color:#1A1A1A;margin-bottom:12px}
+.success-card{background:#fff;border-radius:16px;padding:20px;margin:16px auto;max-width:360px;text-align:left;border:3px solid #FFE000}
+.success-card-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px}
+.success-card-value{font-size:26px;font-weight:900;color:#1A1A1A}
+.success-card-sub{font-size:17px;color:#6b7280;margin-top:4px}
+.success-note{color:#6b7280;font-size:16px;margin:0 20px;line-height:1.6}
+.close-note{color:#9ca3af;font-size:15px;margin-top:16px}
+
+/* Info banner */
+.info-banner{display:flex;align-items:center;gap:12px;background:#f0fdf4;border-radius:12px;padding:14px 16px;margin-bottom:20px;border:1.5px solid #86efac}
+.info-banner-icon{font-size:24px;flex-shrink:0}
+.info-banner-text{font-size:15px;color:#166534;font-weight:700;line-height:1.5}
 </style>
 </head>
 <body>
 
 <div class="header">
   <div class="logo">COCKPIT</div>
-  <div style="color:#9ca3af;font-size:12px;margin-top:4px">ลงทะเบียนรับแจ้งเตือนสถานะรถ</div>
+  <div class="header-sub">ลงทะเบียนรับแจ้งเตือนสถานะรถ</div>
 </div>
 
 <!-- Loading -->
-<div id="loading-wrap" style="text-align:center;padding:60px 20px">
-  <div class="spin" style="margin:0 auto 16px"></div>
-  <p style="color:#9ca3af;font-weight:600">กำลังโหลด...</p>
+<div id="loading-wrap" style="text-align:center;padding:80px 20px">
+  <div class="spin" style="margin:0 auto 20px"></div>
+  <p style="color:#9ca3af;font-size:17px;font-weight:600">กำลังโหลด...</p>
 </div>
 
 <!-- Invalid Token -->
-<div id="invalid-wrap" style="display:none;text-align:center;padding:60px 20px">
-  <div style="font-size:48px;margin-bottom:16px">⚠️</div>
-  <h2 style="font-size:18px;font-weight:900;color:#1A1A1A;margin-bottom:8px">ลิงก์ไม่ถูกต้อง</h2>
-  <p style="color:#6b7280;font-size:14px">กรุณาขอลิงก์ใหม่จาก LINE OA ของสาขาครับ</p>
+<div id="invalid-wrap" style="display:none;text-align:center;padding:80px 20px">
+  <div style="font-size:64px;margin-bottom:20px">⚠️</div>
+  <h2 style="font-size:22px;font-weight:900;color:#1A1A1A;margin-bottom:12px">ลิงก์ไม่ถูกต้องหรือหมดอายุ</h2>
+  <p style="color:#6b7280;font-size:17px;line-height:1.6">กรุณาขอลิงก์ใหม่จาก LINE OA<br>ของสาขาที่ใช้บริการครับ</p>
 </div>
 
 <!-- Form -->
 <div id="form-wrap" style="display:none">
   <div class="card" style="margin-top:20px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-      <div style="width:40px;height:40px;background:#FFE000;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px">🚗</div>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+      <div style="width:52px;height:52px;background:#FFE000;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">🚗</div>
       <div>
-        <div style="font-size:15px;font-weight:900;color:#1A1A1A" id="branch-name-display">Cockpit Pro</div>
-        <div style="font-size:12px;color:#9ca3af">กรอกข้อมูลเพื่อรับแจ้งเตือนสถานะรถ</div>
+        <div style="font-size:19px;font-weight:900;color:#1A1A1A" id="branch-name-display">Cockpit Pro</div>
+        <div style="font-size:14px;color:#9ca3af;margin-top:2px">กรอกข้อมูลเพื่อรับแจ้งเตือน</div>
       </div>
     </div>
 
-    <!-- Step 1: ทะเบียน -->
+    <!-- Step 1 -->
     <div id="step1">
-      <label>เลขทะเบียนรถ</label>
-      <input id="inp-plate" placeholder="เช่น กข 1234 หรือ 9กฌ 8245" inputmode="text" autocomplete="off"/>
-      <div class="error-msg" id="err-plate">กรุณากรอกเลขทะเบียนรถ</div>
-      <div style="margin-top:16px">
-        <label>เบอร์โทรศัพท์</label>
-        <input id="inp-phone" placeholder="เช่น 081-234-5678" inputmode="tel" type="tel"/>
-        <div class="error-msg" id="err-phone">กรุณากรอกเบอร์โทร</div>
+      <div class="info-banner">
+        <div class="info-banner-icon">📱</div>
+        <div class="info-banner-text">กรอกข้อมูลรถของท่านเพื่อรับแจ้งเตือนสถานะการซ่อมผ่าน LINE โดยอัตโนมัติ</div>
       </div>
-      <button class="submit-btn" style="margin-top:20px" onclick="goStep2()">ถัดไป →</button>
+
+      <label>🚗 เลขทะเบียนรถ</label>
+      <input id="inp-plate" placeholder="เช่น กข 1234" inputmode="text" autocomplete="off" style="text-transform:uppercase"/>
+      <div class="error-msg" id="err-plate">⚠️ กรุณากรอกเลขทะเบียนรถ</div>
+
+      <div style="margin-top:20px">
+        <label>📞 เบอร์โทรศัพท์</label>
+        <input id="inp-phone" placeholder="เช่น 081-234-5678" inputmode="tel" type="tel"/>
+        <div class="error-msg" id="err-phone">⚠️ กรุณากรอกเบอร์โทร</div>
+      </div>
+
+      <button class="submit-btn" style="margin-top:24px" onclick="goStep2()">
+        ถัดไป เลือกจังหวัด →
+      </button>
     </div>
 
-    <!-- Step 2: จังหวัด -->
+    <!-- Step 2 -->
     <div id="step2" style="display:none">
-      <button onclick="goStep1()" style="background:none;border:none;color:#6b7280;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;padding:0">← กลับ</button>
-      <div style="background:#f9fafb;border-radius:10px;padding:12px 14px;margin-bottom:16px;border:1.5px solid #e5e7eb">
-        <div style="font-size:11px;color:#9ca3af;font-weight:700">ทะเบียนรถ</div>
-        <div style="font-size:18px;font-weight:900;color:#1A1A1A" id="plate-preview"></div>
+      <button class="back-btn" onclick="goStep1()">← กลับ</button>
+
+      <div class="preview-box">
+        <div class="preview-label">ทะเบียนรถ</div>
+        <div class="preview-value" id="plate-preview"></div>
       </div>
-      <label>จังหวัดของทะเบียนรถ</label>
+
+      <label>📍 จังหวัดของทะเบียนรถ</label>
+      <div id="selected-pv-badge" class="selected-pv-badge">
+        <span>✅ เลือก: <span id="selected-pv-text"></span></span>
+      </div>
       <input class="pv-search" id="pv-search" placeholder="🔍 ค้นหาจังหวัด..." oninput="filterProvinces(this.value)"/>
       <div class="province-grid" id="province-grid"></div>
-      <div class="error-msg" id="err-province">กรุณาเลือกจังหวัด</div>
-      <button class="submit-btn" style="margin-top:16px" onclick="submitForm()" id="submit-btn">
-        <span>✅ ยืนยันลงทะเบียน</span>
+      <div class="error-msg" id="err-province">⚠️ กรุณาเลือกจังหวัด</div>
+
+      <button class="submit-btn" style="margin-top:20px" onclick="submitForm()" id="submit-btn">
+        <span id="submit-text">✅ ยืนยันลงทะเบียน</span>
       </button>
     </div>
   </div>
@@ -96,15 +151,15 @@ input:focus{outline:none;border-color:#FFE000;box-shadow:0 0 0 3px rgba(255,224,
 
 <!-- Success -->
 <div id="success-wrap" style="display:none" class="success-wrap">
-  <div style="font-size:64px;margin-bottom:16px">🎉</div>
-  <h2 style="font-size:22px;font-weight:900;color:#1A1A1A;margin-bottom:8px">ลงทะเบียนสำเร็จ!</h2>
-  <div style="background:#fff;border-radius:12px;padding:16px;margin:16px;text-align:left;border:2px solid #FFE000">
-    <div style="font-size:11px;color:#9ca3af;font-weight:700;margin-bottom:4px">ทะเบียนที่ลงทะเบียน</div>
-    <div style="font-size:22px;font-weight:900;color:#1A1A1A" id="success-plate"></div>
-    <div style="font-size:14px;color:#6b7280;margin-top:2px" id="success-province"></div>
+  <span class="success-icon">🎉</span>
+  <div class="success-title">ลงทะเบียนสำเร็จ!</div>
+  <div class="success-card">
+    <div class="success-card-label">ทะเบียนที่ลงทะเบียน</div>
+    <div class="success-card-value" id="success-plate"></div>
+    <div class="success-card-sub" id="success-province"></div>
   </div>
-  <p style="color:#6b7280;font-size:14px;margin:0 16px">ระบบจะแจ้งเตือนสถานะรถผ่าน LINE ของคุณโดยอัตโนมัติครับ 🚗</p>
-  <p style="color:#9ca3af;font-size:12px;margin-top:12px">ปิดหน้านี้ได้เลยครับ</p>
+  <p class="success-note">ระบบจะแจ้งเตือนสถานะรถ<br>ผ่าน LINE ของท่านโดยอัตโนมัติ 🚗</p>
+  <p class="close-note">ปิดหน้านี้ได้เลยครับ</p>
 </div>
 
 <script>
@@ -114,12 +169,10 @@ const PROVINCES = ["กระบี่","กรุงเทพมหานคร
 let token = null;
 let selectedProvince = "";
 
-// Init
 window.onload = async () => {
   const params = new URLSearchParams(location.search);
   token = params.get("token");
   if (!token) { showInvalid(); return; }
-
   try {
     const res = await fetch(`${API}/api/register/${token}`);
     const data = await res.json();
@@ -131,15 +184,15 @@ window.onload = async () => {
   hide("loading-wrap");
 };
 
-function show(id) { document.getElementById(id).style.display = "block"; }
-function hide(id) { document.getElementById(id).style.display = "none"; }
+function show(id) { document.getElementById(id).style.display="block"; }
+function hide(id) { document.getElementById(id).style.display="none"; }
 function showInvalid() { hide("loading-wrap"); show("invalid-wrap"); }
 
 function renderProvinces(filter) {
   const grid = document.getElementById("province-grid");
   const filtered = PROVINCES.filter(p => p.includes(filter));
   grid.innerHTML = filtered.map(p => `
-    <button class="pv-btn ${p === selectedProvince ? "selected" : ""}" onclick="selectProvince('${p}')">${p}</button>
+    <button class="pv-btn ${p===selectedProvince?"selected":""}" onclick="selectProvince('${p}')">${p}</button>
   `).join("");
 }
 
@@ -148,58 +201,54 @@ function filterProvinces(val) { renderProvinces(val); }
 function selectProvince(p) {
   selectedProvince = p;
   renderProvinces(document.getElementById("pv-search").value);
+  document.getElementById("selected-pv-text").textContent = p;
+  document.getElementById("selected-pv-badge").style.display = "block";
   document.getElementById("err-province").style.display = "none";
+  // scroll ปุ่ม submit ให้เห็น
+  document.getElementById("submit-btn").scrollIntoView({behavior:"smooth", block:"nearest"});
 }
 
-function goStep1() {
-  hide("step2");
-  show("step1");
-}
+function goStep1() { hide("step2"); show("step1"); }
 
 function goStep2() {
   const plate = document.getElementById("inp-plate").value.trim();
   const phone = document.getElementById("inp-phone").value.trim();
-  if (!plate) { document.getElementById("err-plate").style.display = "block"; return; }
-  if (!phone) { document.getElementById("err-phone").style.display = "block"; return; }
-  document.getElementById("err-plate").style.display = "none";
-  document.getElementById("err-phone").style.display = "none";
+  if (!plate) { document.getElementById("err-plate").style.display="block"; return; }
+  if (!phone) { document.getElementById("err-phone").style.display="block"; return; }
+  document.getElementById("err-plate").style.display="none";
+  document.getElementById("err-phone").style.display="none";
   document.getElementById("plate-preview").textContent = plate.toUpperCase();
-  hide("step1");
-  show("step2");
-  selectedProvince = "";
+  hide("step1"); show("step2");
+  selectedProvince="";
+  document.getElementById("selected-pv-badge").style.display="none";
   renderProvinces("");
 }
 
 async function submitForm() {
   if (!selectedProvince) {
-    document.getElementById("err-province").style.display = "block";
+    document.getElementById("err-province").style.display="block";
     return;
   }
   const plate = document.getElementById("inp-plate").value.trim();
   const phone = document.getElementById("inp-phone").value.trim();
   const btn = document.getElementById("submit-btn");
-  btn.innerHTML = '<div class="spin" style="width:20px;height:20px;border-width:2px"></div><span>กำลังบันทึก...</span>';
+  document.getElementById("submit-text").innerHTML = '<span style="display:inline-flex;align-items:center;gap:10px"><span style="width:22px;height:22px;border:3px solid rgba(255,224,0,.4);border-top:3px solid #FFE000;border-radius:50%;animation:spin .8s linear infinite;display:inline-block"></span> กำลังบันทึก...</span>';
   btn.disabled = true;
-
   try {
-    const res = await fetch(`${API}/api/register/submit`, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ token, plate, province: selectedProvince, phone })
+    const res = await fetch(`${API}/api/register/submit`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({token,plate,province:selectedProvince,phone})
     });
     const data = await res.json();
     if (data.success) {
       document.getElementById("success-plate").textContent = plate.toUpperCase();
-      document.getElementById("success-province").textContent = "จ." + selectedProvince;
-      hide("form-wrap");
-      show("success-wrap");
-    } else {
-      throw new Error(data.error);
-    }
+      document.getElementById("success-province").textContent = "จังหวัด" + selectedProvince;
+      hide("form-wrap"); show("success-wrap");
+    } else { throw new Error(data.error); }
   } catch(e) {
-    btn.innerHTML = '<span>✅ ยืนยันลงทะเบียน</span>';
-    btn.disabled = false;
-    alert("เกิดข้อผิดพลาด: " + e.message);
+    document.getElementById("submit-text").textContent = "✅ ยืนยันลงทะเบียน";
+    btn.disabled=false;
+    alert("เกิดข้อผิดพลาด กรุณาลองใหม่\n"+e.message);
   }
 }
 </script>
