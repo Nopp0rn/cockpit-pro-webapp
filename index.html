@@ -327,7 +327,9 @@ function openJobModal(bay) {
         </div>
         <div class="modal-body">
           <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:5px">ทะเบียนรถ</label>
-          <input id="m-plate" placeholder="เช่น กข 1234" style="width:100%;padding:10px 12px;border-radius:8px;border:2px solid #E2E2DA;font-size:15px;font-weight:800;margin-bottom:12px"/>
+          <input id="m-plate" placeholder="เช่น กข 1234" style="width:100%;padding:10px 12px;border-radius:8px;border:2px solid #E2E2DA;font-size:15px;font-weight:800;margin-bottom:8px"/>
+          <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:5px">จังหวัด</label>
+          <input id="m-province" placeholder="เช่น อุดรธานี, ขอนแก่น" style="width:100%;padding:10px 12px;border-radius:8px;border:2px solid #E2E2DA;font-size:14px;margin-bottom:12px"/>
           <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:5px">เบอร์โทรลูกค้า</label>
           <input id="m-phone" placeholder="เช่น 081-234-5678" style="width:100%;padding:10px 12px;border-radius:8px;border:2px solid #E2E2DA;font-size:14px;margin-bottom:16px"/>
           <label style="font-size:11px;font-weight:800;color:#374151;display:block;margin-bottom:8px">งานที่ต้องทำ</label>
@@ -353,6 +355,7 @@ function toggleTag(btn) {
 
 async function confirmOpenJob(bay) {
   const plate = document.getElementById("m-plate").value.trim();
+  const province = document.getElementById("m-province").value.trim();
   const phone = document.getElementById("m-phone").value.trim();
   const jobs = [...document.querySelectorAll("#job-tags button[data-active='1']")].map(b=>b.dataset.job);
   if(!plate||!phone||!jobs.length){ alert("กรุณากรอกข้อมูลให้ครบ"); return; }
@@ -360,8 +363,8 @@ async function confirmOpenJob(bay) {
   btn.innerHTML = '<div class="spin" style="width:16px;height:16px;border-width:2px"></div>';
   btn.disabled = true;
   try {
-    const res = await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/open",{method:"POST",body:JSON.stringify({plate,phone,jobs})});
-    toast("เปิดงานช่องที่ "+bay+" – "+plate);
+    const res = await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/open",{method:"POST",body:JSON.stringify({plate,province,phone,jobs})});
+    toast("เปิดงานช่องที่ "+bay+" – "+plate+(province?" จ."+province:""));
     if(res.lineNotified) setTimeout(()=>toast("LINE แจ้ง "+plate+" เข้าคิวแล้ว 🚗","line"),600);
     closeModal();
     await reloadData();
