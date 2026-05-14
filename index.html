@@ -185,9 +185,6 @@ function renderBranch(d) {
 function renderBayCard(num, job) {
   const empty = !job;
   const active = job?.bayStatus==="in_service";
-  const cls = empty?"":"(active?"active-bay":"waiting-bay")";
-  const borderCls = empty?"":"bay-card "+(active?"active-bay":"waiting-bay");
-
   if(empty) return `
     <div class="bay-card" style="border-color:#E2E2DA" id="bay-${num}">
       ${bayLoading[num]?'<div class="overlay"><div class="spin"></div></div>':""}
