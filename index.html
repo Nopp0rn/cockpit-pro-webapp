@@ -221,7 +221,10 @@ function renderBayCard(num, job) {
     const icon = j.status==="done"?"✓ ":j.status==="in_progress"?"⚙ ":"";
     const td = j.status==="done"?"text-decoration:line-through":"";
     const nextS = {waiting:"in_progress",in_progress:"done",done:"waiting"}[j.status];
-    return `<button class="tag" onclick="updateJob(${num},${i},'${nextS}')" style="background:${jc.bg};color:${jc.c};${td}">${icon}${j.name}</button>`;
+    return `<div style="display:inline-flex;align-items:center;gap:2px;margin-bottom:2px">
+      <button class="tag" onclick="updateJob(${num},${i},'${nextS}')" style="background:${jc.bg};color:${jc.c};${td}">${icon}${j.name}</button>
+      <button onclick="removeJob(${num},${i})" title="ลบงานนี้" style="background:#fee2e2;color:#dc2626;border:none;border-radius:4px;width:18px;height:18px;font-size:10px;font-weight:900;cursor:pointer;padding:0;line-height:1">✕</button>
+    </div>`;
   }).join("");
 
   return `
@@ -321,23 +324,38 @@ async function confirmAddJob(bay) {
   const newJobs = [...document.querySelectorAll("#add-job-tags button[data-active='1']")].map(b => b.dataset.job);
   if(!newJobs.length) { alert("กรุณาเลือกงานที่ต้องการเพิ่ม"); return; }
 
-  const btn = document.getElementById("add-job-btn");
-  btn.innerHTML = '<div class="spin" style="width:16px;height:16px;border-width:2px;margin:auto"></div>';
-  btn.disabled = true;
+  // ปิด modal ทันที แล้วค่อย call API เพื่อไม่ให้ค้าง
+  closeModal();
+  toast("กำลังเพิ่มงาน "+newJobs.join(", ")+"...");
 
   try {
     await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/addjobs", {
       method: "POST",
       body: JSON.stringify({ jobs: newJobs })
     });
-    toast("เพิ่มงาน "+newJobs.join(", ")+" สำเร็จ");
-    closeModal();
-    await reloadData();
+    toast("✅ เพิ่มงาน "+newJobs.join(", ")+" สำเร็จ");
   } catch(e) {
-    // ถ้า error แต่งานเพิ่มสำเร็จแล้ว (Render ช้า) → ปิด modal แล้ว reload
-    closeModal();
-    toast("เพิ่มงานสำเร็จ (รีเฟรชข้อมูล...)");
+    // Render อาจช้า แต่งานอาจบันทึกสำเร็จแล้ว
+    toast("รีเฟรชข้อมูล...");
+  }
+  await reloadData();
+}
+
+// ── Remove Job ────────────────────────────────────
+async function removeJob(bay, idx) {
+  if(!confirm("ยืนยันลบงานนี้ออก?")) return;
+  bayLoading[bay] = true; refreshBayCard(bay);
+  try {
+    await apiFetch("/api/branch/"+currentBranch.id+"/bay/"+bay+"/removejob", {
+      method: "POST",
+      body: JSON.stringify({ jobIdx: idx })
+    });
+    toast("ลบงานสำเร็จ");
     await reloadData();
+  } catch {
+    toast("ลบงานไม่สำเร็จ","error");
+  } finally {
+    bayLoading[bay] = false;
   }
 }
 
