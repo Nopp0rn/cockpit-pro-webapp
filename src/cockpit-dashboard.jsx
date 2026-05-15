@@ -40,36 +40,19 @@ function CockpitLogo({ height = 46 }) {
   );
 }
 
-// ─── Completion Overlay ───────────────────────────────────────────────────────
-function CompletionOverlay({ plate, onClose }) {
-  useEffect(() => { const t = setTimeout(onClose, 10000); return () => clearTimeout(t); }, [onClose]);
+// ─── Completion Toast (staff only) ───────────────────────────────────────────
+function CompletionToast({ plate, onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, [onClose]);
   return (
     <div style={{
-      position:"fixed",inset:0,zIndex:300,background:"#1A1A1A",
-      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      padding:24,animation:"fadeIn .3s ease"
+      position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",
+      zIndex:300,background:"#059669",color:"#fff",
+      borderRadius:14,padding:"16px 28px",fontSize:18,fontWeight:800,
+      boxShadow:"0 4px 20px rgba(0,0,0,.3)",textAlign:"center",
+      animation:"fadeIn .3s ease",whiteSpace:"nowrap",
+      fontFamily:"'Noto Sans Thai',sans-serif"
     }}>
-      <div style={{
-        background:"#FFE000",borderRadius:28,padding:"40px 32px",
-        textAlign:"center",maxWidth:460,width:"100%"
-      }}>
-        <div style={{fontSize:88,lineHeight:1,marginBottom:20}}>✅</div>
-        <div style={{fontSize:54,fontWeight:900,color:"#1A1A1A",letterSpacing:"0.05em",lineHeight:1,marginBottom:16}}>
-          {plate}
-        </div>
-        <div style={{fontSize:30,fontWeight:900,color:"#1A1A1A",lineHeight:1.4,marginBottom:10}}>
-          งานเสร็จเรียบร้อย
-        </div>
-        <div style={{fontSize:22,fontWeight:800,color:"#1A1A1A",lineHeight:1.8}}>
-          หากท่านอยู่ในสาขา<br/>กรุณารอสักครู่<br/>
-          พนักงานจะไปพบท่าน<br/>เพื่อชำระสินค้าและบริการ
-        </div>
-      </div>
-      <button onClick={onClose} style={{
-        marginTop:28,padding:"14px 52px",background:"#FFE000",
-        border:"none",borderRadius:14,fontSize:20,fontWeight:900,
-        cursor:"pointer",color:"#1A1A1A",fontFamily:"'Noto Sans Thai',sans-serif"
-      }}>✕ ปิด</button>
+      ✅ ปิดงาน {plate} แล้ว — LINE แจ้งลูกค้าอัตโนมัติ
     </div>
   );
 }
@@ -109,20 +92,19 @@ function ProvincePicker({ value, onChange }) {
 // ─── Open Queue Modal ─────────────────────────────────────────────────────────
 function OpenQueueModal({ qNo, branchId, onClose, onSuccess }) {
   const [plate, setPlate] = useState("");
-  const [phone, setPhone] = useState("");
   const [province, setProvince] = useState("");
+  const [showProvince, setShowProvince] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const submit = async () => {
     if (!plate.trim()) { setError("กรุณากรอกทะเบียนรถ"); return; }
-    if (!phone.trim()) { setError("กรุณากรอกเบอร์โทร"); return; }
-    if (!province) { setError("กรุณาเลือกจังหวัด"); return; }
     setLoading(true); setError("");
     try {
       const res = await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/open`, {
         plate: plate.trim().toUpperCase().replace(/\s/g,""),
-        phone: phone.trim(), province, jobs: ["รับรถเข้า"]
+        phone: "-", province: province || "",
+        jobs: ["รับรถเข้า"]
       });
       if (res.success) { onSuccess(); onClose(); }
       else setError(res.error || "เกิดข้อผิดพลาด");
@@ -133,31 +115,72 @@ function OpenQueueModal({ qNo, branchId, onClose, onSuccess }) {
   return (
     <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"flex-end"}}>
       <div style={{background:"#fff",borderRadius:"24px 24px 0 0",width:"100%",maxHeight:"92vh",overflowY:"auto",padding:"24px 20px 48px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-          <div style={{fontSize:24,fontWeight:900,color:"#1A1A1A"}}>🚗 ลำดับที่ {qNo}</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+          <div>
+            <div style={{fontSize:24,fontWeight:900,color:"#1A1A1A"}}>🚗 เพิ่มรถ – ลำดับที่ {qNo}</div>
+            <div style={{fontSize:14,color:"#9ca3af",marginTop:4}}>ระบบดึงข้อมูล LINE อัตโนมัติจากทะเบียน</div>
+          </div>
           <button onClick={onClose} style={{background:"#f3f4f6",border:"none",borderRadius:10,width:40,height:40,fontSize:22,cursor:"pointer"}}>✕</button>
         </div>
+
         {error && <div style={{background:"#fee2e2",color:"#dc2626",padding:"12px",borderRadius:10,marginBottom:16,fontWeight:700,fontSize:16}}>{error}</div>}
-        
-        <label style={{fontSize:18,fontWeight:800,display:"block",marginBottom:8}}>🔢 ทะเบียนรถ</label>
-        <input value={plate} onChange={e => setPlate(e.target.value.toUpperCase())} placeholder="เช่น กข1234"
-          style={{width:"100%",padding:"16px",borderRadius:12,border:"2px solid #e5e7eb",
-            fontSize:30,fontWeight:900,fontFamily:"'Noto Sans Thai',sans-serif",
-            letterSpacing:"0.04em",outline:"none",marginBottom:16}}/>
 
-        <label style={{fontSize:18,fontWeight:800,display:"block",marginBottom:8}}>📞 เบอร์โทร</label>
-        <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="เช่น 081-234-5678" inputMode="tel"
-          style={{width:"100%",padding:"16px",borderRadius:12,border:"2px solid #e5e7eb",
-            fontSize:20,fontFamily:"'Noto Sans Thai',sans-serif",outline:"none",marginBottom:16}}/>
+        {/* Plate input - main field */}
+        <label style={{fontSize:20,fontWeight:900,display:"block",marginBottom:10,color:"#1A1A1A"}}>
+          🔢 ทะเบียนรถ
+        </label>
+        <input
+          value={plate}
+          onChange={e => setPlate(e.target.value.toUpperCase())}
+          placeholder="เช่น กข1234"
+          autoFocus
+          style={{
+            width:"100%",padding:"20px",borderRadius:14,
+            border:"3px solid #e5e7eb",fontSize:36,fontWeight:900,
+            fontFamily:"'Noto Sans Thai',sans-serif",
+            letterSpacing:"0.05em",outline:"none",marginBottom:8,
+            textAlign:"center",textTransform:"uppercase"
+          }}
+        />
 
-        <label style={{fontSize:18,fontWeight:800,display:"block",marginBottom:8}}>📍 จังหวัด</label>
-        <ProvincePicker value={province} onChange={setProvince}/>
+        {/* Province - optional toggle */}
+        <button
+          onClick={() => setShowProvince(!showProvince)}
+          style={{
+            background:"none",border:"1.5px dashed #d1d5db",borderRadius:10,
+            padding:"10px 16px",fontSize:15,fontWeight:700,cursor:"pointer",
+            color:"#6b7280",marginBottom:16,fontFamily:"'Noto Sans Thai',sans-serif",
+            width:"100%"
+          }}>
+          {province ? `📍 จังหวัด: ${province}` : "📍 เพิ่มจังหวัด (ถ้ามีทะเบียนซ้ำ)"}
+        </button>
+
+        {showProvince && (
+          <div style={{marginBottom:16}}>
+            <ProvincePicker value={province} onChange={p => { setProvince(p); setShowProvince(false); }}/>
+          </div>
+        )}
+
+        {/* Info box */}
+        <div style={{
+          background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:12,
+          padding:"12px 16px",marginBottom:20,
+          display:"flex",gap:10,alignItems:"flex-start"
+        }}>
+          <span style={{fontSize:20,flexShrink:0}}>💬</span>
+          <div style={{fontSize:14,color:"#166534",fontWeight:700,lineHeight:1.6}}>
+            ถ้าลูกค้าลงทะเบียนทะเบียนรถใน LINE แล้ว<br/>
+            ระบบจะส่งแจ้งเตือนให้อัตโนมัติ
+          </div>
+        </div>
 
         <button onClick={submit} disabled={loading}
-          style={{width:"100%",padding:"20px",borderRadius:14,border:"none",
+          style={{
+            width:"100%",padding:"20px",borderRadius:14,border:"none",
             background: loading ? "#9ca3af" : "#1A1A1A",color:"#FFE000",
-            fontSize:20,fontWeight:900,cursor:"pointer",marginTop:16,
-            fontFamily:"'Noto Sans Thai',sans-serif"}}>
+            fontSize:22,fontWeight:900,cursor:"pointer",
+            fontFamily:"'Noto Sans Thai',sans-serif"
+          }}>
           {loading ? "⏳ กำลังบันทึก..." : "✅ เปิดคิว"}
         </button>
       </div>
@@ -475,7 +498,7 @@ function StaffView() {
       {addTarget && <AddJobsModal qNo={addTarget} branchId={branchId}
         existingJobs={queues[addTarget]?.jobs||[]}
         onClose={() => setAddTarget(null)} onSuccess={fetch_}/>}
-      {completion && <CompletionOverlay plate={completion} onClose={() => setCompletion(null)}/>}
+      {completion && <CompletionToast plate={completion} onClose={() => setCompletion(null)}/>}
     </div>
   );
 }
