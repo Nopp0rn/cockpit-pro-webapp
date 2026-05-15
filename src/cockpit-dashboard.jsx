@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
 const API = "https://cockpit-pro-backend.onrender.com";
-const DEFAULT_BRANCH = "BR107";
 const JOB_TYPES = ["ยาง","ตั้งศูนย์","ถ่วงล้อ","แบตเตอรี่","เบรค","โช้คอัพ","น้ำมันเครื่อง","Cockpit Sure","อื่นๆ"];
 const PROVINCES = ["กระบี่","กรุงเทพมหานคร","กาญจนบุรี","กาฬสินธุ์","กำแพงเพชร","ขอนแก่น","จันทบุรี","ฉะเชิงเทรา","ชลบุรี","ชัยนาท","ชัยภูมิ","ชุมพร","เชียงราย","เชียงใหม่","ตรัง","ตราด","ตาก","นครนายก","นครปฐม","นครพนม","นครราชสีมา","นครศรีธรรมราช","นครสวรรค์","นนทบุรี","นราธิวาส","น่าน","บึงกาฬ","บุรีรัมย์","ปทุมธานี","ประจวบคีรีขันธ์","ปราจีนบุรี","ปัตตานี","พระนครศรีอยุธยา","พะเยา","พังงา","พัทลุง","พิจิตร","พิษณุโลก","เพชรบุรี","เพชรบูรณ์","แพร่","ภูเก็ต","มหาสารคาม","มุกดาหาร","แม่ฮ่องสอน","ยโสธร","ยะลา","ร้อยเอ็ด","ระนอง","ระยอง","ราชบุรี","ลพบุรี","ลำปาง","ลำพูน","เลย","ศรีสะเกษ","สกลนคร","สงขลา","สตูล","สมุทรปราการ","สมุทรสงคราม","สมุทรสาคร","สระแก้ว","สระบุรี","สิงห์บุรี","สุโขทัย","สุพรรณบุรี","สุราษฎร์ธานี","สุรินทร์","หนองคาย","หนองบัวลำภู","อ่างทอง","อำนาจเจริญ","อุดรธานี","อุตรดิตถ์","อุทัยธานี","อุบลราชธานี"];
 
@@ -355,15 +354,29 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
 
 // ─── Staff View ───────────────────────────────────────────────────────────────
 function StaffView() {
-  const [queues, setQueues] = useState({});
-  const [branchId]   = useState(DEFAULT_BRANCH);
+  const [branches, setBranches]     = useState([]);
+  const [branchId, setBranchId]     = useState(null);
+  const [queues, setQueues]         = useState({});
   const [branchName, setBranchName] = useState("Cockpit Pro");
   const [loading, setLoading]       = useState(true);
   const [openModal, setOpenModal]   = useState(false);
   const [addTarget, setAddTarget]   = useState(null);
   const [completion, setCompletion] = useState(null);
 
+  // โหลดรายชื่อสาขาจาก API
+  useEffect(() => {
+    fetch(`${API}/api/admin/overview`)
+      .then(r => r.json())
+      .then(d => {
+        const list = d.overview || [];
+        setBranches(list);
+        if (list.length) setBranchId(list[0].branchId);
+      })
+      .catch(() => setBranchId("BR107"));
+  }, []);
+
   const fetch_ = useCallback(async () => {
+    if (!branchId) return;
     try {
       const res = await fetch(`${API}/api/branch/${branchId}`);
       const data = await res.json();
@@ -373,7 +386,13 @@ function StaffView() {
     setLoading(false);
   }, [branchId]);
 
-  useEffect(() => { fetch_(); const t = setInterval(fetch_, 15000); return () => clearInterval(t); }, [fetch_]);
+  useEffect(() => {
+    if (!branchId) return;
+    setLoading(true); setQueues({});
+    fetch_();
+    const t = setInterval(fetch_, 15000);
+    return () => clearInterval(t);
+  }, [fetch_, branchId]);
 
   const qList = Object.values(queues);
   const total = qList.length, inSrv = qList.filter(q=>q.bayStatus==="in_service").length;
@@ -383,7 +402,27 @@ function StaffView() {
 
   return (
     <div style={{paddingBottom:100}}>
-      <div style={{padding:"14px 16px 4px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+
+      {/* Branch selector tabs */}
+      {branches.length > 1 && (
+        <div style={{padding:"12px 16px 4px",display:"flex",gap:8,overflowX:"auto"}}>
+          {branches.map(b => (
+            <button key={b.branchId} onClick={() => setBranchId(b.branchId)}
+              style={{
+                padding:"10px 18px",borderRadius:12,border:"none",cursor:"pointer",
+                background: branchId===b.branchId ? "#1A1A1A" : "#fff",
+                color: branchId===b.branchId ? "#FFE000" : "#374151",
+                fontSize:15,fontWeight:800,whiteSpace:"nowrap",flexShrink:0,
+                boxShadow:"0 2px 8px rgba(0,0,0,.08)",
+                fontFamily:"'Noto Sans Thai',sans-serif"
+              }}>
+              📍 {b.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div style={{padding:"12px 16px 4px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{fontSize:18,fontWeight:800,color:"#374151"}}>📍 {branchName}</div>
         <button onClick={fetch_} style={{background:"none",border:"1.5px solid #d1d5db",borderRadius:8,
           padding:"6px 12px",fontSize:14,fontWeight:700,cursor:"pointer",color:"#6b7280",
