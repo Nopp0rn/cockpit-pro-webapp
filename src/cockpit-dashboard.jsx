@@ -503,22 +503,21 @@ function StaffView() {
   );
 }
 
-// ─── Admin View ───────────────────────────────────────────────────────────────
+// ─── Admin View (TV-optimized) ────────────────────────────────────────────────
 function AdminView() {
   const [overview, setOverview]   = useState([]);
   const [selBranch, setSelBranch] = useState(null);
   const [detail, setDetail]       = useState(null);
   const [loading, setLoading]     = useState(true);
   const [detLoad, setDetLoad]     = useState(false);
-
-  useEffect(() => { fetchOv(); }, []);
+  const [lastUpdate, setLastUpdate] = useState("");
 
   const fetchOv = async () => {
     try {
       const r = await fetch(`${API}/api/admin/overview`);
       const d = await r.json();
       setOverview(d.overview || []);
-      if (d.overview?.length) selectBranch(d.overview[0].branchId);
+      if (d.overview?.length && !selBranch) selectBranch(d.overview[0].branchId);
     } catch {}
     setLoading(false);
   };
@@ -528,149 +527,206 @@ function AdminView() {
     try {
       const r = await fetch(`${API}/api/branch/${id}`);
       setDetail(await r.json());
+      setLastUpdate(new Date().toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",second:"2-digit"}));
     } catch {}
     setDetLoad(false);
   };
 
-  if (loading) return <div style={{textAlign:"center",padding:60,fontSize:20,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>;
-  if (!overview.length) return <div style={{textAlign:"center",padding:60,fontSize:20,color:"#9ca3af"}}>ไม่พบข้อมูลสาขา</div>;
+  const refresh = () => selBranch && selectBranch(selBranch);
+
+  useEffect(() => { fetchOv(); }, []);
+  useEffect(() => {
+    if (!selBranch) return;
+    const t = setInterval(() => selectBranch(selBranch), 20000);
+    return () => clearInterval(t);
+  }, [selBranch]);
+
+  if (loading) return <div style={{textAlign:"center",padding:60,fontSize:18,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>;
+  if (!overview.length) return <div style={{textAlign:"center",padding:60,fontSize:18,color:"#9ca3af"}}>ไม่พบข้อมูลสาขา</div>;
 
   const cars = Object.entries(detail?.baysData||{}).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
   const total = cars.length;
   const inSrv = cars.filter(([,c])=>c.bayStatus==="in_service").length;
   const wait  = cars.filter(([,c])=>c.bayStatus==="waiting_entry").length;
+  const done  = cars.filter(([,c])=>getProgress(c.jobs)===100).length;
+
+  // Responsive columns: fit all cards on screen
+  const cols = total <= 4 ? total || 1 : total <= 8 ? 4 : total <= 12 ? 4 : total <= 16 ? 4 : 5;
 
   return (
-    <div style={{paddingBottom:40}}>
-      {/* Branch tabs */}
-      <div style={{padding:"14px 16px 10px"}}>
-        <div style={{fontSize:18,fontWeight:800,color:"#374151",marginBottom:12}}>เลือกสาขา</div>
-        <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:4}}>
+    <div style={{background:"#0f1117",minHeight:"calc(100vh - 110px)",display:"flex",flexDirection:"column"}}>
+
+      {/* Top bar */}
+      <div style={{background:"#1A1A1A",borderBottom:"2px solid #FFE000",padding:"10px 20px",
+        display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+
+        {/* Title + branch */}
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:800,color:"#FFE000",letterSpacing:"2px",textTransform:"uppercase"}}>
+              ข้อมูลการใช้บริการ
+            </div>
+            <div style={{fontSize:16,fontWeight:900,color:"#fff"}}>
+              {detail?.name || "กำลังโหลด..."}
+            </div>
+          </div>
+        </div>
+
+        {/* Branch tabs */}
+        <div style={{display:"flex",gap:6}}>
           {overview.map(b => (
             <button key={b.branchId} onClick={() => selectBranch(b.branchId)}
-              style={{padding:"12px 22px",borderRadius:12,border:"none",cursor:"pointer",
-                background: selBranch===b.branchId ? "#1A1A1A" : "#fff",
-                color: selBranch===b.branchId ? "#FFE000" : "#1A1A1A",
-                fontSize:18,fontWeight:800,whiteSpace:"nowrap",flexShrink:0,
-                boxShadow:"0 2px 8px rgba(0,0,0,.08)",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              📍 {b.name}
+              style={{padding:"6px 14px",borderRadius:8,border:"none",cursor:"pointer",
+                background: selBranch===b.branchId ? "#FFE000" : "rgba(255,255,255,0.1)",
+                color: selBranch===b.branchId ? "#1A1A1A" : "#ccc",
+                fontSize:13,fontWeight:800,fontFamily:"'Noto Sans Thai',sans-serif"}}>
+              {b.name}
             </button>
           ))}
         </div>
+
+        {/* Stats + refresh */}
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {[
+            {v:total,l:"ทั้งหมด",bg:"#FFE000",c:"#1A1A1A"},
+            {v:inSrv,l:"ซ่อมอยู่",bg:"#059669",c:"#fff"},
+            {v:wait,l:"รอคิว",bg:"#d97706",c:"#fff"},
+            {v:done,l:"เสร็จแล้ว",bg:"#374151",c:"#fff"},
+          ].map(s => (
+            <div key={s.l} style={{background:s.bg,borderRadius:8,padding:"4px 12px",textAlign:"center",minWidth:52}}>
+              <div style={{fontSize:20,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
+              <div style={{fontSize:10,fontWeight:700,color:s.c,opacity:.85}}>{s.l}</div>
+            </div>
+          ))}
+          <div style={{fontSize:11,color:"#6b7280",marginLeft:4}}>
+            🔄 {lastUpdate}
+          </div>
+          <button onClick={refresh}
+            style={{background:"rgba(255,255,255,0.08)",border:"1px solid #444",borderRadius:8,
+              padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer",color:"#ccc",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}>
+            รีเฟรช
+          </button>
+        </div>
       </div>
 
-      {detLoad && <div style={{textAlign:"center",padding:40,fontSize:18,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>}
+      {/* Queue grid */}
+      {detLoad ? (
+        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"#9ca3af",fontSize:16}}>
+          ⏳ กำลังโหลด...
+        </div>
+      ) : (
+        <div style={{
+          flex:1, padding:"12px 16px",
+          display:"grid",
+          gridTemplateColumns:`repeat(${cols}, 1fr)`,
+          gap:10,
+          alignContent:"start",
+        }}>
+          {cars.length === 0 && (
+            <div style={{gridColumn:`1/-1`,textAlign:"center",padding:60,color:"#6b7280",fontSize:16}}>
+              ไม่มีรถในคิวขณะนี้
+            </div>
+          )}
 
-      {!detLoad && detail && (
-        <>
-          {/* Big stats for admin */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,padding:"4px 16px 20px"}}>
-            {[
-              {label:"คิวทั้งหมด",value:total,bg:"#FFE000",color:"#1A1A1A"},
-              {label:"เริ่มทำแล้ว",value:inSrv,bg:"#059669",color:"#fff"},
-              {label:"รออีก",value:wait,bg:"#d97706",color:"#fff"},
-            ].map(s => (
-              <div key={s.label} style={{background:s.bg,borderRadius:16,padding:"20px 8px",textAlign:"center"}}>
-                <div style={{fontSize:52,fontWeight:900,color:s.color,lineHeight:1}}>{s.value}</div>
-                <div style={{fontSize:16,fontWeight:700,color:s.color,opacity:.9,marginTop:6}}>{s.label}</div>
-              </div>
-            ))}
-          </div>
+          {cars.map(([qNo, car]) => {
+            const real = (car.jobs||[]).filter(j=>j.name!=="รับรถเข้า");
+            const prog = getProgress(car.jobs);
+            const isIn = car.bayStatus==="in_service";
+            const isDone = prog === 100 && real.length > 0;
 
-          {/* Per-car cards – large font for elderly */}
-          <div style={{padding:"0 16px"}}>
-            {cars.length===0 && (
-              <div style={{textAlign:"center",padding:60,color:"#9ca3af",fontSize:22}}>ไม่มีรถในคิวขณะนี้</div>
-            )}
-            {cars.map(([qNo, car]) => {
-              const jIdx = (car.jobs||[]).map((j,i)=>({...j,idx:i}));
-              const real = jIdx.filter(j=>j.name!=="รับรถเข้า");
-              const prog = getProgress(car.jobs);
-              const isIn = car.bayStatus==="in_service";
-              return (
-                <div key={qNo} style={{
-                  background:"#fff",borderRadius:22,marginBottom:18,overflow:"hidden",
-                  boxShadow: isIn ? "0 0 0 3px #059669" : "0 2px 16px rgba(0,0,0,.1)"
+            return (
+              <div key={qNo} style={{
+                background: isIn ? "#1a2a1a" : "#1a1a2a",
+                border: `2px solid ${isDone?"#059669":isIn?"#22c55e":"#374151"}`,
+                borderRadius:12,overflow:"hidden",
+                display:"flex",flexDirection:"column",
+              }}>
+                {/* Card header */}
+                <div style={{
+                  background: isDone?"#059669":isIn?"#166534":"#1e293b",
+                  padding:"8px 10px",
+                  display:"flex",alignItems:"center",justifyContent:"space-between",
                 }}>
-                  {/* Car header */}
-                  <div style={{background: isIn ? "#059669" : "#1A1A1A",padding:"18px 20px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:14,justifyContent:"space-between"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:14}}>
-                        <div style={{background:"#FFE000",borderRadius:12,minWidth:60,height:60,
-                          display:"flex",alignItems:"center",justifyContent:"center",
-                          flexDirection:"column",fontSize:13,fontWeight:900,color:"#1A1A1A",
-                          padding:"0 8px",textAlign:"center",lineHeight:1.3,flexShrink:0}}>
-                          ลำดับ<br/>{qNo}
-                        </div>
-                        <div>
-                          <div style={{fontSize:44,fontWeight:900,color:"#FFE000",letterSpacing:"0.04em",lineHeight:1}}>
-                            {car.plate}
-                          </div>
-                          <div style={{fontSize:18,color:"rgba(255,255,255,.8)",marginTop:4}}>
-                            {car.province ? `จ.${car.province}` : ""}
-                          </div>
-                        </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{
+                      background:"#FFE000",borderRadius:6,minWidth:28,height:28,
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      fontSize:13,fontWeight:900,color:"#1A1A1A",flexShrink:0,
+                    }}>{qNo}</div>
+                    <div>
+                      <div style={{fontSize:20,fontWeight:900,color:"#FFE000",letterSpacing:"0.04em",lineHeight:1}}>
+                        {car.plate}
                       </div>
-                      <div style={{
-                        background: isIn ? "rgba(255,255,255,.22)" : "#FFE000",
-                        color: isIn ? "#fff" : "#1A1A1A",
-                        borderRadius:16,padding:"10px 16px",fontSize:18,fontWeight:900,
-                        flexShrink:0,textAlign:"center",lineHeight:1.4}}>
-                        {isIn ? "🔧\nซ่อมอยู่" : "⏳\nรอคิว"}
-                      </div>
+                      {car.province && (
+                        <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginTop:1}}>
+                          จ.{car.province}
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  {real.length > 0 && (
-                    <div style={{padding:"16px 20px 8px"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                        <span style={{fontSize:20,fontWeight:800,color:"#374151"}}>ความคืบหน้างาน</span>
-                        <span style={{fontSize:20,fontWeight:900,color:"#1A1A1A"}}>{prog}%</span>
-                      </div>
-                      <div style={{background:"#f3f4f6",borderRadius:99,height:16}}>
-                        <div style={{background:prog===100?"#059669":"#FFE000",borderRadius:99,height:16,width:`${prog}%`,transition:"width .4s"}}/>
-                      </div>
-                    </div>
-                  )}
-
-                  <div style={{padding:"8px 20px 20px"}}>
-                    {real.length === 0
-                      ? <div style={{color:"#9ca3af",fontSize:20,fontStyle:"italic",padding:"10px 0"}}>ยังไม่มีรายการงาน</div>
-                      : real.map(job => (
-                          <div key={job.idx} style={{display:"flex",alignItems:"center",gap:14,
-                            padding:"14px 0",borderBottom:"1px solid #f3f4f6"}}>
-                            <span style={{fontSize:30,flexShrink:0}}>
-                              {job.status==="done"?"✅":job.status==="in_progress"?"🔧":"⏳"}
-                            </span>
-                            <span style={{fontSize:24,fontWeight:700,flex:1,
-                              color:job.status==="done"?"#9ca3af":"#1A1A1A",
-                              textDecoration:job.status==="done"?"line-through":"none"}}>
-                              {job.name}
-                            </span>
-                            <span style={{fontSize:18,fontWeight:700,flexShrink:0,
-                              borderRadius:20,padding:"6px 16px",
-                              background:job.status==="done"?"#d1fae5":job.status==="in_progress"?"#fef3c7":"#f3f4f6",
-                              color:job.status==="done"?"#059669":job.status==="in_progress"?"#d97706":"#9ca3af"}}>
-                              {job.status==="done"?"เสร็จ ✓":job.status==="in_progress"?"กำลังทำ":"รอ"}
-                            </span>
-                          </div>
-                        ))
-                    }
+                  <div style={{
+                    background: isDone?"rgba(255,255,255,.2)":isIn?"#FFE000":"#d97706",
+                    color: isDone?"#fff":isIn?"#1A1A1A":"#fff",
+                    borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:900,textAlign:"center",
+                  }}>
+                    {isDone?"✅ เสร็จ":isIn?"🔧 ซ่อม":"⏳ รอ"}
                   </div>
                 </div>
-              );
-            })}
-          </div>
 
-          <div style={{textAlign:"center",padding:"0 16px 8px"}}>
-            <button onClick={() => selectBranch(selBranch)}
-              style={{padding:"12px 28px",borderRadius:12,border:"2px solid #e5e7eb",
-                background:"#fff",fontSize:16,fontWeight:700,cursor:"pointer",
-                color:"#374151",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              🔄 รีเฟรชข้อมูล
-            </button>
-          </div>
-        </>
+                {/* Progress bar */}
+                {real.length > 0 && (
+                  <div style={{padding:"6px 10px 4px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                      <span style={{fontSize:11,color:"#9ca3af",fontWeight:700}}>ความคืบหน้า</span>
+                      <span style={{fontSize:12,fontWeight:900,color:"#fff"}}>{prog}%</span>
+                    </div>
+                    <div style={{background:"#374151",borderRadius:99,height:6}}>
+                      <div style={{
+                        background:isDone?"#059669":"#FFE000",
+                        borderRadius:99,height:6,width:`${prog}%`,transition:"width .4s"
+                      }}/>
+                    </div>
+                  </div>
+                )}
+
+                {/* Jobs */}
+                <div style={{padding:"4px 10px 8px",flex:1}}>
+                  {real.length === 0 ? (
+                    <div style={{color:"#4b5563",fontSize:12,fontStyle:"italic",padding:"4px 0"}}>
+                      รอเพิ่มรายการงาน
+                    </div>
+                  ) : real.map((job,i) => (
+                    <div key={i} style={{
+                      display:"flex",alignItems:"center",gap:6,
+                      padding:"3px 0",
+                      borderBottom: i<real.length-1?"1px solid #1f2937":"none"
+                    }}>
+                      <span style={{fontSize:13,flexShrink:0}}>
+                        {job.status==="done"?"✅":job.status==="in_progress"?"🔧":"⏳"}
+                      </span>
+                      <span style={{
+                        fontSize:13,fontWeight:700,flex:1,
+                        color:job.status==="done"?"#4b5563":"#e5e7eb",
+                        textDecoration:job.status==="done"?"line-through":"none",
+                      }}>
+                        {job.name}
+                      </span>
+                      <span style={{
+                        fontSize:11,fontWeight:700,flexShrink:0,
+                        borderRadius:4,padding:"1px 6px",
+                        background:job.status==="done"?"#064e3b":job.status==="in_progress"?"#78350f":"#1f2937",
+                        color:job.status==="done"?"#34d399":job.status==="in_progress"?"#fbbf24":"#6b7280",
+                      }}>
+                        {job.status==="done"?"เสร็จ":job.status==="in_progress"?"ทำอยู่":"รอ"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -693,7 +749,7 @@ export default function App() {
         boxShadow:"0 2px 16px rgba(0,0,0,.5)"}}>
         <div style={{marginBottom:14}}><CockpitLogo height={44}/></div>
         <div style={{display:"flex"}}>
-          {[{key:"staff",label:"👨‍🔧 พนักงาน"},{key:"admin",label:"📊 ผู้จัดการ"}].map(t => (
+          {[{key:"staff",label:"👨‍🔧 พนักงาน"},{key:"admin",label:"📺 ข้อมูลการใช้บริการ"}].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               flex:1,padding:"12px 0",border:"none",background:"transparent",
               color: tab===t.key ? "#FFE000" : "rgba(255,255,255,.4)",
