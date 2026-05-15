@@ -270,94 +270,94 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
 
   return (
     <div style={{
-      background:"#fff",borderRadius:20,marginBottom:14,overflow:"hidden",
-      boxShadow: isIn ? "0 0 0 2px #059669" : "0 2px 12px rgba(0,0,0,0.08)",
+      background:"#fff",borderRadius:12,marginBottom:8,overflow:"hidden",
+      boxShadow: isIn ? "0 0 0 2px #059669" : "0 1px 6px rgba(0,0,0,0.08)",
       opacity: busy ? 0.75 : 1, transition:"opacity .2s"
     }}>
       {/* Card header */}
-      <div style={{background: isIn ? "#059669" : "#1A1A1A",padding:"14px 16px",
-        display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <div style={{background:"#FFE000",borderRadius:10,minWidth:50,height:50,
+      <div style={{background: isIn ? "#059669" : "#1A1A1A",padding:"8px 12px",
+        display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{background:"#FFE000",borderRadius:7,minWidth:32,height:32,
             display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:20,fontWeight:900,color:"#1A1A1A",flexShrink:0}}>
+            fontSize:14,fontWeight:900,color:"#1A1A1A",flexShrink:0}}>
             {qNo}
           </div>
           <div>
-            <div style={{fontSize:34,fontWeight:900,color:"#FFE000",letterSpacing:"0.04em",lineHeight:1}}>{data.plate}</div>
-            <div style={{fontSize:14,color:"rgba(255,255,255,.7)",marginTop:2}}>
+            <div style={{fontSize:22,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",lineHeight:1}}>{data.plate}</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,.65)",marginTop:1}}>
               {data.province ? `จ.${data.province}` : ""}
             </div>
           </div>
         </div>
         <div style={{background: isWait ? "#FFE000" : "rgba(255,255,255,.18)",
           color: isWait ? "#1A1A1A" : "#fff",
-          borderRadius:20,padding:"6px 14px",fontSize:14,fontWeight:800,flexShrink:0}}>
-          {isWait ? "⏳ รอคิว" : "🔧 กำลังซ่อม"}
+          borderRadius:14,padding:"3px 10px",fontSize:12,fontWeight:800,flexShrink:0}}>
+          {isWait ? "⏳ รอ" : "🔧 ซ่อม"}
         </div>
       </div>
 
       {/* Progress bar */}
       {real.length > 0 && (
-        <div style={{padding:"14px 16px 6px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-            <span style={{fontSize:14,fontWeight:700,color:"#6b7280"}}>ความคืบหน้า</span>
-            <span style={{fontSize:16,fontWeight:900,color:"#1A1A1A"}}>{prog}%</span>
+        <div style={{padding:"6px 12px 3px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+            <span style={{fontSize:11,fontWeight:700,color:"#6b7280"}}>ความคืบหน้า</span>
+            <span style={{fontSize:12,fontWeight:900,color:"#1A1A1A"}}>{prog}%</span>
           </div>
-          <div style={{background:"#f3f4f6",borderRadius:99,height:10}}>
-            <div style={{background: prog===100?"#059669":"#FFE000",borderRadius:99,height:10,width:`${prog}%`,transition:"width .4s"}}/>
+          <div style={{background:"#f3f4f6",borderRadius:99,height:6}}>
+            <div style={{background: prog===100?"#059669":"#FFE000",borderRadius:99,height:6,width:`${prog}%`,transition:"width .4s"}}/>
           </div>
         </div>
       )}
 
       {/* Job list */}
       {real.length > 0 ? (
-        <div style={{padding:"6px 16px"}}>
+        <div style={{padding:"2px 12px"}}>
           {real.map(job => (
             <button key={job.idx}
               onClick={() => isIn && !busy && handleToggle(job.idx)}
-              style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 0",
+              style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:"5px 0",
                 background:"none",border:"none",borderBottom:"1px solid #f3f4f6",
                 cursor: isIn ? "pointer" : "default",textAlign:"left",
                 fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              <span style={{fontSize:22,flexShrink:0}}>
+              <span style={{fontSize:14,flexShrink:0}}>
                 {job.status==="done"?"✅":job.status==="in_progress"?"🔧":"⏳"}
               </span>
-              <span style={{fontSize:18,fontWeight:700,flex:1,
+              <span style={{fontSize:14,fontWeight:700,flex:1,
                 color:job.status==="done"?"#9ca3af":"#1A1A1A",
                 textDecoration:job.status==="done"?"line-through":"none"}}>
                 {job.name}
               </span>
-              <span style={{fontSize:13,color:"#9ca3af",flexShrink:0}}>{job.duration}นาที</span>
+              <span style={{fontSize:11,color:"#9ca3af",flexShrink:0}}>{job.duration}น.</span>
             </button>
           ))}
         </div>
       ) : (
-        <div style={{padding:"14px 16px",color:"#9ca3af",fontSize:16,fontStyle:"italic"}}>
-          ยังไม่มีรายการงาน – กดเพิ่มงานด้านล่าง
+        <div style={{padding:"6px 12px",color:"#9ca3af",fontSize:12,fontStyle:"italic"}}>
+          ยังไม่มีรายการงาน – กดเพิ่มงาน
         </div>
       )}
 
       {/* Action buttons */}
-      <div style={{padding:"12px 16px 16px",display:"flex",gap:8}}>
+      <div style={{padding:"6px 12px 8px",display:"flex",gap:6}}>
         <button onClick={() => onAddJobs(String(qNo))}
-          style={{flex:1,padding:"12px 0",borderRadius:10,border:"2px solid #e5e7eb",
-            background:"#f9fafb",color:"#374151",fontSize:16,fontWeight:700,cursor:"pointer",
+          style={{flex:1,padding:"7px 0",borderRadius:8,border:"1.5px solid #e5e7eb",
+            background:"#f9fafb",color:"#374151",fontSize:13,fontWeight:700,cursor:"pointer",
             fontFamily:"'Noto Sans Thai',sans-serif"}}>
           ➕ เพิ่มงาน
         </button>
         {isWait && real.length > 0 && (
           <button onClick={handleStart} disabled={busy}
-            style={{flex:1,padding:"12px 0",borderRadius:10,border:"none",
-              background:"#FFE000",color:"#1A1A1A",fontSize:16,fontWeight:800,cursor:"pointer",
+            style={{flex:1,padding:"7px 0",borderRadius:8,border:"none",
+              background:"#FFE000",color:"#1A1A1A",fontSize:13,fontWeight:800,cursor:"pointer",
               fontFamily:"'Noto Sans Thai',sans-serif"}}>
             ▶ เริ่มซ่อม
           </button>
         )}
         {isIn && (
           <button onClick={handleClose} disabled={busy}
-            style={{flex:1,padding:"12px 0",borderRadius:10,border:"none",
-              background:"#059669",color:"#fff",fontSize:16,fontWeight:800,cursor:"pointer",
+            style={{flex:1,padding:"7px 0",borderRadius:8,border:"none",
+              background:"#059669",color:"#fff",fontSize:13,fontWeight:800,cursor:"pointer",
               fontFamily:"'Noto Sans Thai',sans-serif"}}>
             ✓ เสร็จสิ้น
           </button>
@@ -416,19 +416,19 @@ function StaffView() {
   const sorted = Object.entries(queues).sort((a,b) => parseInt(a[0])-parseInt(b[0]));
 
   return (
-    <div style={{paddingBottom:100}}>
+    <div style={{paddingBottom:80}}>
 
       {/* Branch selector tabs */}
       {branches.length > 1 && (
-        <div style={{padding:"12px 16px 4px",display:"flex",gap:8,overflowX:"auto"}}>
+        <div style={{padding:"6px 12px 2px",display:"flex",gap:6,overflowX:"auto"}}>
           {branches.map(b => (
             <button key={b.branchId} onClick={() => setBranchId(b.branchId)}
               style={{
-                padding:"10px 18px",borderRadius:12,border:"none",cursor:"pointer",
+                padding:"6px 14px",borderRadius:8,border:"none",cursor:"pointer",
                 background: branchId===b.branchId ? "#1A1A1A" : "#fff",
                 color: branchId===b.branchId ? "#FFE000" : "#374151",
-                fontSize:15,fontWeight:800,whiteSpace:"nowrap",flexShrink:0,
-                boxShadow:"0 2px 8px rgba(0,0,0,.08)",
+                fontSize:13,fontWeight:800,whiteSpace:"nowrap",flexShrink:0,
+                boxShadow:"0 1px 4px rgba(0,0,0,.08)",
                 fontFamily:"'Noto Sans Thai',sans-serif"
               }}>
               📍 {b.name}
@@ -437,37 +437,37 @@ function StaffView() {
         </div>
       )}
 
-      <div style={{padding:"12px 16px 4px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{fontSize:18,fontWeight:800,color:"#374151"}}>📍 {branchName}</div>
-        <button onClick={fetch_} style={{background:"none",border:"1.5px solid #d1d5db",borderRadius:8,
-          padding:"6px 12px",fontSize:14,fontWeight:700,cursor:"pointer",color:"#6b7280",
+      <div style={{padding:"4px 12px 2px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#374151"}}>📍 {branchName}</div>
+        <button onClick={fetch_} style={{background:"none",border:"1px solid #d1d5db",borderRadius:6,
+          padding:"3px 8px",fontSize:12,fontWeight:700,cursor:"pointer",color:"#6b7280",
           fontFamily:"'Noto Sans Thai',sans-serif"}}>🔄 รีเฟรช</button>
       </div>
 
       {/* Stats */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,padding:"8px 16px 16px"}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,padding:"4px 12px 6px"}}>
         {[
           {label:"คิวทั้งหมด",value:total,bg:"#FFE000",color:"#1A1A1A"},
           {label:"เริ่มทำแล้ว",value:inSrv,bg:"#059669",color:"#fff"},
           {label:"รออีก",value:wait,bg:"#d97706",color:"#fff"},
         ].map(s => (
-          <div key={s.label} style={{background:s.bg,borderRadius:16,padding:"16px 8px",textAlign:"center"}}>
-            <div style={{fontSize:42,fontWeight:900,color:s.color,lineHeight:1}}>{s.value}</div>
-            <div style={{fontSize:13,fontWeight:700,color:s.color,opacity:.9,marginTop:4}}>{s.label}</div>
+          <div key={s.label} style={{background:s.bg,borderRadius:10,padding:"6px 4px",textAlign:"center"}}>
+            <div style={{fontSize:26,fontWeight:900,color:s.color,lineHeight:1}}>{s.value}</div>
+            <div style={{fontSize:11,fontWeight:700,color:s.color,opacity:.9,marginTop:2}}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      {loading && <div style={{textAlign:"center",padding:60,fontSize:18,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>}
+      {loading && <div style={{textAlign:"center",padding:40,fontSize:16,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>}
       {!loading && total===0 && (
-        <div style={{textAlign:"center",padding:60,color:"#9ca3af"}}>
-          <div style={{fontSize:60,marginBottom:16}}>🅿️</div>
-          <div style={{fontSize:20,fontWeight:700}}>ยังไม่มีรถในคิว</div>
-          <div style={{fontSize:16,marginTop:8}}>กดปุ่ม + ด้านล่างเพื่อเพิ่มรถ</div>
+        <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>
+          <div style={{fontSize:48,marginBottom:12}}>🅿️</div>
+          <div style={{fontSize:16,fontWeight:700}}>ยังไม่มีรถในคิว</div>
+          <div style={{fontSize:13,marginTop:6}}>กดปุ่ม + ด้านล่างเพื่อเพิ่มรถ</div>
         </div>
       )}
 
-      <div style={{padding:"0 16px"}}>
+      <div style={{padding:"0 12px"}}>
         {sorted.map(([qNo, data]) => (
           <QueueCard key={qNo} qNo={qNo} data={data} branchId={branchId}
             onRefresh={fetch_}
@@ -479,9 +479,10 @@ function StaffView() {
       {/* FAB */}
       {nextQ && !openModal && !addTarget && !completion && (
         <button onClick={() => setOpenModal(true)} style={{
-          position:"fixed",bottom:88,right:20,width:64,height:64,borderRadius:32,
-          background:"#FFE000",border:"none",fontSize:32,cursor:"pointer",zIndex:50,
-          boxShadow:"0 4px 20px rgba(0,0,0,.3)",display:"flex",alignItems:"center",
+          position:"fixed",bottom:76,right:16,
+          width:52,height:52,borderRadius:26,
+          background:"#FFE000",border:"none",fontSize:26,cursor:"pointer",zIndex:50,
+          boxShadow:"0 3px 14px rgba(0,0,0,.3)",display:"flex",alignItems:"center",
           justifyContent:"center",fontWeight:900,color:"#1A1A1A"}}>+</button>
       )}
 
@@ -609,10 +610,10 @@ function AdminView() {
         </div>
       ) : (
         <div style={{
-          flex:1, padding:"12px 16px",
+          flex:1, padding:"8px 12px",
           display:"grid",
           gridTemplateColumns:`repeat(${cols}, 1fr)`,
-          gap:10,
+          gap:8,
           alignContent:"start",
         }}>
           {cars.length === 0 && (
@@ -630,28 +631,28 @@ function AdminView() {
             return (
               <div key={qNo} style={{
                 background: isIn ? "#1a2a1a" : "#1a1a2a",
-                border: `2px solid ${isDone?"#059669":isIn?"#22c55e":"#374151"}`,
-                borderRadius:12,overflow:"hidden",
+                border: `1.5px solid ${isDone?"#059669":isIn?"#22c55e":"#374151"}`,
+                borderRadius:10,overflow:"hidden",
                 display:"flex",flexDirection:"column",
               }}>
                 {/* Card header */}
                 <div style={{
                   background: isDone?"#059669":isIn?"#166534":"#1e293b",
-                  padding:"8px 10px",
+                  padding:"6px 8px",
                   display:"flex",alignItems:"center",justifyContent:"space-between",
                 }}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
                     <div style={{
-                      background:"#FFE000",borderRadius:6,minWidth:28,height:28,
+                      background:"#FFE000",borderRadius:5,minWidth:22,height:22,
                       display:"flex",alignItems:"center",justifyContent:"center",
-                      fontSize:13,fontWeight:900,color:"#1A1A1A",flexShrink:0,
+                      fontSize:11,fontWeight:900,color:"#1A1A1A",flexShrink:0,
                     }}>{qNo}</div>
                     <div>
-                      <div style={{fontSize:20,fontWeight:900,color:"#FFE000",letterSpacing:"0.04em",lineHeight:1}}>
+                      <div style={{fontSize:16,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",lineHeight:1}}>
                         {car.plate}
                       </div>
                       {car.province && (
-                        <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginTop:1}}>
+                        <div style={{fontSize:9,color:"rgba(255,255,255,0.6)",marginTop:1}}>
                           จ.{car.province}
                         </div>
                       )}
@@ -660,57 +661,57 @@ function AdminView() {
                   <div style={{
                     background: isDone?"rgba(255,255,255,.2)":isIn?"#FFE000":"#d97706",
                     color: isDone?"#fff":isIn?"#1A1A1A":"#fff",
-                    borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:900,textAlign:"center",
+                    borderRadius:5,padding:"2px 6px",fontSize:10,fontWeight:900,textAlign:"center",
                   }}>
-                    {isDone?"✅ เสร็จ":isIn?"🔧 ซ่อม":"⏳ รอ"}
+                    {isDone?"✅":isIn?"🔧":"⏳"}
                   </div>
                 </div>
 
                 {/* Progress bar */}
                 {real.length > 0 && (
-                  <div style={{padding:"6px 10px 4px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                      <span style={{fontSize:11,color:"#9ca3af",fontWeight:700}}>ความคืบหน้า</span>
-                      <span style={{fontSize:12,fontWeight:900,color:"#fff"}}>{prog}%</span>
+                  <div style={{padding:"4px 8px 2px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                      <span style={{fontSize:9,color:"#9ca3af",fontWeight:700}}>คืบหน้า</span>
+                      <span style={{fontSize:10,fontWeight:900,color:"#fff"}}>{prog}%</span>
                     </div>
-                    <div style={{background:"#374151",borderRadius:99,height:6}}>
+                    <div style={{background:"#374151",borderRadius:99,height:4}}>
                       <div style={{
                         background:isDone?"#059669":"#FFE000",
-                        borderRadius:99,height:6,width:`${prog}%`,transition:"width .4s"
+                        borderRadius:99,height:4,width:`${prog}%`,transition:"width .4s"
                       }}/>
                     </div>
                   </div>
                 )}
 
                 {/* Jobs */}
-                <div style={{padding:"4px 10px 8px",flex:1}}>
+                <div style={{padding:"2px 8px 6px",flex:1}}>
                   {real.length === 0 ? (
-                    <div style={{color:"#4b5563",fontSize:12,fontStyle:"italic",padding:"4px 0"}}>
-                      รอเพิ่มรายการงาน
+                    <div style={{color:"#4b5563",fontSize:10,fontStyle:"italic",padding:"3px 0"}}>
+                      รอเพิ่มงาน
                     </div>
                   ) : real.map((job,i) => (
                     <div key={i} style={{
-                      display:"flex",alignItems:"center",gap:6,
-                      padding:"3px 0",
+                      display:"flex",alignItems:"center",gap:4,
+                      padding:"2px 0",
                       borderBottom: i<real.length-1?"1px solid #1f2937":"none"
                     }}>
-                      <span style={{fontSize:13,flexShrink:0}}>
+                      <span style={{fontSize:10,flexShrink:0}}>
                         {job.status==="done"?"✅":job.status==="in_progress"?"🔧":"⏳"}
                       </span>
                       <span style={{
-                        fontSize:13,fontWeight:700,flex:1,
+                        fontSize:11,fontWeight:700,flex:1,
                         color:job.status==="done"?"#4b5563":"#e5e7eb",
                         textDecoration:job.status==="done"?"line-through":"none",
                       }}>
                         {job.name}
                       </span>
                       <span style={{
-                        fontSize:11,fontWeight:700,flexShrink:0,
-                        borderRadius:4,padding:"1px 6px",
+                        fontSize:9,fontWeight:700,flexShrink:0,
+                        borderRadius:3,padding:"1px 4px",
                         background:job.status==="done"?"#064e3b":job.status==="in_progress"?"#78350f":"#1f2937",
                         color:job.status==="done"?"#34d399":job.status==="in_progress"?"#fbbf24":"#6b7280",
                       }}>
-                        {job.status==="done"?"เสร็จ":job.status==="in_progress"?"ทำอยู่":"รอ"}
+                        {job.status==="done"?"เสร็จ":job.status==="in_progress"?"ทำ":"รอ"}
                       </span>
                     </div>
                   ))}
