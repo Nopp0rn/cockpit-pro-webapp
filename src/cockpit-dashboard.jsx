@@ -288,6 +288,14 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
     onRefresh();
   });
 
+  const handleCancelCar = async () => {
+    if (!window.confirm(`ยกเลิกรถ ${data.plate}\nรถออกจากคิวโดยไม่แจ้ง LINE ลูกค้า\nยืนยัน?`)) return;
+    setBusy(true);
+    await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/close`, { nonotify: true });
+    onRefresh();
+    setBusy(false);
+  };
+
   const handleClose = async () => {
     if (!window.confirm(`ยืนยันปิดงานรถ ${data.plate} ?`)) return;
     setBusy(true);
@@ -319,10 +327,20 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
             </div>
           </div>
         </div>
-        <div style={{background: isWait ? "#FFE000" : "rgba(255,255,255,.18)",
-          color: isWait ? "#1A1A1A" : "#fff",
-          borderRadius:14,padding:"3px 10px",fontSize:12,fontWeight:800,flexShrink:0}}>
-          {isWait ? "⏳ รอ" : "🔧 ซ่อม"}
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <div style={{background: isWait ? "#FFE000" : "rgba(255,255,255,.18)",
+            color: isWait ? "#1A1A1A" : "#fff",
+            borderRadius:14,padding:"3px 10px",fontSize:12,fontWeight:800}}>
+            {isWait ? "⏳ รอ" : "🔧 ซ่อม"}
+          </div>
+          <button onClick={handleCancelCar} disabled={busy}
+            title="ยกเลิกรถ — ไม่แจ้ง LINE"
+            style={{background:"#dc2626",border:"none",borderRadius:8,
+              padding:"3px 8px",fontSize:11,fontWeight:800,cursor:"pointer",
+              color:"#fff",flexShrink:0,fontFamily:"'Noto Sans Thai',sans-serif",
+              opacity: busy ? 0.5 : 1}}>
+            🚫 ยกเลิกรถ
+          </button>
         </div>
       </div>
 
@@ -377,17 +395,17 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
       )}
 
       {/* Action buttons */}
-      <div style={{padding:"6px 12px 8px",display:"flex",gap:6}}>
+      <div style={{padding:"6px 12px 4px",display:"flex",gap:5}}>
         <button onClick={() => onAddJobs(String(qNo))}
           style={{flex:1,padding:"7px 0",borderRadius:8,border:"1.5px solid #e5e7eb",
-            background:"#f9fafb",color:"#374151",fontSize:13,fontWeight:700,cursor:"pointer",
+            background:"#f9fafb",color:"#374151",fontSize:12,fontWeight:700,cursor:"pointer",
             fontFamily:"'Noto Sans Thai',sans-serif"}}>
           ➕ เพิ่มงาน
         </button>
         {isWait && real.length > 0 && (
           <button onClick={handleStart} disabled={busy}
             style={{flex:1,padding:"7px 0",borderRadius:8,border:"none",
-              background:"#FFE000",color:"#1A1A1A",fontSize:13,fontWeight:800,cursor:"pointer",
+              background:"#FFE000",color:"#1A1A1A",fontSize:12,fontWeight:800,cursor:"pointer",
               fontFamily:"'Noto Sans Thai',sans-serif"}}>
             ▶ เริ่มซ่อม
           </button>
@@ -395,12 +413,13 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
         {isIn && (
           <button onClick={handleClose} disabled={busy}
             style={{flex:1,padding:"7px 0",borderRadius:8,border:"none",
-              background:"#059669",color:"#fff",fontSize:13,fontWeight:800,cursor:"pointer",
+              background:"#059669",color:"#fff",fontSize:12,fontWeight:800,cursor:"pointer",
               fontFamily:"'Noto Sans Thai',sans-serif"}}>
             ✓ เสร็จสิ้น
           </button>
         )}
       </div>
+
     </div>
   );
 }
