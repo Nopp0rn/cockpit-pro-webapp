@@ -306,120 +306,126 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
 
   return (
     <div style={{
-      background:"#fff",borderRadius:12,marginBottom:8,overflow:"hidden",
+      background:"#fff",borderRadius:12,marginBottom:6,overflow:"hidden",
       boxShadow: isIn ? "0 0 0 2px #059669" : "0 1px 6px rgba(0,0,0,0.08)",
-      opacity: busy ? 0.75 : 1, transition:"opacity .2s"
+      opacity: busy ? 0.75 : 1, transition:"opacity .2s",
+      border: isIn ? "2px solid #059669" : "1px solid #e5e7eb"
     }}>
-      {/* Card header */}
-      <div style={{background: isIn ? "#059669" : "#1A1A1A",padding:"8px 12px",
-        display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{background:"#FFE000",borderRadius:7,minWidth:32,height:32,
-            display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:14,fontWeight:900,color:"#1A1A1A",flexShrink:0}}>
-            {qNo}
+      {/* ── ROW 1: Info + Status + Buttons ── */}
+      <div style={{
+        background: isIn ? "#059669" : "#1A1A1A",
+        padding:"7px 10px",
+        display:"flex",alignItems:"center",gap:8,
+      }}>
+        {/* Queue badge */}
+        <div style={{background:"#FFE000",borderRadius:6,minWidth:28,height:28,
+          display:"flex",alignItems:"center",justifyContent:"center",
+          fontSize:13,fontWeight:900,color:"#1A1A1A",flexShrink:0}}>
+          {qNo}
+        </div>
+
+        {/* Plate + province + time */}
+        <div style={{flexShrink:0}}>
+          <div style={{fontSize:24,fontWeight:900,color:"#FFE000",letterSpacing:"0.04em",lineHeight:1}}>
+            {data.plate}
           </div>
-          <div>
-            <div style={{fontSize:26,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",lineHeight:1}}>{data.plate}</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,.65)",marginTop:1,display:"flex",gap:6}}>
-              {data.province ? `จ.${data.province}` : ""}
-              {data.startTime && <span style={{color:"rgba(255,224,0,0.7)"}}>{getElapsed(data.startTime)}</span>}
-            </div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,.6)",marginTop:1,display:"flex",gap:5}}>
+            {data.province && <span>จ.{data.province}</span>}
+            {data.startTime && <span style={{color:"rgba(255,224,0,.75)"}}>{getElapsed(data.startTime)}</span>}
           </div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:6}}>
-          <div style={{background: isWait ? "#FFE000" : "rgba(255,255,255,.18)",
-            color: isWait ? "#1A1A1A" : "#fff",
-            borderRadius:14,padding:"3px 10px",fontSize:12,fontWeight:800}}>
-            {isWait ? "⏳ รอ" : "🔧 ซ่อม"}
+
+        {/* Progress (inline) */}
+        {real.length > 0 && (
+          <div style={{flex:1,minWidth:60}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+              <span style={{fontSize:9,color:"rgba(255,255,255,.5)",fontWeight:700}}>คืบหน้า</span>
+              <span style={{fontSize:11,fontWeight:900,color:"#fff"}}>{prog}%</span>
+            </div>
+            <div style={{background:"rgba(255,255,255,.2)",borderRadius:99,height:5}}>
+              <div style={{background:prog===100?"#fff":"#FFE000",borderRadius:99,height:5,
+                width:`${prog}%`,transition:"width .4s"}}/>
+            </div>
           </div>
+        )}
+        {real.length === 0 && <div style={{flex:1}}/>}
+
+        {/* Status + cancel + action buttons */}
+        <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
+          <span style={{background: isWait?"#FFE000":"rgba(255,255,255,.18)",
+            color: isWait?"#1A1A1A":"#fff",
+            borderRadius:10,padding:"3px 8px",fontSize:11,fontWeight:800}}>
+            {isWait?"⏳ รอ":"🔧 ซ่อม"}
+          </span>
+
+          <button onClick={() => onAddJobs(String(qNo))}
+            style={{padding:"4px 8px",borderRadius:7,border:"1.5px solid rgba(255,255,255,.3)",
+              background:"transparent",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}>
+            ➕
+          </button>
+
+          {isWait && real.length > 0 && (
+            <button onClick={handleStart} disabled={busy}
+              style={{padding:"4px 10px",borderRadius:7,border:"none",
+                background:"#FFE000",color:"#1A1A1A",fontSize:11,fontWeight:800,cursor:"pointer",
+                fontFamily:"'Noto Sans Thai',sans-serif"}}>
+              ▶ เริ่ม
+            </button>
+          )}
+          {isIn && (
+            <button onClick={handleClose} disabled={busy}
+              style={{padding:"4px 10px",borderRadius:7,border:"none",
+                background:"#fff",color:"#059669",fontSize:11,fontWeight:900,cursor:"pointer",
+                fontFamily:"'Noto Sans Thai',sans-serif"}}>
+              ✓ เสร็จ
+            </button>
+          )}
           <button onClick={handleCancelCar} disabled={busy}
             title="ยกเลิกรถ — ไม่แจ้ง LINE"
-            style={{background:"#dc2626",border:"none",borderRadius:8,
-              padding:"3px 8px",fontSize:11,fontWeight:800,cursor:"pointer",
-              color:"#fff",flexShrink:0,fontFamily:"'Noto Sans Thai',sans-serif",
-              opacity: busy ? 0.5 : 1}}>
-            🚫 ยกเลิกรถ
+            style={{padding:"4px 8px",borderRadius:7,border:"none",
+              background:"#dc2626",color:"#fff",fontSize:11,fontWeight:800,cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif",opacity:busy?0.5:1}}>
+            🚫
           </button>
         </div>
       </div>
 
-      {/* Progress bar */}
-      {real.length > 0 && (
-        <div style={{padding:"6px 12px 3px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-            <span style={{fontSize:11,fontWeight:700,color:"#6b7280"}}>ความคืบหน้า</span>
-            <span style={{fontSize:12,fontWeight:900,color:"#1A1A1A"}}>{prog}%</span>
-          </div>
-          <div style={{background:"#f3f4f6",borderRadius:99,height:6}}>
-            <div style={{background: prog===100?"#059669":"#FFE000",borderRadius:99,height:6,width:`${prog}%`,transition:"width .4s"}}/>
-          </div>
-        </div>
-      )}
-
-      {/* Job list */}
+      {/* ── ROW 2: Jobs inline ── */}
       {real.length > 0 ? (
-        <div style={{padding:"2px 12px"}}>
+        <div style={{padding:"4px 10px 5px",display:"flex",flexWrap:"wrap",gap:4,alignItems:"center",
+          background:"#fafafa",borderTop:"1px solid #f0f0f0"}}>
           {real.map(job => (
-            <div key={job.idx} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 0",borderBottom:"1px solid #f3f4f6"}}>
+            <div key={job.idx} style={{
+              display:"flex",alignItems:"center",gap:3,
+              background: job.status==="done"?"#d1fae5":job.status==="in_progress"?"#fef3c7":"#f3f4f6",
+              borderRadius:6,padding:"3px 6px 3px 8px",
+              border: job.status==="in_progress"?"1.5px solid #d97706":"1px solid transparent"
+            }}>
+              <span style={{fontSize:11}}>
+                {job.status==="done"?"✅":job.status==="in_progress"?"🔧":"⏳"}
+              </span>
               <button
                 onClick={() => isIn && !busy && handleToggle(job.idx)}
-                style={{flex:1,display:"flex",alignItems:"center",gap:6,
-                  background:"none",border:"none",
-                  cursor: isIn ? "pointer" : "default",textAlign:"left",
-                  fontFamily:"'Noto Sans Thai',sans-serif",padding:"2px 0"}}>
-                <span style={{fontSize:13,flexShrink:0}}>
-                  {job.status==="done"?"✅":job.status==="in_progress"?"🔧":"⏳"}
-                </span>
-                <span style={{fontSize:13,fontWeight:700,flex:1,
-                  color:job.status==="done"?"#9ca3af":"#1A1A1A",
+                style={{fontSize:12,fontWeight:700,background:"none",border:"none",padding:0,
+                  cursor: isIn?"pointer":"default",fontFamily:"'Noto Sans Thai',sans-serif",
+                  color:job.status==="done"?"#6b7280":"#1A1A1A",
                   textDecoration:job.status==="done"?"line-through":"none"}}>
-                  {job.name}
-                </span>
-                <span style={{fontSize:10,color:"#9ca3af",flexShrink:0}}>{job.duration}น.</span>
+                {job.name}
               </button>
-              <button
-                onClick={() => !busy && handleCancelJob(job.idx)}
-                title="ยกเลิกงานนี้"
-                style={{background:"#fee2e2",border:"none",borderRadius:4,
-                  width:20,height:20,fontSize:10,cursor:"pointer",
-                  color:"#dc2626",display:"flex",alignItems:"center",justifyContent:"center",
-                  flexShrink:0,fontWeight:900}}>✕</button>
+              <span style={{fontSize:10,color:"#9ca3af"}}>{job.duration}น.</span>
+              <button onClick={() => !busy && handleCancelJob(job.idx)}
+                style={{background:"none",border:"none",cursor:"pointer",color:"#dc2626",
+                  fontSize:11,fontWeight:900,padding:"0 2px",lineHeight:1}}>✕</button>
             </div>
           ))}
         </div>
       ) : (
-        <div style={{padding:"6px 12px",color:"#9ca3af",fontSize:12,fontStyle:"italic"}}>
-          ยังไม่มีรายการงาน – กดเพิ่มงาน
+        <div style={{padding:"4px 10px 5px",background:"#fafafa",
+          borderTop:"1px solid #f0f0f0",fontSize:11,color:"#9ca3af",fontStyle:"italic"}}>
+          ยังไม่มีรายการงาน — กด ➕ เพิ่มงาน
         </div>
       )}
-
-      {/* Action buttons */}
-      <div style={{padding:"6px 12px 4px",display:"flex",gap:5}}>
-        <button onClick={() => onAddJobs(String(qNo))}
-          style={{flex:1,padding:"7px 0",borderRadius:8,border:"1.5px solid #e5e7eb",
-            background:"#f9fafb",color:"#374151",fontSize:12,fontWeight:700,cursor:"pointer",
-            fontFamily:"'Noto Sans Thai',sans-serif"}}>
-          ➕ เพิ่มงาน
-        </button>
-        {isWait && real.length > 0 && (
-          <button onClick={handleStart} disabled={busy}
-            style={{flex:1,padding:"7px 0",borderRadius:8,border:"none",
-              background:"#FFE000",color:"#1A1A1A",fontSize:12,fontWeight:800,cursor:"pointer",
-              fontFamily:"'Noto Sans Thai',sans-serif"}}>
-            ▶ เริ่มซ่อม
-          </button>
-        )}
-        {isIn && (
-          <button onClick={handleClose} disabled={busy}
-            style={{flex:1,padding:"7px 0",borderRadius:8,border:"none",
-              background:"#059669",color:"#fff",fontSize:12,fontWeight:800,cursor:"pointer",
-              fontFamily:"'Noto Sans Thai',sans-serif"}}>
-            ✓ เสร็จสิ้น
-          </button>
-        )}
-      </div>
-
     </div>
   );
 }
@@ -522,7 +528,7 @@ function StaffView() {
         </div>
       )}
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,padding:"0 8px"}}>
+      <div style={{padding:"0 8px"}}>
         {sorted.map(([qNo, data]) => (
           <QueueCard key={qNo} qNo={qNo} data={data} branchId={branchId}
             onRefresh={fetch_}
