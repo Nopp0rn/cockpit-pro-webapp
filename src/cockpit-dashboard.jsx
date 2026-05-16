@@ -1,4 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+
+// ── Cloudinary Config ─────────────────────────────────────────────────────────
+// ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
+const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
+const CLOUDINARY_PRESET = "cockpit_unsigned";
 
 const API = "https://cockpit-pro-backend.onrender.com";
 const JOB_TYPES = [
@@ -54,6 +59,198 @@ function CockpitLogo({ height = 46 }) {
 }
 
 // ─── Completion Toast (staff only) ───────────────────────────────────────────
+// ─── CockpitSure Video Modal ──────────────────────────────────────────────────
+function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
+  const [phase, setPhase]           = useState("intro");
+  const [stream, setStream]         = useState(null);
+  const [recorder, setRecorder]     = useState(null);
+  const [videoBlob, setVideoBlob]   = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [timer, setTimer]           = useState(0);
+  const [error, setError]           = useState("");
+  const videoRef   = useRef(null);
+  const previewRef = useRef(null);
+  const timerRef   = useRef(null);
+  const chunksRef  = useRef([]);
+  const MAX_SEC    = 60;
+
+  useEffect(() => () => {
+    stream?.getTracks().forEach(t => t.stop());
+    clearInterval(timerRef.current);
+  }, [stream]);
+
+  useEffect(() => {
+    if (phase === "ready"   && videoRef.current)   videoRef.current.srcObject = stream;
+    if (phase === "preview" && previewRef.current) previewRef.current.src = previewUrl;
+  }, [phase, stream, previewUrl]);
+
+  const openCamera = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video:{facingMode:"environment"}, audio:true });
+      setStream(s); setPhase("ready");
+    } catch { setError("ไม่สามารถเปิดกล้องได้ — กรุณาอนุญาตการใช้กล้อง"); setPhase("error"); }
+  };
+
+  const startRec = () => {
+    chunksRef.current = [];
+    const mr = new MediaRecorder(stream);
+    mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
+    mr.onstop = () => {
+      const blob = new Blob(chunksRef.current, {type:"video/webm"});
+      setVideoBlob(blob); setPreviewUrl(URL.createObjectURL(blob));
+      stream.getTracks().forEach(t=>t.stop()); setStream(null); setPhase("preview");
+    };
+    mr.start(500); setRecorder(mr); setTimer(0); setPhase("recording");
+    timerRef.current = setInterval(() => {
+      setTimer(t => { if(t>=MAX_SEC-1){ mr.stop(); clearInterval(timerRef.current); return MAX_SEC; } return t+1; });
+    }, 1000);
+  };
+
+  const stopRec = () => { recorder?.stop(); clearInterval(timerRef.current); };
+
+  const uploadAndSend = async () => {
+    setPhase("uploading");
+    try {
+      const fd = new FormData();
+      fd.append("file", videoBlob, `cockpitsure_${data.plate}_${Date.now()}.webm`);
+      fd.append("upload_preset", CLOUDINARY_PRESET);
+      const upRes  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, {method:"POST",body:fd});
+      const upData = await upRes.json();
+      if (!upData.secure_url) throw new Error(upData.error?.message || "Upload ไม่สำเร็จ — ตรวจสอบ Cloud Name และ Upload Preset");
+      await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/send-video`, { videoUrl:upData.secure_url, plate:data.plate });
+      await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`, { status:"done" });
+      setPhase("done"); setTimeout(()=>{ onSuccess(); onClose(); }, 2000);
+    } catch(e) { setError(e.message); setPhase("error"); }
+  };
+
+  const pct = Math.round((timer/MAX_SEC)*100);
+
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.95)",
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{width:"100%",maxWidth:460}}>
+
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+          <div>
+            <div style={{fontSize:11,color:"#FFE000",fontWeight:800,letterSpacing:"1.5px"}}>COCKPITSURE</div>
+            <div style={{fontSize:20,color:"#fff",fontWeight:900}}>{data.plate}</div>
+            <div style={{fontSize:11,color:"#6b7280"}}>บันทึกวีดีโอส่งลูกค้าก่อนปิดงาน</div>
+          </div>
+          {["intro","error"].includes(phase) && (
+            <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"none",
+              borderRadius:8,padding:"6px 14px",color:"#ccc",fontSize:13,cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}>ยกเลิก</button>
+          )}
+        </div>
+
+        {/* INTRO */}
+        {phase==="intro" && (
+          <div style={{background:"#1a1a1a",borderRadius:16,padding:28,textAlign:"center"}}>
+            <div style={{fontSize:56,marginBottom:12}}>🎥</div>
+            <div style={{fontSize:14,color:"#9ca3af",marginBottom:22,lineHeight:1.7}}>
+              กรุณาบันทึกวีดีโอผลงาน CockpitSure<br/>
+              แล้วส่งให้ลูกค้าทาง LINE ก่อนปิดงาน<br/>
+              <span style={{color:"#6b7280",fontSize:12}}>⏱ สูงสุด {MAX_SEC} วินาที</span>
+            </div>
+            <button onClick={openCamera} style={{width:"100%",padding:"16px",borderRadius:12,border:"none",
+              background:"#FFE000",color:"#1A1A1A",fontSize:16,fontWeight:900,cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}>
+              📷 เปิดกล้อง
+            </button>
+          </div>
+        )}
+
+        {/* CAMERA READY */}
+        {phase==="ready" && (
+          <div style={{textAlign:"center"}}>
+            <div style={{borderRadius:14,overflow:"hidden",marginBottom:12,background:"#000",aspectRatio:"16/9"}}>
+              <video ref={videoRef} autoPlay muted playsInline style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+            </div>
+            <button onClick={startRec} style={{width:"100%",padding:"16px",borderRadius:12,border:"none",
+              background:"#dc2626",color:"#fff",fontSize:16,fontWeight:900,cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}>⏺ เริ่มบันทึก</button>
+          </div>
+        )}
+
+        {/* RECORDING */}
+        {phase==="recording" && (
+          <div style={{textAlign:"center"}}>
+            <div style={{position:"relative",borderRadius:14,overflow:"hidden",marginBottom:10,background:"#000",aspectRatio:"16/9"}}>
+              <video ref={videoRef} autoPlay muted playsInline style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+              <div style={{position:"absolute",top:10,right:10,background:"#dc2626",color:"#fff",
+                borderRadius:20,padding:"4px 12px",fontSize:13,fontWeight:800,display:"flex",alignItems:"center",gap:6}}>
+                <span style={{width:8,height:8,borderRadius:4,background:"#fff",display:"inline-block",
+                  animation:"blink 1s infinite"}}/>
+                {timer}s
+              </div>
+            </div>
+            {/* Timer bar */}
+            <div style={{background:"#374151",borderRadius:99,height:6,marginBottom:12}}>
+              <div style={{background:"#dc2626",borderRadius:99,height:6,width:`${pct}%`,transition:"width 1s linear"}}/>
+            </div>
+            <button onClick={stopRec} style={{width:"100%",padding:"14px",borderRadius:12,border:"none",
+              background:"#374151",color:"#fff",fontSize:16,fontWeight:900,cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}>⏹ หยุดบันทึก</button>
+          </div>
+        )}
+
+        {/* PREVIEW */}
+        {phase==="preview" && (
+          <div style={{textAlign:"center"}}>
+            <div style={{borderRadius:14,overflow:"hidden",marginBottom:12,background:"#000",aspectRatio:"16/9"}}>
+              <video ref={previewRef} controls playsInline style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{ setVideoBlob(null); setPhase("intro"); }}
+                style={{flex:1,padding:"13px",borderRadius:10,border:"1.5px solid #4b5563",
+                  background:"transparent",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",
+                  fontFamily:"'Noto Sans Thai',sans-serif"}}>🔄 ถ่ายใหม่</button>
+              <button onClick={uploadAndSend} style={{flex:2,padding:"13px",borderRadius:10,border:"none",
+                background:"#059669",color:"#fff",fontSize:14,fontWeight:900,cursor:"pointer",
+                fontFamily:"'Noto Sans Thai',sans-serif"}}>📤 ส่ง LINE ลูกค้า</button>
+            </div>
+          </div>
+        )}
+
+        {/* UPLOADING */}
+        {phase==="uploading" && (
+          <div style={{background:"#1a1a1a",borderRadius:16,padding:32,textAlign:"center"}}>
+            <div style={{fontSize:40,marginBottom:12}}>📤</div>
+            <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:6}}>กำลังส่งวีดีโอ...</div>
+            <div style={{fontSize:12,color:"#9ca3af",marginBottom:16}}>อัปโหลดและส่ง LINE ให้ลูกค้า</div>
+            <div style={{height:5,background:"#374151",borderRadius:99,overflow:"hidden"}}>
+              <div style={{height:5,background:"#FFE000",borderRadius:99,width:"60%",
+                animation:"slideRight 1.2s ease-in-out infinite"}}/>
+            </div>
+          </div>
+        )}
+
+        {/* DONE */}
+        {phase==="done" && (
+          <div style={{background:"#064e3b",borderRadius:16,padding:32,textAlign:"center"}}>
+            <div style={{fontSize:56,marginBottom:12}}>✅</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#34d399",marginBottom:6}}>ส่งวีดีโอสำเร็จ!</div>
+            <div style={{fontSize:13,color:"#6ee7b7"}}>LINE แจ้งลูกค้าแล้ว — กำลังปิดงาน...</div>
+          </div>
+        )}
+
+        {/* ERROR */}
+        {phase==="error" && (
+          <div style={{background:"#1a1a1a",borderRadius:16,padding:24,textAlign:"center"}}>
+            <div style={{fontSize:36,marginBottom:8}}>⚠️</div>
+            <div style={{fontSize:13,color:"#fca5a5",marginBottom:16,lineHeight:1.6}}>{error}</div>
+            <button onClick={()=>setPhase("intro")} style={{padding:"10px 28px",borderRadius:10,border:"none",
+              background:"#FFE000",color:"#1A1A1A",fontSize:14,fontWeight:800,cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}>ลองใหม่</button>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
 function CompletionToast({ plate, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, [onClose]);
   return (
@@ -260,7 +457,8 @@ function AddJobsModal({ qNo, branchId, existingJobs, onClose, onSuccess }) {
 
 // ─── Queue Card ───────────────────────────────────────────────────────────────
 function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy]       = useState(false);
+  const [csModal, setCsModal] = useState(null); // { jobIdx } when open
   const jobs = data.jobs || [];
   const jobsIdx = jobs.map((j, i) => ({...j, idx: i}));
   const real = jobsIdx.filter(j => j.name !== "รับรถเข้า");
@@ -275,12 +473,20 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
     onRefresh();
   });
 
-  const handleToggle = (idx) => run(async () => {
-    const j = jobs[idx];
-    const ns = j.status === "done" ? "waiting" : "done";
-    await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${idx}`, { status: ns });
-    onRefresh();
-  });
+  const handleToggle = (idx) => {
+    const job = jobs[idx];
+    // CockpitSure: open camera modal instead of direct toggle
+    if (job.name === "CockpitSure" && job.status !== "done") {
+      setCsModal({ jobIdx: idx });
+      return;
+    }
+    run(async () => {
+      const j = jobs[idx];
+      const ns = j.status === "done" ? "waiting" : "done";
+      await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${idx}`, { status: ns });
+      onRefresh();
+    });
+  };
 
   const handleCancelJob = (idx) => run(async () => {
     if (!window.confirm(`ยกเลิกงานนี้? (ไม่แจ้ง LINE ลูกค้า)`)) return;
@@ -427,6 +633,15 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
         </div>
       )}
     </div>
+    {csModal && (
+      <CockpitSureModal
+        qNo={qNo} branchId={branchId} data={data}
+        jobIdx={csModal.jobIdx}
+        onClose={() => setCsModal(null)}
+        onSuccess={() => { setCsModal(null); onRefresh(); }}
+      />
+    )}
+    </>
   );
 }
 
@@ -863,6 +1078,8 @@ export default function App() {
         *{box-sizing:border-box;} body{margin:0;padding:0;}
         button,input{font-family:'Noto Sans Thai',sans-serif;}
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+        @keyframes slideRight{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}
       `}</style>
 
       {/* Sticky header */}
