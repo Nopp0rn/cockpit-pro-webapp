@@ -4,9 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
 const CLOUDINARY_CLOUD  = "dnmzyoobh";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
-
-// CockpitSure video frame overlay (transparent center)
-const COCKPITSURE_FRAME =
 const API = "https://cockpit-pro-backend.onrender.com";
 const JOB_TYPES = [
   {name:"เปลี่ยนยาง 4 เส้น", duration:52, timeLabel:"45-60 นาที"},
