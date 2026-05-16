@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
-const CLOUDINARY_CLOUD  = "dnmzyoobh";
+const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
 
 const API = "https://cockpit-pro-backend.onrender.com";
@@ -511,6 +511,7 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
   };
 
   return (
+    <>
     <div style={{
       background:"#fff",borderRadius:12,marginBottom:6,overflow:"hidden",
       boxShadow: isIn ? "0 0 0 2px #059669" : "0 1px 6px rgba(0,0,0,0.08)",
