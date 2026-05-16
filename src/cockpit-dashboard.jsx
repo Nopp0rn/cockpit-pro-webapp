@@ -209,7 +209,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
   const pct = Math.round((timer/MAX_SEC)*100);
 
-  // Shared camera view (video + frame overlay via CSS)
+  // Shared camera view (video)
   const CameraView = ({showSwitchBtn=false}) => (
     <div style={{position:"relative",borderRadius:14,overflow:"hidden",
       background:"#000",aspectRatio:"9/16",maxHeight:"58vh",marginBottom:10}}>
