@@ -217,25 +217,76 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
   // Shared camera view (video + frame overlay via CSS)
   const CameraView = ({showSwitchBtn=false}) => (
-    <div style={{position:"relative",borderRadius:14,overflow:"hidden",
-      background:"#000",aspectRatio:"9/16",maxHeight:"58vh",marginBottom:10}}>
-      <video ref={videoRef} autoPlay muted playsInline
-        style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
-      {/* Frame overlay via CSS - transparent center shows video */}
-      <img src={COCKPITSURE_FRAME} alt=""
-        style={{position:"absolute",inset:0,width:"100%",height:"100%",
-          objectFit:"fill",pointerEvents:"none"}}/>
-      {/* Camera switch button */}
-      {showSwitchBtn && (
-        <button onClick={switchCamera}
-          style={{position:"absolute",top:10,left:10,background:"rgba(0,0,0,0.6)",
-            border:"none",borderRadius:20,padding:"6px 12px",color:"#fff",
-            fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-          🔄 {facingMode==="environment" ? "สลับกล้องหน้า" : "สลับกล้องหลัง"}
-        </button>
-      )}
+  <div style={{
+    position:"relative",
+    borderRadius:14,
+    overflow:"hidden",
+    background:"#000",
+    aspectRatio:"9/16",
+    maxHeight:"58vh",
+    marginBottom:10
+  }}>
+
+    {/* VIDEO */}
+    <video
+      ref={videoRef}
+      autoPlay
+      muted
+      playsInline
+      style={{
+        width:"100%",
+        height:"100%",
+        objectFit:"cover",
+        display:"block"
+      }}
+    />
+
+    {/* ── FRAME OVERLAY ───────────────── */}
+    <div className="cockpit-frame-overlay">
+      <div className="cockpit-header">
+        <span>COCKPIT-SURE</span>
+      </div>
+
+      <div className="cockpit-footer">
+        <div className="bridgestone">BRIDGESTONE</div>
+
+        <img
+          src="https://i.imgur.com/eN0QG5v.png"
+          alt="Cockpit"
+          className="cockpit-store"
+        />
+      </div>
     </div>
-  );
+
+    {/* Camera switch button */}
+    {showSwitchBtn && (
+      <button
+        onClick={switchCamera}
+        style={{
+          position:"absolute",
+          top:10,
+          left:10,
+          background:"rgba(0,0,0,0.6)",
+          border:"none",
+          borderRadius:20,
+          padding:"6px 12px",
+          color:"#fff",
+          fontSize:12,
+          fontWeight:700,
+          cursor:"pointer",
+          display:"flex",
+          alignItems:"center",
+          gap:4,
+          zIndex:10000
+        }}
+      >
+        🔄 {facingMode==="environment"
+          ? "สลับกล้องหน้า"
+          : "สลับกล้องหลัง"}
+      </button>
+    )}
+  </div>
+);
 
   return (
     <>
@@ -287,8 +338,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
               <video ref={null} autoPlay muted playsInline
                 style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
                 ref={videoRef}/>
-              <img src={COCKPITSURE_FRAME} alt="" style={{position:"absolute",inset:0,
-                width:"100%",height:"100%",objectFit:"fill",pointerEvents:"none"}}/>
+              
               {/* Camera switch */}
               <button onClick={switchCamera} style={{position:"absolute",top:10,left:10,
                 background:"rgba(0,0,0,0.65)",border:"none",borderRadius:20,
@@ -1230,6 +1280,65 @@ function AdminView() {
   );
 }
 
+<style>{`
+.cockpit-frame-overlay{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  pointer-events:none;
+  z-index:9999;
+  overflow:hidden;
+  border:12px solid #ffe600;
+  box-sizing:border-box;
+  background:transparent;
+}
+
+.cockpit-header{
+  position:absolute;
+  top:0;
+  left:0;
+  background:#ffe600;
+  padding:8px 24px 10px 16px;
+  border-bottom-right-radius:36px;
+}
+
+.cockpit-header span{
+  font-size:28px;
+  font-weight:900;
+  color:#000;
+  line-height:1;
+  font-family:Arial Black,sans-serif;
+}
+
+.cockpit-footer{
+  position:absolute;
+  bottom:0;
+  left:0;
+  width:100%;
+  height:120px;
+  background:#ffe600;
+  clip-path:polygon(0 35%,100% 0%,100% 100%,0% 100%);
+}
+
+.bridgestone{
+  position:absolute;
+  bottom:16px;
+  left:14px;
+  font-size:24px;
+  font-weight:900;
+  color:#000;
+  font-family:Arial Black,sans-serif;
+}
+
+.cockpit-store{
+  position:absolute;
+  right:10px;
+  bottom:0;
+  height:100px;
+  object-fit:contain;
+}
+`}</style>
 
 export default function App() {
   const [tab, setTab] = useState("staff");
