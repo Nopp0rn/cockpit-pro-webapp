@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
-const CLOUDINARY_CLOUD  = "dnmzyoobh";
+const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
 
-<img
+// ⚠️ วางโค้ด Base64 ของเฟรมอันใหม่ของคุณตรงนี้ (ยาวๆ)
+const COCKPITSURE_FRAME = "data:image/png;base64,...<img
   src={COCKPITSURE_FRAME}
   alt="frame"
   className="absolute inset-0 w-full h-full pointer-events-none"
-/>
+/>...";
 
 const API = "https://cockpit-pro-backend.onrender.com";
 const JOB_TYPES = [
