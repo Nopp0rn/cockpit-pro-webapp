@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
-const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
+const CLOUDINARY_CLOUD  = "dnmzyoobh";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
 
 <img
