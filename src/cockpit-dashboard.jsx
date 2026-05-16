@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
-const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
+const CLOUDINARY_CLOUD  = "dnmzyoobh";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
 
 // CockpitSure video frame overlay (transparent center)
