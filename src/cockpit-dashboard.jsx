@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
-const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
+const CLOUDINARY_CLOUD  = "dnmzyoobh";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
 
 const API = "https://cockpit-pro-backend.onrender.com";
@@ -80,15 +80,35 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   }, [stream]);
 
   useEffect(() => {
-    if (phase === "ready"   && videoRef.current)   videoRef.current.srcObject = stream;
+    if (phase === "ready" && videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(()=>{});
+    }
+    if (phase === "recording" && videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(()=>{});
+    }
     if (phase === "preview" && previewRef.current) previewRef.current.src = previewUrl;
   }, [phase, stream, previewUrl]);
 
   const openCamera = async () => {
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ video:{facingMode:"environment"}, audio:true });
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode:"environment", width:{ideal:1280}, height:{ideal:720} },
+        audio: true
+      });
       setStream(s); setPhase("ready");
-    } catch { setError("ไม่สามารถเปิดกล้องได้ — กรุณาอนุญาตการใช้กล้อง"); setPhase("error"); }
+      // iOS requires explicit play() after srcObject
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = s;
+          videoRef.current.play().catch(()=>{});
+        }
+      }, 100);
+    } catch(e) {
+      setError("ไม่สามารถเปิดกล้องได้\nกรุณาอนุญาตการใช้กล้องใน Settings");
+      setPhase("error");
+    }
   };
 
   const startRec = () => {
@@ -116,7 +136,13 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       fd.append("upload_preset", CLOUDINARY_PRESET);
       const upRes  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, {method:"POST",body:fd});
       const upData = await upRes.json();
-      if (!upData.secure_url) throw new Error(upData.error?.message || "Upload ไม่สำเร็จ — ตรวจสอบ Cloud Name และ Upload Preset");
+      if (!upData.secure_url) {
+        const errMsg = upData.error?.message || "Upload ไม่สำเร็จ";
+        if (errMsg.includes("Unknown API key") || errMsg.includes("api_key")) {
+          throw new Error("Upload Preset ยังไม่ถูกต้อง\n\nวิธีแก้:\n1. ไปที่ cloudinary.com\n2. Settings → Upload Presets\n3. กด cockpit_unsigned → เปลี่ยนเป็น Unsigned\n4. Save");
+        }
+        throw new Error(errMsg);
+      }
       await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/send-video`, { videoUrl:upData.secure_url, plate:data.plate });
       await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`, { status:"done" });
       setPhase("done"); setTimeout(()=>{ onSuccess(); onClose(); }, 2000);
@@ -152,6 +178,13 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
               กรุณาบันทึกวีดีโอผลงาน CockpitSure<br/>
               แล้วส่งให้ลูกค้าทาง LINE ก่อนปิดงาน<br/>
               <span style={{color:"#6b7280",fontSize:12}}>⏱ สูงสุด {MAX_SEC} วินาที</span>
+            </div>
+            <div style={{background:"rgba(255,224,0,0.1)",border:"1px solid rgba(255,224,0,0.3)",
+              borderRadius:8,padding:"10px 12px",marginBottom:16,fontSize:11,color:"#FFE000",
+              textAlign:"left",lineHeight:1.8}}>
+              ⚙️ <strong>ตั้งค่าครั้งแรก (ทำครั้งเดียว):</strong><br/>
+              cloudinary.com → Settings → Upload Presets<br/>
+              → cockpit_unsigned → Signing Mode: <strong>Unsigned</strong> → Save
             </div>
             <button onClick={openCamera} style={{width:"100%",padding:"16px",borderRadius:12,border:"none",
               background:"#FFE000",color:"#1A1A1A",fontSize:16,fontWeight:900,cursor:"pointer",
