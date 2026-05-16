@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
-const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
+const CLOUDINARY_CLOUD  = "dnmzyoobh";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
 
 // CockpitSure video frame overlay (transparent center)
@@ -147,8 +147,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     // Portrait canvas (9:16)
     canvas.width = 720; canvas.height = 1280;
 
-    const frameImg = new Image();
-    frameImg.src = COCKPITSURE_FRAME;
+
 
     const beginRecord = () => {
       startDrawLoop(video, canvas, ctx, frameImg);
@@ -219,10 +218,6 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       background:"#000",aspectRatio:"9/16",maxHeight:"58vh",marginBottom:10}}>
       <video ref={videoRef} autoPlay muted playsInline
         style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
-      {/* Frame overlay via CSS - transparent center shows video */}
-      <img src={COCKPITSURE_FRAME} alt=""
-        style={{position:"absolute",inset:0,width:"100%",height:"100%",
-          objectFit:"fill",pointerEvents:"none"}}/>
       {/* Camera switch button */}
       {showSwitchBtn && (
         <button onClick={switchCamera}
@@ -285,8 +280,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
               <video ref={null} autoPlay muted playsInline
                 style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
                 ref={videoRef}/>
-              <img src={COCKPITSURE_FRAME} alt="" style={{position:"absolute",inset:0,
-                width:"100%",height:"100%",objectFit:"fill",pointerEvents:"none"}}/>
+            
               {/* Camera switch */}
               <button onClick={switchCamera} style={{position:"absolute",top:10,left:10,
                 background:"rgba(0,0,0,0.65)",border:"none",borderRadius:20,
