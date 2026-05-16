@@ -511,6 +511,7 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
   };
 
   return (
+    <>
     <div style={{
       background:"#fff",borderRadius:12,marginBottom:6,overflow:"hidden",
       boxShadow: isIn ? "0 0 0 2px #059669" : "0 1px 6px rgba(0,0,0,0.08)",
