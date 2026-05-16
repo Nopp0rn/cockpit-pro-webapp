@@ -757,20 +757,23 @@ function AdminView() {
         </div>
       </div>
 
-      {/* Table header */}
-      <div style={{display:"grid",
-        gridTemplateColumns:"36px 110px 60px 70px 70px 90px 1fr",
-        gap:0,background:"#1A1A1A",padding:"5px 10px",alignItems:"center"}}>
-        {["#","ทะเบียน","จังหวัด","สถานะ","เวลาที่ใช้","ความคืบหน้า","รายการงาน"].map(h=>(
-          <div key={h} style={{fontSize:10,fontWeight:800,color:"#FFE000",padding:"0 4px"}}>{h}</div>
-        ))}
-      </div>
+      {/* Table - scrollable container for mobile */}
+      <div style={{flex:1,overflowX:"auto",overflowY:"auto"}}>
+        {/* Table header */}
+        <div style={{display:"grid",
+          gridTemplateColumns:"32px 100px 56px 62px 58px 80px 1fr",
+          minWidth:"520px",
+          gap:0,background:"#1A1A1A",padding:"5px 10px",alignItems:"center",
+          position:"sticky",top:0,zIndex:10}}>
+          {["#","ทะเบียน","จ.","สถานะ","เวลา","คืบหน้า","รายการงาน"].map(h=>(
+            <div key={h} style={{fontSize:10,fontWeight:800,color:"#FFE000",padding:"0 3px",whiteSpace:"nowrap"}}>{h}</div>
+          ))}
+        </div>
 
-      {/* Queue rows */}
-      <div style={{flex:1,overflowY:"auto"}}>
-        {detLoad && <div style={{textAlign:"center",padding:20,color:"#9ca3af"}}>⏳</div>}
+        {/* Queue rows */}
+        {detLoad && <div style={{textAlign:"center",padding:20,color:"#9ca3af",minWidth:"520px"}}>⏳</div>}
         {!detLoad && cars.length===0 && (
-          <div style={{textAlign:"center",padding:30,color:"#6b7280",fontSize:14}}>ไม่มีรถในคิว</div>
+          <div style={{textAlign:"center",padding:30,color:"#6b7280",fontSize:14,minWidth:"520px"}}>ไม่มีรถในคิว</div>
         )}
         {!detLoad && cars.map(([qNo,car],idx) => {
           const real = (car.jobs||[]).filter(j=>j.name!=="รับรถเข้า");
@@ -780,48 +783,50 @@ function AdminView() {
           const elapsed = getElapsed(car.startTime);
           const rowBg = isDone?"#0a1a0a":isIn?"#0d1a0d":"#0a0a1a";
           const borderColor = isDone?"#059669":isIn?"#22c55e":"#2a2a3a";
+          // Abbreviate province
+          const prov = (car.province||"").replace("กรุงเทพมหานคร","กทม.").replace("มหานคร","").slice(0,6);
           return (
             <div key={qNo} style={{
               display:"grid",
-              gridTemplateColumns:"36px 110px 60px 70px 70px 90px 1fr",
-              gap:0,padding:"6px 10px",alignItems:"center",
+              gridTemplateColumns:"32px 100px 56px 62px 58px 80px 1fr",
+              minWidth:"520px",
+              gap:0,padding:"5px 10px",alignItems:"center",
               background:rowBg,
               borderBottom:`1px solid ${borderColor}`,
-              minHeight:44,
+              minHeight:42,
             }}>
               {/* Queue # */}
-              <div style={{background:"#FFE000",borderRadius:5,width:26,height:26,
+              <div style={{background:"#FFE000",borderRadius:5,width:24,height:24,
                 display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:12,fontWeight:900,color:"#1A1A1A"}}>{qNo}</div>
+                fontSize:11,fontWeight:900,color:"#1A1A1A"}}>{qNo}</div>
               {/* Plate */}
-              <div>
-                <div style={{fontSize:20,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",lineHeight:1}}>
-                  {car.plate}
-                </div>
+              <div style={{fontSize:18,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",lineHeight:1,padding:"0 2px"}}>
+                {car.plate}
               </div>
-              {/* Province */}
-              <div style={{fontSize:11,color:"#9ca3af",padding:"0 4px"}}>
-                {car.province||"-"}
+              {/* Province - abbreviated */}
+              <div style={{fontSize:10,color:"#9ca3af",padding:"0 2px",overflow:"hidden",
+                textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {prov||"-"}
               </div>
               {/* Status */}
-              <div>
+              <div style={{padding:"0 2px"}}>
                 <span style={{
                   background:isDone?"#059669":isIn?"#166534":"#d97706",
-                  color:"#fff",borderRadius:5,padding:"3px 7px",
-                  fontSize:11,fontWeight:800
+                  color:"#fff",borderRadius:5,padding:"2px 5px",
+                  fontSize:10,fontWeight:800,whiteSpace:"nowrap"
                 }}>
-                  {isDone?"✅ เสร็จ":isIn?"🔧 ซ่อม":"⏳ รอ"}
+                  {isDone?"✅เสร็จ":isIn?"🔧ซ่อม":"⏳รอ"}
                 </span>
               </div>
               {/* Elapsed */}
-              <div style={{fontSize:12,fontWeight:700,color: elapsed?"#FFE000":"#4b5563",padding:"0 4px"}}>
+              <div style={{fontSize:11,fontWeight:700,color:elapsed?"#FFE000":"#4b5563",padding:"0 2px",whiteSpace:"nowrap"}}>
                 {elapsed||"-"}
               </div>
               {/* Progress */}
               <div style={{padding:"0 4px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-                  <span style={{fontSize:10,color:"#9ca3af"}}>{real.length}งาน</span>
-                  <span style={{fontSize:11,fontWeight:900,color:"#fff"}}>{prog}%</span>
+                  <span style={{fontSize:9,color:"#9ca3af"}}>{real.length}งาน</span>
+                  <span style={{fontSize:10,fontWeight:900,color:"#fff"}}>{prog}%</span>
                 </div>
                 <div style={{background:"#374151",borderRadius:99,height:5}}>
                   <div style={{background:isDone?"#059669":"#FFE000",borderRadius:99,height:5,width:`${prog}%`}}/>
