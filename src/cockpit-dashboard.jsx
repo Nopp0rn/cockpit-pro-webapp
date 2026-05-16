@@ -1,7 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 
 const API = "https://cockpit-pro-backend.onrender.com";
-const JOB_TYPES = ["ยาง","ตั้งศูนย์","ถ่วงล้อ","แบตเตอรี่","เบรค","โช้คอัพ","น้ำมันเครื่อง","Cockpit Sure","อื่นๆ"];
+const JOB_TYPES = [
+  {name:"เปลี่ยนยาง 4 เส้น", duration:52, timeLabel:"45-60 นาที"},
+  {name:"ถ่วงล้อ", duration:35, timeLabel:"30-40 นาที"},
+  {name:"ตั้งศูนย์ล้อ", duration:52, timeLabel:"45-60 นาที"},
+  {name:"เปลี่ยนถ่ายน้ำมันเครื่อง", duration:35, timeLabel:"30-40 นาที"},
+  {name:"เปลี่ยนแบตเตอรี่", duration:25, timeLabel:"20-30 นาที"},
+  {name:"เปลี่ยนเบรก", duration:52, timeLabel:"45-60 นาที"},
+  {name:"CockpitSure", duration:17, timeLabel:"15-20 นาที"},
+  {name:"เปลี่ยนโช้คอัพ", duration:52, timeLabel:"45-60 นาที"},
+  {name:"งานซ่อมช่วงล่าง", duration:135, timeLabel:"90-180 นาที"},
+  {name:"เบิกอะไหล่", duration:85, timeLabel:"50-120 นาที"},
+  {name:"งานซ่อมอื่น", duration:75, timeLabel:"30-120 นาที"},
+];
 const PROVINCES = ["กระบี่","กรุงเทพมหานคร","กาญจนบุรี","กาฬสินธุ์","กำแพงเพชร","ขอนแก่น","จันทบุรี","ฉะเชิงเทรา","ชลบุรี","ชัยนาท","ชัยภูมิ","ชุมพร","เชียงราย","เชียงใหม่","ตรัง","ตราด","ตาก","นครนายก","นครปฐม","นครพนม","นครราชสีมา","นครศรีธรรมราช","นครสวรรค์","นนทบุรี","นราธิวาส","น่าน","บึงกาฬ","บุรีรัมย์","ปทุมธานี","ประจวบคีรีขันธ์","ปราจีนบุรี","ปัตตานี","พระนครศรีอยุธยา","พะเยา","พังงา","พัทลุง","พิจิตร","พิษณุโลก","เพชรบุรี","เพชรบูรณ์","แพร่","ภูเก็ต","มหาสารคาม","มุกดาหาร","แม่ฮ่องสอน","ยโสธร","ยะลา","ร้อยเอ็ด","ระนอง","ระยอง","ราชบุรี","ลพบุรี","ลำปาง","ลำพูน","เลย","ศรีสะเกษ","สกลนคร","สงขลา","สตูล","สมุทรปราการ","สมุทรสงคราม","สมุทรสาคร","สระแก้ว","สระบุรี","สิงห์บุรี","สุโขทัย","สุพรรณบุรี","สุราษฎร์ธานี","สุรินทร์","หนองคาย","หนองบัวลำภู","อ่างทอง","อำนาจเจริญ","อุดรธานี","อุตรดิตถ์","อุทัยธานี","อุบลราชธานี"];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -9,6 +21,15 @@ const getProgress = (jobs = []) => {
   const real = jobs.filter(j => j.name !== "รับรถเข้า");
   if (!real.length) return 0;
   return Math.round(real.filter(j => j.status === "done").length / real.length * 100);
+};
+
+const getElapsed = (startTime) => {
+  if (!startTime) return "";
+  const diff = Date.now() - new Date(startTime).getTime();
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  if (h > 0) return `${h}ชม.${m}น.`;
+  return `${m}น.`;
 };
 
 const getNextQNo = (queues) => {
@@ -183,7 +204,7 @@ function OpenQueueModal({ qNo, branchId, onClose, onSuccess }) {
 // ─── Add Jobs Modal ───────────────────────────────────────────────────────────
 function AddJobsModal({ qNo, branchId, existingJobs, onClose, onSuccess }) {
   const names = (existingJobs||[]).map(j => j.name);
-  const avail = JOB_TYPES.filter(t => !names.includes(t));
+  const avail = JOB_TYPES.filter(t => !names.includes(t.name));
   const [sel, setSel] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -194,7 +215,7 @@ function AddJobsModal({ qNo, branchId, existingJobs, onClose, onSuccess }) {
     if (!sel.length) { setError("กรุณาเลือกอย่างน้อย 1 งาน"); return; }
     setLoading(true); setError("");
     try {
-      const res = await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/addjobs`, { jobs: sel });
+      const res = await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/addjobs`, { jobs: sel.map(j=>j.name||j) });
       if (res.success) { onSuccess(); onClose(); }
       else setError(res.error || "เกิดข้อผิดพลาด");
     } catch { setError("ไม่สามารถเชื่อมต่อได้"); }
@@ -210,15 +231,16 @@ function AddJobsModal({ qNo, branchId, existingJobs, onClose, onSuccess }) {
         </div>
         {error && <div style={{background:"#fee2e2",color:"#dc2626",padding:"12px",borderRadius:10,marginBottom:12,fontWeight:700}}>{error}</div>}
         {avail.length === 0
-          ? <div style={{textAlign:"center",padding:"40px 0",color:"#9ca3af",fontSize:18}}>เพิ่มงานครบทุกประเภทแล้ว</div>
+          ? <div style={{textAlign:"center",padding:"30px 0",color:"#9ca3af",fontSize:16}}>เพิ่มงานครบทุกประเภทแล้ว</div>
           : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
               {avail.map(job => (
-                <button key={job} onClick={() => toggle(job)}
-                  style={{padding:"18px 8px",borderRadius:12,textAlign:"center",minHeight:60,
+                <button key={job.name} onClick={() => toggle(job)}
+                  style={{padding:"10px 6px",borderRadius:10,textAlign:"center",minHeight:48,
                     border: sel.includes(job) ? "3px solid #1A1A1A" : "2px solid #e5e7eb",
                     background: sel.includes(job) ? "#FFE000" : "#f9fafb",
-                    fontSize:18,fontWeight:700,cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-                  {sel.includes(job) ? "✅ " : ""}{job}
+                    fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                  {sel.includes(job) ? "✅ " : ""}{job.name}
+                  <div style={{fontSize:10,color:"#9ca3af",fontWeight:400,marginTop:2}}>{job.timeLabel}</div>
                 </button>
               ))}
             </div>
@@ -260,6 +282,12 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
     onRefresh();
   });
 
+  const handleCancelJob = (idx) => run(async () => {
+    if (!window.confirm(`ยกเลิกงานนี้? (ไม่แจ้ง LINE ลูกค้า)`)) return;
+    await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/removejob`, { jobIdx: idx, nonotify: true });
+    onRefresh();
+  });
+
   const handleClose = async () => {
     if (!window.confirm(`ยืนยันปิดงานรถ ${data.plate} ?`)) return;
     setBusy(true);
@@ -284,9 +312,10 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
             {qNo}
           </div>
           <div>
-            <div style={{fontSize:22,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",lineHeight:1}}>{data.plate}</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,.65)",marginTop:1}}>
+            <div style={{fontSize:26,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",lineHeight:1}}>{data.plate}</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,.65)",marginTop:1,display:"flex",gap:6}}>
               {data.province ? `จ.${data.province}` : ""}
+              {data.startTime && <span style={{color:"rgba(255,224,0,0.7)"}}>{getElapsed(data.startTime)}</span>}
             </div>
           </div>
         </div>
@@ -314,22 +343,31 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
       {real.length > 0 ? (
         <div style={{padding:"2px 12px"}}>
           {real.map(job => (
-            <button key={job.idx}
-              onClick={() => isIn && !busy && handleToggle(job.idx)}
-              style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:"5px 0",
-                background:"none",border:"none",borderBottom:"1px solid #f3f4f6",
-                cursor: isIn ? "pointer" : "default",textAlign:"left",
-                fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              <span style={{fontSize:14,flexShrink:0}}>
-                {job.status==="done"?"✅":job.status==="in_progress"?"🔧":"⏳"}
-              </span>
-              <span style={{fontSize:14,fontWeight:700,flex:1,
-                color:job.status==="done"?"#9ca3af":"#1A1A1A",
-                textDecoration:job.status==="done"?"line-through":"none"}}>
-                {job.name}
-              </span>
-              <span style={{fontSize:11,color:"#9ca3af",flexShrink:0}}>{job.duration}น.</span>
-            </button>
+            <div key={job.idx} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 0",borderBottom:"1px solid #f3f4f6"}}>
+              <button
+                onClick={() => isIn && !busy && handleToggle(job.idx)}
+                style={{flex:1,display:"flex",alignItems:"center",gap:6,
+                  background:"none",border:"none",
+                  cursor: isIn ? "pointer" : "default",textAlign:"left",
+                  fontFamily:"'Noto Sans Thai',sans-serif",padding:"2px 0"}}>
+                <span style={{fontSize:13,flexShrink:0}}>
+                  {job.status==="done"?"✅":job.status==="in_progress"?"🔧":"⏳"}
+                </span>
+                <span style={{fontSize:13,fontWeight:700,flex:1,
+                  color:job.status==="done"?"#9ca3af":"#1A1A1A",
+                  textDecoration:job.status==="done"?"line-through":"none"}}>
+                  {job.name}
+                </span>
+                <span style={{fontSize:10,color:"#9ca3af",flexShrink:0}}>{job.duration}น.</span>
+              </button>
+              <button
+                onClick={() => !busy && handleCancelJob(job.idx)}
+                title="ยกเลิกงานนี้"
+                style={{background:"#fee2e2",border:"none",borderRadius:4,
+                  width:20,height:20,fontSize:10,cursor:"pointer",
+                  color:"#dc2626",display:"flex",alignItems:"center",justifyContent:"center",
+                  flexShrink:0,fontWeight:900}}>✕</button>
+            </div>
           ))}
         </div>
       ) : (
@@ -418,22 +456,20 @@ function StaffView() {
   return (
     <div style={{paddingBottom:80}}>
 
-      {/* Branch selector tabs */}
-      {branches.length > 1 && (
-        <div style={{padding:"6px 12px 2px",display:"flex",gap:6,overflowX:"auto"}}>
-          {branches.map(b => (
-            <button key={b.branchId} onClick={() => setBranchId(b.branchId)}
-              style={{
-                padding:"6px 14px",borderRadius:8,border:"none",cursor:"pointer",
-                background: branchId===b.branchId ? "#1A1A1A" : "#fff",
-                color: branchId===b.branchId ? "#FFE000" : "#374151",
-                fontSize:13,fontWeight:800,whiteSpace:"nowrap",flexShrink:0,
-                boxShadow:"0 1px 4px rgba(0,0,0,.08)",
-                fontFamily:"'Noto Sans Thai',sans-serif"
-              }}>
-              📍 {b.name}
-            </button>
-          ))}
+      {/* Branch selector dropdown */}
+      {branches.length > 0 && (
+        <div style={{padding:"6px 12px 2px",display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:12,fontWeight:700,color:"#6b7280",flexShrink:0}}>📍 สาขา:</span>
+          <select
+            value={branchId||""}
+            onChange={e => setBranchId(e.target.value)}
+            style={{flex:1,padding:"5px 10px",borderRadius:8,border:"1.5px solid #e5e7eb",
+              fontSize:13,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",
+              background:"#fff",cursor:"pointer",outline:"none"}}>
+            {branches.map(b => (
+              <option key={b.branchId} value={b.branchId}>{b.name}</option>
+            ))}
+          </select>
         </div>
       )}
 
@@ -467,7 +503,7 @@ function StaffView() {
         </div>
       )}
 
-      <div style={{padding:"0 12px"}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,padding:"0 8px"}}>
         {sorted.map(([qNo, data]) => (
           <QueueCard key={qNo} qNo={qNo} data={data} branchId={branchId}
             onRefresh={fetch_}
@@ -497,6 +533,126 @@ function StaffView() {
 }
 
 // ─── Admin View (TV-optimized) ────────────────────────────────────────────────
+// ─── History View ─────────────────────────────────────────────────────────────
+function HistoryView() {
+  const [overview, setOverview] = useState([]);
+  const [selBranch, setSelBranch] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [detLoad, setDetLoad] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API}/api/admin/overview`).then(r=>r.json()).then(d=>{
+      setOverview(d.overview||[]);
+      if (d.overview?.length) loadHistory(d.overview[0].branchId);
+    }).catch(()=>{}).finally(()=>setLoading(false));
+  },[]);
+
+  const loadHistory = async (id) => {
+    setSelBranch(id); setDetLoad(true);
+    try {
+      const r = await fetch(`${API}/api/branch/${id}/history?limit=100`);
+      const d = await r.json();
+      setHistory(d.history||[]);
+    } catch {}
+    setDetLoad(false);
+  };
+
+  // Stats from history
+  const totalJobs = history.reduce((a,h)=>(a+(h.jobs||[]).filter(j=>j.name!=="รับรถเข้า").length),0);
+  const jobCounts = {};
+  history.forEach(h=>(h.jobs||[]).filter(j=>j.name!=="รับรถเข้า").forEach(j=>{jobCounts[j.name]=(jobCounts[j.name]||0)+1;}));
+  const topJobs = Object.entries(jobCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  if (loading) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>;
+
+  return (
+    <div style={{padding:"8px 12px",paddingBottom:40}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+        <span style={{fontSize:12,fontWeight:700,color:"#6b7280"}}>📍 สาขา:</span>
+        <select value={selBranch||""} onChange={e=>loadHistory(e.target.value)}
+          style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #e5e7eb",
+            fontSize:13,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",
+            background:"#fff",cursor:"pointer",outline:"none"}}>
+          {overview.map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+        </select>
+        <button onClick={()=>selBranch&&loadHistory(selBranch)} style={{
+          padding:"5px 12px",borderRadius:8,border:"1px solid #d1d5db",background:"#fff",
+          fontSize:12,fontWeight:700,cursor:"pointer",color:"#6b7280",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+          🔄
+        </button>
+        <span style={{fontSize:12,color:"#9ca3af"}}>{history.length} รายการ</span>
+      </div>
+
+      {/* Summary stats */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:12}}>
+        {[
+          {v:history.length,l:"ทั้งหมด",bg:"#FFE000",c:"#1A1A1A"},
+          {v:totalJobs,l:"งานทั้งหมด",bg:"#1A1A1A",c:"#FFE000"},
+          {v:topJobs[0]?topJobs[0][0]:"-",l:"งานยอดนิยม",bg:"#059669",c:"#fff"},
+          {v:topJobs[0]?topJobs[0][1]:0,l:"ครั้ง",bg:"#d97706",c:"#fff"},
+        ].map(s=>(
+          <div key={s.l} style={{background:s.bg,borderRadius:8,padding:"8px 6px",textAlign:"center"}}>
+            <div style={{fontSize:s.l==="งานยอดนิยม"?11:20,fontWeight:900,color:s.c,lineHeight:1.2}}>{s.v}</div>
+            <div style={{fontSize:10,fontWeight:700,color:s.c,opacity:.85,marginTop:2}}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Top jobs */}
+      {topJobs.length > 0 && (
+        <div style={{background:"#1A1A1A",borderRadius:8,padding:"10px 12px",marginBottom:12}}>
+          <div style={{fontSize:11,fontWeight:800,color:"#FFE000",marginBottom:8}}>งานที่ทำบ่อย</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {topJobs.map(([name,count])=>(
+              <div key={name} style={{background:"#2a2a2a",borderRadius:6,padding:"4px 10px",
+                fontSize:12,fontWeight:700,color:"#fff"}}>
+                {name} <span style={{color:"#FFE000"}}>{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* History table */}
+      {detLoad ? (
+        <div style={{textAlign:"center",padding:30,color:"#9ca3af"}}>⏳ โหลดประวัติ...</div>
+      ) : (
+        <div style={{background:"#fff",borderRadius:10,overflow:"hidden",border:"1px solid #e5e7eb"}}>
+          <div style={{display:"grid",gridTemplateColumns:"60px 100px 80px 1fr 80px",
+            background:"#1A1A1A",padding:"6px 10px",gap:8}}>
+            {["วันที่","ทะเบียน","จังหวัด","งานที่ทำ","เวลาปิด"].map(h=>(
+              <div key={h} style={{fontSize:10,fontWeight:800,color:"#FFE000"}}>{h}</div>
+            ))}
+          </div>
+          {history.length === 0 && (
+            <div style={{textAlign:"center",padding:30,color:"#9ca3af",fontSize:14}}>ยังไม่มีประวัติ</div>
+          )}
+          {history.slice(0,50).map((h,i) => {
+            const realJobs = (h.jobs||[]).filter(j=>j.name!=="รับรถเข้า");
+            const closedDate = h.closedAt ? new Date(h.closedAt).toLocaleDateString("th-TH",{day:"2-digit",month:"2-digit"}) : "-";
+            const closedTime = h.closedAt ? new Date(h.closedAt).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}) : "-";
+            return (
+              <div key={i} style={{display:"grid",gridTemplateColumns:"60px 100px 80px 1fr 80px",
+                padding:"5px 10px",gap:8,alignItems:"center",
+                borderBottom:"1px solid #f3f4f6",background:i%2===0?"#fff":"#f9fafb"}}>
+                <div style={{fontSize:10,color:"#9ca3af"}}>{closedDate}</div>
+                <div style={{fontSize:13,fontWeight:900,color:"#1A1A1A"}}>{h.plate}</div>
+                <div style={{fontSize:10,color:"#6b7280"}}>{h.province||"-"}</div>
+                <div style={{fontSize:10,color:"#374151",lineHeight:1.5}}>
+                  {realJobs.map(j=>j.name).join(" • ") || "-"}
+                </div>
+                <div style={{fontSize:10,color:"#9ca3af"}}>{closedTime}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Admin View (TV horizontal rows) ─────────────────────────────────────────
 function AdminView() {
   const [overview, setOverview]   = useState([]);
   const [selBranch, setSelBranch] = useState(null);
@@ -526,7 +682,6 @@ function AdminView() {
   };
 
   const refresh = () => selBranch && selectBranch(selBranch);
-
   useEffect(() => { fetchOv(); }, []);
   useEffect(() => {
     if (!selBranch) return;
@@ -534,8 +689,8 @@ function AdminView() {
     return () => clearInterval(t);
   }, [selBranch]);
 
-  if (loading) return <div style={{textAlign:"center",padding:60,fontSize:18,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>;
-  if (!overview.length) return <div style={{textAlign:"center",padding:60,fontSize:18,color:"#9ca3af"}}>ไม่พบข้อมูลสาขา</div>;
+  if (loading) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>⏳</div>;
+  if (!overview.length) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>ไม่พบสาขา</div>;
 
   const cars = Object.entries(detail?.baysData||{}).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
   const total = cars.length;
@@ -543,189 +698,132 @@ function AdminView() {
   const wait  = cars.filter(([,c])=>c.bayStatus==="waiting_entry").length;
   const done  = cars.filter(([,c])=>getProgress(c.jobs)===100).length;
 
-  // Responsive columns: fit all cards on screen
-  const cols = total <= 4 ? total || 1 : total <= 8 ? 4 : total <= 12 ? 4 : total <= 16 ? 4 : 5;
-
   return (
     <div style={{background:"#0f1117",minHeight:"calc(100vh - 110px)",display:"flex",flexDirection:"column"}}>
-
       {/* Top bar */}
-      <div style={{background:"#1A1A1A",borderBottom:"2px solid #FFE000",padding:"10px 20px",
-        display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-
-        {/* Title + branch */}
-        <div style={{display:"flex",alignItems:"center",gap:16}}>
-          <div>
-            <div style={{fontSize:11,fontWeight:800,color:"#FFE000",letterSpacing:"2px",textTransform:"uppercase"}}>
-              ข้อมูลการใช้บริการ
-            </div>
-            <div style={{fontSize:16,fontWeight:900,color:"#fff"}}>
-              {detail?.name || "กำลังโหลด..."}
-            </div>
+      <div style={{background:"#1A1A1A",borderBottom:"2px solid #FFE000",padding:"6px 14px",
+        display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{fontSize:10,fontWeight:800,color:"#FFE000",letterSpacing:"1.5px",textTransform:"uppercase"}}>
+            ข้อมูลการใช้บริการ
           </div>
+          <div style={{fontSize:14,fontWeight:900,color:"#fff"}}>{detail?.name||"..."}</div>
         </div>
-
-        {/* Branch tabs */}
-        <div style={{display:"flex",gap:6}}>
-          {overview.map(b => (
-            <button key={b.branchId} onClick={() => selectBranch(b.branchId)}
-              style={{padding:"6px 14px",borderRadius:8,border:"none",cursor:"pointer",
-                background: selBranch===b.branchId ? "#FFE000" : "rgba(255,255,255,0.1)",
-                color: selBranch===b.branchId ? "#1A1A1A" : "#ccc",
-                fontSize:13,fontWeight:800,fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              {b.name}
-            </button>
-          ))}
-        </div>
-
-        {/* Stats + refresh */}
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          {[
-            {v:total,l:"ทั้งหมด",bg:"#FFE000",c:"#1A1A1A"},
-            {v:inSrv,l:"ซ่อมอยู่",bg:"#059669",c:"#fff"},
-            {v:wait,l:"รอคิว",bg:"#d97706",c:"#fff"},
-            {v:done,l:"เสร็จแล้ว",bg:"#374151",c:"#fff"},
-          ].map(s => (
-            <div key={s.l} style={{background:s.bg,borderRadius:8,padding:"4px 12px",textAlign:"center",minWidth:52}}>
-              <div style={{fontSize:20,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
-              <div style={{fontSize:10,fontWeight:700,color:s.c,opacity:.85}}>{s.l}</div>
+        {/* Branch dropdown */}
+        <select value={selBranch||""} onChange={e=>selectBranch(e.target.value)}
+          style={{padding:"4px 10px",borderRadius:8,border:"1px solid #444",background:"#2a2a2a",
+            color:"#fff",fontSize:12,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",cursor:"pointer",outline:"none"}}>
+          {overview.map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+        </select>
+        {/* Stats */}
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          {[{v:total,l:"ทั้งหมด",bg:"#FFE000",c:"#1A1A1A"},{v:inSrv,l:"ซ่อมอยู่",bg:"#059669",c:"#fff"},
+            {v:wait,l:"รอคิว",bg:"#d97706",c:"#fff"},{v:done,l:"เสร็จ",bg:"#374151",c:"#fff"}
+          ].map(s=>(
+            <div key={s.l} style={{background:s.bg,borderRadius:6,padding:"3px 10px",textAlign:"center",minWidth:44}}>
+              <div style={{fontSize:16,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
+              <div style={{fontSize:9,fontWeight:700,color:s.c,opacity:.85}}>{s.l}</div>
             </div>
           ))}
-          <div style={{fontSize:11,color:"#6b7280",marginLeft:4}}>
-            🔄 {lastUpdate}
-          </div>
-          <button onClick={refresh}
-            style={{background:"rgba(255,255,255,0.08)",border:"1px solid #444",borderRadius:8,
-              padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer",color:"#ccc",
-              fontFamily:"'Noto Sans Thai',sans-serif"}}>
-            รีเฟรช
-          </button>
+          <span style={{fontSize:10,color:"#6b7280"}}>🔄 {lastUpdate}</span>
+          <button onClick={refresh} style={{background:"rgba(255,255,255,0.08)",border:"1px solid #444",
+            borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",color:"#ccc",
+            fontFamily:"'Noto Sans Thai',sans-serif"}}>รีเฟรช</button>
         </div>
       </div>
 
-      {/* Queue grid */}
-      {detLoad ? (
-        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"#9ca3af",fontSize:16}}>
-          ⏳ กำลังโหลด...
-        </div>
-      ) : (
-        <div style={{
-          flex:1, padding:"8px 12px",
-          display:"grid",
-          gridTemplateColumns:`repeat(${cols}, 1fr)`,
-          gap:8,
-          alignContent:"start",
-        }}>
-          {cars.length === 0 && (
-            <div style={{gridColumn:`1/-1`,textAlign:"center",padding:60,color:"#6b7280",fontSize:16}}>
-              ไม่มีรถในคิวขณะนี้
-            </div>
-          )}
+      {/* Table header */}
+      <div style={{display:"grid",
+        gridTemplateColumns:"36px 110px 60px 70px 70px 90px 1fr",
+        gap:0,background:"#1A1A1A",padding:"5px 10px",alignItems:"center"}}>
+        {["#","ทะเบียน","จังหวัด","สถานะ","เวลาที่ใช้","ความคืบหน้า","รายการงาน"].map(h=>(
+          <div key={h} style={{fontSize:10,fontWeight:800,color:"#FFE000",padding:"0 4px"}}>{h}</div>
+        ))}
+      </div>
 
-          {cars.map(([qNo, car]) => {
-            const real = (car.jobs||[]).filter(j=>j.name!=="รับรถเข้า");
-            const prog = getProgress(car.jobs);
-            const isIn = car.bayStatus==="in_service";
-            const isDone = prog === 100 && real.length > 0;
-
-            return (
-              <div key={qNo} style={{
-                background: isIn ? "#1a2a1a" : "#1a1a2a",
-                border: `1.5px solid ${isDone?"#059669":isIn?"#22c55e":"#374151"}`,
-                borderRadius:10,overflow:"hidden",
-                display:"flex",flexDirection:"column",
-              }}>
-                {/* Card header */}
-                <div style={{
-                  background: isDone?"#059669":isIn?"#166534":"#1e293b",
-                  padding:"6px 8px",
-                  display:"flex",alignItems:"center",justifyContent:"space-between",
-                }}>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <div style={{
-                      background:"#FFE000",borderRadius:5,minWidth:22,height:22,
-                      display:"flex",alignItems:"center",justifyContent:"center",
-                      fontSize:11,fontWeight:900,color:"#1A1A1A",flexShrink:0,
-                    }}>{qNo}</div>
-                    <div>
-                      <div style={{fontSize:16,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",lineHeight:1}}>
-                        {car.plate}
-                      </div>
-                      {car.province && (
-                        <div style={{fontSize:9,color:"rgba(255,255,255,0.6)",marginTop:1}}>
-                          จ.{car.province}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{
-                    background: isDone?"rgba(255,255,255,.2)":isIn?"#FFE000":"#d97706",
-                    color: isDone?"#fff":isIn?"#1A1A1A":"#fff",
-                    borderRadius:5,padding:"2px 6px",fontSize:10,fontWeight:900,textAlign:"center",
-                  }}>
-                    {isDone?"✅":isIn?"🔧":"⏳"}
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                {real.length > 0 && (
-                  <div style={{padding:"4px 8px 2px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-                      <span style={{fontSize:9,color:"#9ca3af",fontWeight:700}}>คืบหน้า</span>
-                      <span style={{fontSize:10,fontWeight:900,color:"#fff"}}>{prog}%</span>
-                    </div>
-                    <div style={{background:"#374151",borderRadius:99,height:4}}>
-                      <div style={{
-                        background:isDone?"#059669":"#FFE000",
-                        borderRadius:99,height:4,width:`${prog}%`,transition:"width .4s"
-                      }}/>
-                    </div>
-                  </div>
-                )}
-
-                {/* Jobs */}
-                <div style={{padding:"2px 8px 6px",flex:1}}>
-                  {real.length === 0 ? (
-                    <div style={{color:"#4b5563",fontSize:10,fontStyle:"italic",padding:"3px 0"}}>
-                      รอเพิ่มงาน
-                    </div>
-                  ) : real.map((job,i) => (
-                    <div key={i} style={{
-                      display:"flex",alignItems:"center",gap:4,
-                      padding:"2px 0",
-                      borderBottom: i<real.length-1?"1px solid #1f2937":"none"
-                    }}>
-                      <span style={{fontSize:10,flexShrink:0}}>
-                        {job.status==="done"?"✅":job.status==="in_progress"?"🔧":"⏳"}
-                      </span>
-                      <span style={{
-                        fontSize:11,fontWeight:700,flex:1,
-                        color:job.status==="done"?"#4b5563":"#e5e7eb",
-                        textDecoration:job.status==="done"?"line-through":"none",
-                      }}>
-                        {job.name}
-                      </span>
-                      <span style={{
-                        fontSize:9,fontWeight:700,flexShrink:0,
-                        borderRadius:3,padding:"1px 4px",
-                        background:job.status==="done"?"#064e3b":job.status==="in_progress"?"#78350f":"#1f2937",
-                        color:job.status==="done"?"#34d399":job.status==="in_progress"?"#fbbf24":"#6b7280",
-                      }}>
-                        {job.status==="done"?"เสร็จ":job.status==="in_progress"?"ทำ":"รอ"}
-                      </span>
-                    </div>
-                  ))}
+      {/* Queue rows */}
+      <div style={{flex:1,overflowY:"auto"}}>
+        {detLoad && <div style={{textAlign:"center",padding:20,color:"#9ca3af"}}>⏳</div>}
+        {!detLoad && cars.length===0 && (
+          <div style={{textAlign:"center",padding:30,color:"#6b7280",fontSize:14}}>ไม่มีรถในคิว</div>
+        )}
+        {!detLoad && cars.map(([qNo,car],idx) => {
+          const real = (car.jobs||[]).filter(j=>j.name!=="รับรถเข้า");
+          const prog = getProgress(car.jobs);
+          const isIn = car.bayStatus==="in_service";
+          const isDone = prog===100 && real.length>0;
+          const elapsed = getElapsed(car.startTime);
+          const rowBg = isDone?"#0a1a0a":isIn?"#0d1a0d":"#0a0a1a";
+          const borderColor = isDone?"#059669":isIn?"#22c55e":"#2a2a3a";
+          return (
+            <div key={qNo} style={{
+              display:"grid",
+              gridTemplateColumns:"36px 110px 60px 70px 70px 90px 1fr",
+              gap:0,padding:"6px 10px",alignItems:"center",
+              background:rowBg,
+              borderBottom:`1px solid ${borderColor}`,
+              minHeight:44,
+            }}>
+              {/* Queue # */}
+              <div style={{background:"#FFE000",borderRadius:5,width:26,height:26,
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontSize:12,fontWeight:900,color:"#1A1A1A"}}>{qNo}</div>
+              {/* Plate */}
+              <div>
+                <div style={{fontSize:20,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",lineHeight:1}}>
+                  {car.plate}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+              {/* Province */}
+              <div style={{fontSize:11,color:"#9ca3af",padding:"0 4px"}}>
+                {car.province||"-"}
+              </div>
+              {/* Status */}
+              <div>
+                <span style={{
+                  background:isDone?"#059669":isIn?"#166534":"#d97706",
+                  color:"#fff",borderRadius:5,padding:"3px 7px",
+                  fontSize:11,fontWeight:800
+                }}>
+                  {isDone?"✅ เสร็จ":isIn?"🔧 ซ่อม":"⏳ รอ"}
+                </span>
+              </div>
+              {/* Elapsed */}
+              <div style={{fontSize:12,fontWeight:700,color: elapsed?"#FFE000":"#4b5563",padding:"0 4px"}}>
+                {elapsed||"-"}
+              </div>
+              {/* Progress */}
+              <div style={{padding:"0 4px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                  <span style={{fontSize:10,color:"#9ca3af"}}>{real.length}งาน</span>
+                  <span style={{fontSize:11,fontWeight:900,color:"#fff"}}>{prog}%</span>
+                </div>
+                <div style={{background:"#374151",borderRadius:99,height:5}}>
+                  <div style={{background:isDone?"#059669":"#FFE000",borderRadius:99,height:5,width:`${prog}%`}}/>
+                </div>
+              </div>
+              {/* Jobs */}
+              <div style={{display:"flex",flexWrap:"wrap",gap:3,padding:"0 4px"}}>
+                {real.length===0 ? (
+                  <span style={{fontSize:10,color:"#4b5563",fontStyle:"italic"}}>รอเพิ่มงาน</span>
+                ) : real.map((job,ji)=>(
+                  <span key={ji} style={{
+                    fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:4,
+                    background:job.status==="done"?"#064e3b":job.status==="in_progress"?"#78350f":"#1f2937",
+                    color:job.status==="done"?"#34d399":job.status==="in_progress"?"#fbbf24":"#9ca3af",
+                    textDecoration:job.status==="done"?"line-through":"none"
+                  }}>{job.name}</span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-// ─── App ──────────────────────────────────────────────────────────────────────
+
 export default function App() {
   const [tab, setTab] = useState("staff");
   return (
@@ -742,7 +840,7 @@ export default function App() {
         boxShadow:"0 2px 16px rgba(0,0,0,.5)"}}>
         <div style={{marginBottom:14}}><CockpitLogo height={44}/></div>
         <div style={{display:"flex"}}>
-          {[{key:"staff",label:"👨‍🔧 พนักงาน"},{key:"admin",label:"📺 ข้อมูลการใช้บริการ"}].map(t => (
+          {[{key:"staff",label:"👨‍🔧 พนักงาน"},{key:"admin",label:"📺 ข้อมูลการใช้บริการ"},{key:"history",label:"📊 สถิติ"}].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               flex:1,padding:"12px 0",border:"none",background:"transparent",
               color: tab===t.key ? "#FFE000" : "rgba(255,255,255,.4)",
@@ -755,7 +853,7 @@ export default function App() {
         </div>
       </div>
 
-      <div>{tab === "staff" ? <StaffView/> : <AdminView/>}</div>
+      <div>{tab === "staff" ? <StaffView/> : tab === "admin" ? <AdminView/> : <HistoryView/>}</div>
     </div>
   );
 }
