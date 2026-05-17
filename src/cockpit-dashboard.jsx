@@ -305,15 +305,17 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                   mixBlendMode:"multiply",zIndex:5
                 }}/>
 
-                {/* Camera switch — กดได้ตลอด (ready/recording/paused) */}
-                <button onClick={switchCamera} style={{
-                  position:"absolute",top:8,left:8,zIndex:20,
-                  background:"rgba(0,0,0,0.75)",border:"1px solid rgba(255,255,255,0.3)",
-                  borderRadius:20,padding:"6px 12px",color:"#fff",
-                  fontSize:12,fontWeight:700,cursor:"pointer",
-                  display:"flex",alignItems:"center",gap:5}}>
-                  🔄 {facingMode==="environment" ? "กล้องหน้า" : "กล้องหลัง"}
-                </button>
+                {/* Camera switch — เฉพาะก่อนเริ่มบันทึก */}
+                {phase==="ready" && (
+                  <button onClick={switchCamera} style={{
+                    position:"absolute",top:8,left:8,zIndex:20,
+                    background:"rgba(0,0,0,0.75)",border:"1px solid rgba(255,255,255,0.3)",
+                    borderRadius:20,padding:"6px 12px",color:"#fff",
+                    fontSize:12,fontWeight:700,cursor:"pointer",
+                    display:"flex",alignItems:"center",gap:5}}>
+                    🔄 {facingMode==="environment" ? "กล้องหน้า" : "กล้องหลัง"}
+                  </button>
+                )}
 
                 {/* REC badge */}
                 {phase==="recording" && (
