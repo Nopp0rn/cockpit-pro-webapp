@@ -116,19 +116,41 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const switchCamera = async () => {
     const next = facingMode === "environment" ? "user" : "environment";
     setFacingMode(next);
-    // If recording, stop first then reopen camera (can't switch mid-record)
-    if (phase === "recording") {
-      if (recorder && recorder.state !== "inactive") recorder.stop();
-      clearInterval(timerRef.current);
+
+    if (phase === "recording" && paused) {
+      // ขณะ paused: หยุด recorder แต่เก็บ chunks ไว้ แล้วสลับกล้อง
       cancelAnimationFrame(animRef.current);
-      setRecorder(null); setTimer(0); setPaused(false);
+      if (recorder && recorder.state !== "inactive") {
+        // ดึง chunk สุดท้ายออกก่อน stop
+        recorder.requestData();
+        recorder.stop();
+        // recorder.onstop จะ fire → แต่เราจะ override ไม่ให้เปลี่ยน phase
+      }
+      clearInterval(timerRef.current);
+      setRecorder(null);
+      // เปิดกล้องใหม่ กลับไป ready แต่ chunks ยังอยู่ (ไม่ reset)
+      stream?.getTracks().forEach(t => t.stop());
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: next, width:{ideal:1280}, height:{ideal:720} },
+          audio: true
+        });
+        setStream(s);
+        setPhase("ready"); // กลับไป ready แต่ chunks ยังสะสมอยู่
+        setPaused(false);
+      } catch(e) {
+        setError("สลับกล้องไม่สำเร็จ: " + e.message);
+        setPhase("error");
+      }
+    } else {
+      // ใน ready phase: สลับกล้องปกติ
+      await openCamera(next);
     }
-    await openCamera(next);
   };
 
   // ── Start recording (canvas composite in background) ─────────
-  const startRec = () => {
-    chunksRef.current = [];
+  const startRec = (continueMode = false) => {
+    if (!continueMode) chunksRef.current = []; // reset only if fresh start
     const canvas = canvasRef.current;
     const ctx    = canvas.getContext("2d");
     const video  = videoRef.current;
@@ -167,10 +189,12 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
       mr.onstop = () => {
         cancelAnimationFrame(animRef.current);
+        // ถ้า phase เปลี่ยนเป็น "ready" แล้ว (สลับกล้อง) ไม่ต้องทำอะไร
+        if (chunksRef.current.length === 0) return;
         const blob = new Blob(chunksRef.current, {type:"video/webm"});
         setVideoBlob(blob);
         setPreviewUrl(URL.createObjectURL(blob));
-        stream.getTracks().forEach(t=>t.stop());
+        stream?.getTracks().forEach(t=>t.stop());
         setStream(null);
         setPhase("preview");
       };
@@ -286,14 +310,16 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                   objectFit:"fill",pointerEvents:"none",mixBlendMode:"multiply"
                 }}/>
 
-                {/* Camera switch — available in ready AND recording */}
-                <button onClick={switchCamera} style={{
-                  position:"absolute",top:8,left:8,
-                  background:"rgba(0,0,0,0.65)",border:"none",borderRadius:20,
-                  padding:"5px 12px",color:"#fff",fontSize:12,fontWeight:700,
-                  cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-                  🔄 {facingMode==="environment" ? "กล้องหน้า" : "กล้องหลัง"}
-                </button>
+                {/* Camera switch: ใน ready หรือตอน paused */}
+                {(phase==="ready" || (phase==="recording" && paused)) && (
+                  <button onClick={switchCamera} style={{
+                    position:"absolute",top:8,left:8,
+                    background:"rgba(0,0,0,0.7)",border:"none",borderRadius:20,
+                    padding:"5px 12px",color:"#fff",fontSize:12,fontWeight:700,
+                    cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                    🔄 {facingMode==="environment" ? "กล้องหน้า" : "กล้องหลัง"}
+                  </button>
+                )}
 
                 {/* REC badge (only in recording) */}
                 {phase==="recording" && (
@@ -333,12 +359,23 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
               {/* Buttons */}
               {phase==="ready" && (
-                <button onClick={startRec} style={{
-                  width:"100%",padding:"14px",borderRadius:12,border:"none",
-                  background:"#dc2626",color:"#fff",fontSize:15,fontWeight:900,
-                  cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-                  ⏺ เริ่มบันทึก
-                </button>
+                <div style={{display:"flex",gap:8}}>
+                  {chunksRef.current.length > 0 && (
+                    <button onClick={()=>{chunksRef.current=[];setTimer(0);}}
+                      style={{flex:1,padding:"14px",borderRadius:12,border:"1.5px solid #dc2626",
+                        background:"transparent",color:"#dc2626",fontSize:13,fontWeight:700,
+                        cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                      🗑 เริ่มใหม่
+                    </button>
+                  )}
+                  <button onClick={()=>startRec(chunksRef.current.length > 0)} style={{
+                    flex:2,padding:"14px",borderRadius:12,border:"none",
+                    background: chunksRef.current.length > 0 ? "#2563eb" : "#dc2626",
+                    color:"#fff",fontSize:15,fontWeight:900,
+                    cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                    {chunksRef.current.length > 0 ? "▶ บันทึกต่อ (กล้องใหม่)" : "⏺ เริ่มบันทึก"}
+                  </button>
+                </div>
               )}
 
               {phase==="recording" && (
