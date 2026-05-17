@@ -64,19 +64,19 @@ function CockpitLogo({ height = 46 }) {
 // ─── Completion Toast (staff only) ───────────────────────────────────────────
 // ─── CockpitSure Video Modal ──────────────────────────────────────────────────
 function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
-  const [phase, setPhase]           = useState("intro");   // intro|ready|recording|preview|uploading|done|error
+  const [phase, setPhase]           = useState("intro");
   const [stream, setStream]         = useState(null);
   const [recorder, setRecorder]     = useState(null);
   const [paused, setPaused]         = useState(false);
-  const [facingMode, setFacingMode] = useState("environment"); // back cam default
+  const [facingMode, setFacingMode] = useState("environment");
   const [videoBlob, setVideoBlob]   = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [timer, setTimer]           = useState(0);
   const [error, setError]           = useState("");
 
-  const videoRef   = useRef(null);
-  const canvasRef  = useRef(null);
-  const previewRef = useRef(null);
+  const videoRef   = useRef(null);   // live camera element
+  const previewRef = useRef(null);   // playback element
+  const canvasRef  = useRef(null);   // hidden — compositing only
   const timerRef   = useRef(null);
   const chunksRef  = useRef([]);
   const animRef    = useRef(null);
@@ -89,22 +89,24 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     cancelAnimationFrame(animRef.current);
   }, [stream]);
 
-  // Attach stream to video
+  // Attach stream to video element whenever stream changes
   useEffect(() => {
-    if (stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(()=>{});
-    }
+    if (!stream || !videoRef.current) return;
+    videoRef.current.srcObject = stream;
+    videoRef.current.play().catch(() => {});
   }, [stream]);
 
-  const openCamera = async (facing = facingMode) => {
+  // ── Open camera ──────────────────────────────────────────────
+  const openCamera = async (facing) => {
+    const f = facing ?? facingMode;
     stream?.getTracks().forEach(t => t.stop());
     try {
       const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facing, width:{ideal:1280}, height:{ideal:720} },
+        video: { facingMode: f, width:{ideal:1280}, height:{ideal:720} },
         audio: true
       });
-      setStream(s); setPhase("ready");
+      setStream(s);
+      setPhase("ready");
     } catch(e) {
       setError("ไม่สามารถเปิดกล้องได้\nกรุณาอนุญาตการใช้กล้องใน Settings");
       setPhase("error");
@@ -117,46 +119,39 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     await openCamera(next);
   };
 
-  // Canvas compositing draw loop
-  const startDrawLoop = (video, canvas, ctx, frameImg) => {
-    const draw = () => {
-      if (video.readyState >= 2) {
-        // Fill canvas with video (handle portrait orientation)
-        const vW = video.videoWidth, vH = video.videoHeight;
-        const cW = canvas.width, cH = canvas.height;
-        if (vW && vH) {
-          const vAspect = vW / vH, cAspect = cW / cH;
-          let sx=0, sy=0, sw=vW, sh=vH;
-          if (vAspect > cAspect) { sw = vH * cAspect; sx = (vW-sw)/2; }
-          else { sh = vW / cAspect; sy = (vH-sh)/2; }
-          ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cW, cH);
-        }
-        // Draw frame overlay with multiply blend (white becomes transparent)
-        if (frameImg.complete && frameImg.naturalWidth > 0) {
-          ctx.globalCompositeOperation = "multiply";
-          ctx.drawImage(frameImg, 0, 0, cW, cH);
-          ctx.globalCompositeOperation = "source-over"; // reset
-        }
-      }
-      animRef.current = requestAnimationFrame(draw);
-    };
-    draw();
-  };
-
+  // ── Start recording (canvas composite in background) ─────────
   const startRec = () => {
     chunksRef.current = [];
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const video = videoRef.current;
-    // Portrait canvas (9:16)
+    const ctx    = canvas.getContext("2d");
+    const video  = videoRef.current;
     canvas.width = 720; canvas.height = 1280;
 
     const frameImg = new Image();
-    frameImg.src = COCKPITSURE_FRAME;
+    frameImg.src   = COCKPITSURE_FRAME;
+
+    // Draw loop: video + frame (multiply) → hidden canvas
+    const drawLoop = () => {
+      if (video && video.readyState >= 2 && video.videoWidth) {
+        const vW = video.videoWidth, vH = video.videoHeight;
+        const cW = canvas.width,     cH = canvas.height;
+        const vA = vW/vH, cA = cW/cH;
+        let sx=0,sy=0,sw=vW,sh=vH;
+        if (vA > cA){ sw = vH*cA; sx=(vW-sw)/2; }
+        else        { sh = vW/cA; sy=(vH-sh)/2; }
+        ctx.globalCompositeOperation = "source-over";
+        ctx.drawImage(video, sx,sy,sw,sh, 0,0,cW,cH);
+        if (frameImg.complete && frameImg.naturalWidth>0){
+          ctx.globalCompositeOperation = "multiply";
+          ctx.drawImage(frameImg, 0,0,cW,cH);
+          ctx.globalCompositeOperation = "source-over";
+        }
+      }
+      animRef.current = requestAnimationFrame(drawLoop);
+    };
 
     const beginRecord = () => {
-      startDrawLoop(video, canvas, ctx, frameImg);
-      // Canvas stream + audio
+      drawLoop();
       const canvasStream = canvas.captureStream(30);
       stream.getAudioTracks().forEach(t => canvasStream.addTrack(t));
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
@@ -166,12 +161,19 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       mr.onstop = () => {
         cancelAnimationFrame(animRef.current);
         const blob = new Blob(chunksRef.current, {type:"video/webm"});
-        setVideoBlob(blob); setPreviewUrl(URL.createObjectURL(blob));
-        stream.getTracks().forEach(t=>t.stop()); setStream(null); setPhase("preview");
+        setVideoBlob(blob);
+        setPreviewUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t=>t.stop());
+        setStream(null);
+        setPhase("preview");
       };
-      mr.start(500); setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
+      mr.start(500);
+      setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
       timerRef.current = setInterval(() => {
-        setTimer(t => { if(t>=MAX_SEC-1){mr.stop();clearInterval(timerRef.current);return MAX_SEC;} return t+1;});
+        setTimer(t => {
+          if (t >= MAX_SEC-1){ mr.stop(); clearInterval(timerRef.current); return MAX_SEC; }
+          return t+1;
+        });
       }, 1000);
     };
 
@@ -179,6 +181,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     else { frameImg.onload = beginRecord; frameImg.onerror = beginRecord; }
   };
 
+  // ── Pause / Resume / Finish ───────────────────────────────────
   const handlePause = () => {
     if (!recorder || recorder.state!=="recording") return;
     recorder.pause(); setPaused(true); clearInterval(timerRef.current);
@@ -187,7 +190,10 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     if (!recorder || recorder.state!=="paused") return;
     recorder.resume(); setPaused(false);
     timerRef.current = setInterval(() => {
-      setTimer(t => { if(t>=MAX_SEC-1){recorder.stop();clearInterval(timerRef.current);return MAX_SEC;} return t+1;});
+      setTimer(t => {
+        if(t>=MAX_SEC-1){ recorder.stop(); clearInterval(timerRef.current); return MAX_SEC; }
+        return t+1;
+      });
     }, 1000);
   };
   const handleFinish = () => {
@@ -195,222 +201,258 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     clearInterval(timerRef.current);
   };
 
+  // ── Upload & send via LINE ────────────────────────────────────
   const uploadAndSend = async () => {
     setPhase("uploading");
     try {
       const fd = new FormData();
       fd.append("file", videoBlob, `cs_${data.plate}_${Date.now()}.webm`);
       fd.append("upload_preset", CLOUDINARY_PRESET);
-      const upRes  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,{method:"POST",body:fd});
+      const upRes  = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,
+        {method:"POST", body:fd}
+      );
       const upData = await upRes.json();
       if (!upData.secure_url) {
-        const msg = upData.error?.message||"Upload ไม่สำเร็จ";
-        if (msg.includes("Unknown API key")||msg.includes("api_key"))
-          throw new Error("Upload Preset ยังไม่ถูกต้อง\ncloudinary.com → Settings → Upload Presets\n→ cockpit_unsigned → Signing Mode: Unsigned → Save");
+        const msg = upData.error?.message || "Upload ไม่สำเร็จ";
+        if (msg.includes("Unknown API key") || msg.includes("api_key"))
+          throw new Error("Upload Preset ยังไม่ถูกต้อง\ncloudinary.com → Settings\n→ Upload Presets → cockpit_unsigned\n→ Signing Mode: Unsigned → Save");
         throw new Error(msg);
       }
-      await callAPI("POST",`/api/branch/${branchId}/bay/${qNo}/send-video`,{videoUrl:upData.secure_url,plate:data.plate});
-      await callAPI("PATCH",`/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`,{status:"done"});
-      setPhase("done"); setTimeout(()=>{onSuccess();onClose();},2000);
+      await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/send-video`,
+        {videoUrl: upData.secure_url, plate: data.plate});
+      await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`,
+        {status:"done"});
+      setPhase("done");
+      setTimeout(()=>{ onSuccess(); onClose(); }, 2000);
     } catch(e) { setError(e.message); setPhase("error"); }
   };
 
   const pct = Math.round((timer/MAX_SEC)*100);
-
-  // Shared camera view (video + frame overlay via CSS)
-  const CameraView = ({showSwitchBtn=false}) => (
-    <div style={{position:"relative",borderRadius:14,overflow:"hidden",
-      background:"#000",aspectRatio:"9/16",maxHeight:"58vh",marginBottom:10}}>
-      <video ref={videoRef} autoPlay muted playsInline
-        style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
-      {/* Frame overlay via CSS - transparent center shows video */}
-      <img src={COCKPITSURE_FRAME} alt=""
-        style={{position:"absolute",inset:0,width:"100%",height:"100%",
-          objectFit:"fill",pointerEvents:"none"}}/>
-      {/* Camera switch button */}
-      {showSwitchBtn && (
-        <button onClick={switchCamera}
-          style={{position:"absolute",top:10,left:10,background:"rgba(0,0,0,0.6)",
-            border:"none",borderRadius:20,padding:"6px 12px",color:"#fff",
-            fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-          🔄 {facingMode==="environment" ? "สลับกล้องหน้า" : "สลับกล้องหลัง"}
-        </button>
-      )}
-    </div>
-  );
+  const isCameraActive = phase==="ready" || phase==="recording";
 
   return (
     <>
-    {/* Hidden canvas for recording composition */}
-    <canvas ref={canvasRef} style={{display:"none"}}/>
-    <video ref={videoRef} autoPlay muted playsInline style={{display:"none"}}/>
+      {/* Hidden canvas — compositing for recording only */}
+      <canvas ref={canvasRef} style={{display:"none"}}/>
 
-    <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.95)",
-      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div style={{width:"100%",maxWidth:380}}>
+      <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.95)",
+        display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+        padding:"12px 16px"}}>
+        <div style={{width:"100%",maxWidth:380}}>
 
-        {/* Header */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-          <div>
-            <div style={{fontSize:11,color:"#FFE000",fontWeight:800,letterSpacing:"1.5px"}}>COCKPITSURE</div>
-            <div style={{fontSize:20,color:"#fff",fontWeight:900}}>{data.plate}</div>
-            <div style={{fontSize:11,color:"#6b7280"}}>บันทึกวีดีโอส่งลูกค้าก่อนปิดงาน</div>
-          </div>
-          {["intro","error"].includes(phase) && (
-            <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"none",
-              borderRadius:8,padding:"6px 14px",color:"#ccc",fontSize:13,cursor:"pointer",
-              fontFamily:"'Noto Sans Thai',sans-serif"}}>ยกเลิก</button>
-          )}
-        </div>
-
-        {/* INTRO */}
-        {phase==="intro" && (
-          <div style={{background:"#1a1a1a",borderRadius:16,padding:24,textAlign:"center"}}>
-            <div style={{fontSize:52,marginBottom:10}}>🎥</div>
-            <div style={{fontSize:14,color:"#9ca3af",marginBottom:18,lineHeight:1.7}}>
-              บันทึกวีดีโอผลงาน CockpitSure<br/>
-              พร้อมเฟรมโลโก้อัตโนมัติ<br/>
-              <span style={{color:"#6b7280",fontSize:12}}>⏱ สูงสุด {MAX_SEC} วินาที</span>
-            </div>
-            <button onClick={()=>openCamera()} style={{width:"100%",padding:"15px",borderRadius:12,
-              border:"none",background:"#FFE000",color:"#1A1A1A",fontSize:16,fontWeight:900,
-              cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              📷 เปิดกล้อง
-            </button>
-          </div>
-        )}
-
-        {/* READY */}
-        {phase==="ready" && (
-          <div>
-            {/* Live preview with frame - CSS overlay */}
-            <div style={{position:"relative",borderRadius:14,overflow:"hidden",
-              background:"#000",aspectRatio:"9/16",maxHeight:"58vh",marginBottom:10}}>
-              <video ref={null} autoPlay muted playsInline
-                style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
-                ref={videoRef}/>
-              <img src={COCKPITSURE_FRAME} alt="" style={{
-                position:"absolute",inset:0,width:"100%",height:"100%",
-                objectFit:"fill",pointerEvents:"none",
-                mixBlendMode:"multiply"}}/>
-              {/* Camera switch */}
-              <button onClick={switchCamera} style={{position:"absolute",top:10,left:10,
-                background:"rgba(0,0,0,0.65)",border:"none",borderRadius:20,
-                padding:"6px 12px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                🔄 {facingMode==="environment"?"กล้องหน้า":"กล้องหลัง"}
-              </button>
-            </div>
-            <button onClick={startRec} style={{width:"100%",padding:"15px",borderRadius:12,
-              border:"none",background:"#dc2626",color:"#fff",fontSize:16,fontWeight:900,
-              cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              ⏺ เริ่มบันทึก
-            </button>
-          </div>
-        )}
-
-        {/* RECORDING */}
-        {phase==="recording" && (
-          <div>
-            {/* Canvas output (shows composited video+frame) */}
-            <div style={{position:"relative",borderRadius:14,overflow:"hidden",
-              background:"#000",aspectRatio:"9/16",maxHeight:"52vh",marginBottom:8}}>
-              <canvas ref={canvasRef}
-                style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}}/>
-              <video ref={videoRef} autoPlay muted playsInline style={{display:"none"}}/>
-              {/* REC badge */}
-              <div style={{position:"absolute",top:10,right:10,
-                background:paused?"#d97706":"#dc2626",color:"#fff",
-                borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:800,
-                display:"flex",alignItems:"center",gap:5}}>
-                <span style={{width:7,height:7,borderRadius:"50%",background:"#fff",
-                  animation:paused?"none":"blink 1s infinite",display:"inline-block"}}/>
-                {paused ? "⏸" : `⏺ ${timer}s`}
+          {/* Header */}
+          <div style={{display:"flex",justifyContent:"space-between",
+            alignItems:"flex-start",marginBottom:10}}>
+            <div>
+              <div style={{fontSize:11,color:"#FFE000",fontWeight:800,letterSpacing:"1.5px"}}>
+                COCKPITSURE
               </div>
-              {paused && (
-                <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.45)",
-                  display:"flex",alignItems:"center",justifyContent:"center",
-                  fontSize:52}}>⏸</div>
+              <div style={{fontSize:20,color:"#fff",fontWeight:900}}>{data.plate}</div>
+              <div style={{fontSize:11,color:"#6b7280"}}>บันทึกวีดีโอส่งลูกค้าก่อนปิดงาน</div>
+            </div>
+            {["intro","error"].includes(phase) && (
+              <button onClick={onClose}
+                style={{background:"rgba(255,255,255,.1)",border:"none",borderRadius:8,
+                  padding:"6px 14px",color:"#ccc",fontSize:13,cursor:"pointer",
+                  fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                ยกเลิก
+              </button>
+            )}
+          </div>
+
+          {/* ── LIVE CAMERA VIEW (ready + recording) ── */}
+          {isCameraActive && (
+            <div>
+              {/* Camera preview with CockpitSure frame overlay */}
+              <div style={{position:"relative",borderRadius:14,overflow:"hidden",
+                background:"#111",aspectRatio:"9/16",maxHeight:"54vh",marginBottom:8}}>
+
+                {/* Live video — always visible when camera is active */}
+                <video ref={videoRef} autoPlay muted playsInline
+                  style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+
+                {/* Frame overlay: mix-blend-mode:multiply makes white transparent */}
+                <img src={COCKPITSURE_FRAME} alt="" style={{
+                  position:"absolute",inset:0,width:"100%",height:"100%",
+                  objectFit:"fill",pointerEvents:"none",mixBlendMode:"multiply"
+                }}/>
+
+                {/* Camera switch button (only in ready) */}
+                {phase==="ready" && (
+                  <button onClick={switchCamera} style={{
+                    position:"absolute",top:8,left:8,
+                    background:"rgba(0,0,0,0.6)",border:"none",borderRadius:20,
+                    padding:"5px 12px",color:"#fff",fontSize:12,fontWeight:700,
+                    cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                    🔄 {facingMode==="environment" ? "สลับกล้องหน้า" : "สลับกล้องหลัง"}
+                  </button>
+                )}
+
+                {/* REC badge (only in recording) */}
+                {phase==="recording" && (
+                  <div style={{position:"absolute",top:8,right:8,
+                    background:paused?"#d97706":"#dc2626",color:"#fff",
+                    borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:800,
+                    display:"flex",alignItems:"center",gap:5}}>
+                    <span style={{width:7,height:7,borderRadius:"50%",background:"#fff",
+                      display:"inline-block",
+                      animation:paused?"none":"blink 1s infinite"}}/>
+                    {paused ? "⏸" : `⏺ ${timer}s`}
+                  </div>
+                )}
+
+                {/* Pause overlay */}
+                {phase==="recording" && paused && (
+                  <div style={{position:"absolute",inset:0,
+                    background:"rgba(0,0,0,0.4)",display:"flex",
+                    alignItems:"center",justifyContent:"center",fontSize:52}}>⏸</div>
+                )}
+              </div>
+
+              {/* Progress bar (recording only) */}
+              {phase==="recording" && (
+                <>
+                  <div style={{background:"#374151",borderRadius:99,height:4,marginBottom:5}}>
+                    <div style={{background:paused?"#d97706":"#dc2626",borderRadius:99,
+                      height:4,width:`${pct}%`,
+                      transition:paused?"none":"width 1s linear"}}/>
+                  </div>
+                  <div style={{fontSize:10,color:"#9ca3af",marginBottom:8,textAlign:"center"}}>
+                    {paused ? `⏸ หยุดชั่วคราว ${timer}s/${MAX_SEC}s`
+                            : `⏺ ${timer}s / ${MAX_SEC}s`}
+                  </div>
+                </>
+              )}
+
+              {/* Buttons */}
+              {phase==="ready" && (
+                <button onClick={startRec} style={{
+                  width:"100%",padding:"14px",borderRadius:12,border:"none",
+                  background:"#dc2626",color:"#fff",fontSize:15,fontWeight:900,
+                  cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                  ⏺ เริ่มบันทึก
+                </button>
+              )}
+
+              {phase==="recording" && (
+                <div style={{display:"flex",gap:8}}>
+                  {!paused
+                    ? <button onClick={handlePause} style={{flex:1,padding:"12px",
+                        borderRadius:10,border:"none",background:"#d97706",color:"#fff",
+                        fontSize:13,fontWeight:800,cursor:"pointer",
+                        fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                        ⏸ หยุดชั่วคราว
+                      </button>
+                    : <button onClick={handleResume} style={{flex:1,padding:"12px",
+                        borderRadius:10,border:"none",background:"#2563eb",color:"#fff",
+                        fontSize:13,fontWeight:800,cursor:"pointer",
+                        fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                        ▶ บันทึกต่อ
+                      </button>
+                  }
+                  <button onClick={handleFinish} style={{flex:1,padding:"12px",
+                    borderRadius:10,border:"none",background:"#059669",color:"#fff",
+                    fontSize:13,fontWeight:900,cursor:"pointer",
+                    fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                    ✅ เสร็จสิ้น
+                  </button>
+                </div>
               )}
             </div>
-            {/* Progress bar */}
-            <div style={{background:"#374151",borderRadius:99,height:4,marginBottom:6}}>
-              <div style={{background:paused?"#d97706":"#dc2626",borderRadius:99,height:4,
-                width:`${pct}%`,transition:paused?"none":"width 1s linear"}}/>
-            </div>
-            <div style={{fontSize:10,color:"#9ca3af",marginBottom:8,textAlign:"center"}}>
-              {paused ? `⏸ หยุดชั่วคราว ${timer}s/${MAX_SEC}s` : `⏺ ${timer}s / ${MAX_SEC}s`}
-            </div>
-            <div style={{display:"flex",gap:7}}>
-              {!paused
-                ? <button onClick={handlePause} style={{flex:1,padding:"11px",borderRadius:10,border:"none",
-                    background:"#d97706",color:"#fff",fontSize:13,fontWeight:800,cursor:"pointer",
-                    fontFamily:"'Noto Sans Thai',sans-serif"}}>⏸ หยุดชั่วคราว</button>
-                : <button onClick={handleResume} style={{flex:1,padding:"11px",borderRadius:10,border:"none",
-                    background:"#2563eb",color:"#fff",fontSize:13,fontWeight:800,cursor:"pointer",
-                    fontFamily:"'Noto Sans Thai',sans-serif"}}>▶ บันทึกต่อ</button>
-              }
-              <button onClick={handleFinish} style={{flex:1,padding:"11px",borderRadius:10,border:"none",
-                background:"#059669",color:"#fff",fontSize:13,fontWeight:900,cursor:"pointer",
-                fontFamily:"'Noto Sans Thai',sans-serif"}}>✅ เสร็จสิ้น</button>
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* PREVIEW */}
-        {phase==="preview" && (
-          <div>
-            <div style={{borderRadius:14,overflow:"hidden",marginBottom:10,
-              background:"#000",aspectRatio:"9/16",maxHeight:"55vh"}}>
-              <video ref={previewRef} src={previewUrl} controls playsInline
-                style={{width:"100%",height:"100%",objectFit:"contain"}}/>
+          {/* ── INTRO ── */}
+          {phase==="intro" && (
+            <div style={{background:"#1a1a1a",borderRadius:16,padding:24,textAlign:"center"}}>
+              <div style={{fontSize:52,marginBottom:10}}>🎥</div>
+              <div style={{fontSize:14,color:"#9ca3af",marginBottom:18,lineHeight:1.7}}>
+                บันทึกวีดีโอผลงาน CockpitSure<br/>
+                พร้อมเฟรมโลโก้อัตโนมัติ<br/>
+                <span style={{color:"#6b7280",fontSize:12}}>⏱ สูงสุด {MAX_SEC} วินาที</span>
+              </div>
+              <button onClick={()=>openCamera()} style={{width:"100%",padding:"15px",
+                borderRadius:12,border:"none",background:"#FFE000",color:"#1A1A1A",
+                fontSize:16,fontWeight:900,cursor:"pointer",
+                fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                📷 เปิดกล้อง
+              </button>
             </div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>{setVideoBlob(null);setPhase("intro");}}
-                style={{flex:1,padding:"12px",borderRadius:10,border:"1.5px solid #4b5563",
-                  background:"transparent",color:"#fff",fontSize:13,fontWeight:700,
-                  cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>🔄 ถ่ายใหม่</button>
-              <button onClick={uploadAndSend} style={{flex:2,padding:"12px",borderRadius:10,
-                border:"none",background:"#059669",color:"#fff",fontSize:13,fontWeight:900,
-                cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>📤 ส่ง LINE ลูกค้า</button>
+          )}
+
+          {/* ── PREVIEW ── */}
+          {phase==="preview" && (
+            <div>
+              <div style={{borderRadius:14,overflow:"hidden",marginBottom:10,
+                background:"#000",aspectRatio:"9/16",maxHeight:"54vh"}}>
+                <video ref={previewRef} src={previewUrl} controls playsInline
+                  style={{width:"100%",height:"100%",objectFit:"contain"}}/>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{setVideoBlob(null);setPhase("intro");}}
+                  style={{flex:1,padding:"12px",borderRadius:10,
+                    border:"1.5px solid #4b5563",background:"transparent",
+                    color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",
+                    fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                  🔄 ถ่ายใหม่
+                </button>
+                <button onClick={uploadAndSend} style={{flex:2,padding:"12px",
+                  borderRadius:10,border:"none",background:"#059669",color:"#fff",
+                  fontSize:13,fontWeight:900,cursor:"pointer",
+                  fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                  📤 ส่ง LINE ลูกค้า
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* UPLOADING */}
-        {phase==="uploading" && (
-          <div style={{background:"#1a1a1a",borderRadius:16,padding:32,textAlign:"center"}}>
-            <div style={{fontSize:40,marginBottom:10}}>📤</div>
-            <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:6}}>กำลังส่งวีดีโอ...</div>
-            <div style={{fontSize:12,color:"#9ca3af",marginBottom:14}}>อัปโหลดและส่ง LINE ให้ลูกค้า</div>
-            <div style={{height:4,background:"#374151",borderRadius:99,overflow:"hidden"}}>
-              <div style={{height:4,background:"#FFE000",borderRadius:99,width:"60%",
-                animation:"slideRight 1.2s ease-in-out infinite"}}/>
+          {/* ── UPLOADING ── */}
+          {phase==="uploading" && (
+            <div style={{background:"#1a1a1a",borderRadius:16,padding:32,textAlign:"center"}}>
+              <div style={{fontSize:40,marginBottom:10}}>📤</div>
+              <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:6}}>
+                กำลังส่งวีดีโอ...
+              </div>
+              <div style={{fontSize:12,color:"#9ca3af",marginBottom:14}}>
+                อัปโหลดและส่ง LINE ให้ลูกค้า
+              </div>
+              <div style={{height:4,background:"#374151",borderRadius:99,overflow:"hidden"}}>
+                <div style={{height:4,background:"#FFE000",borderRadius:99,width:"60%",
+                  animation:"slideRight 1.2s ease-in-out infinite"}}/>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* DONE */}
-        {phase==="done" && (
-          <div style={{background:"#064e3b",borderRadius:16,padding:32,textAlign:"center"}}>
-            <div style={{fontSize:52,marginBottom:10}}>✅</div>
-            <div style={{fontSize:17,fontWeight:900,color:"#34d399",marginBottom:6}}>ส่งวีดีโอสำเร็จ!</div>
-            <div style={{fontSize:13,color:"#6ee7b7"}}>LINE แจ้งลูกค้าแล้ว — กำลังปิดงาน...</div>
-          </div>
-        )}
+          {/* ── DONE ── */}
+          {phase==="done" && (
+            <div style={{background:"#064e3b",borderRadius:16,padding:32,textAlign:"center"}}>
+              <div style={{fontSize:52,marginBottom:10}}>✅</div>
+              <div style={{fontSize:17,fontWeight:900,color:"#34d399",marginBottom:6}}>
+                ส่งวีดีโอสำเร็จ!
+              </div>
+              <div style={{fontSize:13,color:"#6ee7b7"}}>
+                LINE แจ้งลูกค้าแล้ว — กำลังปิดงาน...
+              </div>
+            </div>
+          )}
 
-        {/* ERROR */}
-        {phase==="error" && (
-          <div style={{background:"#1a1a1a",borderRadius:16,padding:22,textAlign:"center"}}>
-            <div style={{fontSize:34,marginBottom:8}}>⚠️</div>
-            <div style={{fontSize:12,color:"#fca5a5",marginBottom:14,lineHeight:1.7,whiteSpace:"pre-line"}}>{error}</div>
-            <button onClick={()=>setPhase("intro")} style={{padding:"10px 28px",borderRadius:10,
-              border:"none",background:"#FFE000",color:"#1A1A1A",fontSize:14,fontWeight:800,
-              cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>ลองใหม่</button>
-          </div>
-        )}
+          {/* ── ERROR ── */}
+          {phase==="error" && (
+            <div style={{background:"#1a1a1a",borderRadius:16,padding:22,textAlign:"center"}}>
+              <div style={{fontSize:34,marginBottom:8}}>⚠️</div>
+              <div style={{fontSize:12,color:"#fca5a5",marginBottom:14,
+                lineHeight:1.7,whiteSpace:"pre-line"}}>{error}</div>
+              <button onClick={()=>setPhase("intro")} style={{
+                padding:"10px 28px",borderRadius:10,border:"none",
+                background:"#FFE000",color:"#1A1A1A",fontSize:14,fontWeight:800,
+                cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                ลองใหม่
+              </button>
+            </div>
+          )}
 
+        </div>
       </div>
-    </div>
     </>
   );
 }
