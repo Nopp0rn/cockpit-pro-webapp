@@ -152,33 +152,73 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     }
   };
 
-  // ── Start recording (direct from camera stream, cross-browser safe) ──────────
-  const startRec = () => {
+  // ── Start recording with canvas compositing (logo baked in) ─────────────────
+  function startRec() {
     chunksRef.current = [];
-    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-      ? "video/webm;codecs=vp9"
-      : MediaRecorder.isTypeSupported("video/webm")
-      ? "video/webm"
-      : "";
-    const mr = new MediaRecorder(streamRef.current, mimeType ? {mimeType} : {});
-    mr.ondataavailable = e => { if(e.data.size > 0) chunksRef.current.push(e.data); };
-    mr.onstop = () => {
-      if (chunksRef.current.length === 0) return;
-      const blob = new Blob(chunksRef.current, {type: mr.mimeType || "video/webm"});
-      setVideoBlob(blob);
-      setPreviewUrl(URL.createObjectURL(blob));
-      streamRef.current?.getTracks().forEach(t => t.stop());
-      setPhase("preview");
-    };
-    mr.start(500);
-    setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
-    timerRef.current = setInterval(() => {
-      setTimer(t => {
-        if(t >= MAX_SEC-1){ mr.stop(); clearInterval(timerRef.current); return MAX_SEC; }
-        return t + 1;
-      });
-    }, 1000);
-  };
+    const canvas = canvasRef.current;
+    const ctx    = canvas.getContext("2d");
+    const video  = videoRef.current;
+    canvas.width = 720; canvas.height = 1280;
+
+    const logoImg = new Image();
+    logoImg.src = COCKPITSURE_LOGO;
+
+    // Draw loop: video → canvas (hidden) → MediaRecorder records canvas
+    // Video element stays visible for user to see live feed
+    function drawLoop() {
+      if (video && video.readyState >= 2 && video.videoWidth > 0) {
+        const vW=video.videoWidth, vH=video.videoHeight;
+        const cW=canvas.width, cH=canvas.height;
+        const vA=vW/vH, cA=cW/cH;
+        let sx=0,sy=0,sw=vW,sh=vH;
+        if (vA>cA){ sw=vH*cA; sx=(vW-sw)/2; }
+        else      { sh=vW/cA; sy=(vH-sh)/2; }
+        ctx.clearRect(0,0,cW,cH);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.drawImage(video, sx,sy,sw,sh, 0,0,cW,cH);
+        if (logoImg.complete && logoImg.naturalWidth>0) {
+          const lw = Math.round(cW*0.55);
+          const lh = Math.round(lw*logoImg.naturalHeight/logoImg.naturalWidth);
+          ctx.drawImage(logoImg, 10, 10, lw, lh);
+        }
+      }
+      animRef.current = requestAnimationFrame(drawLoop);
+    }
+
+    function beginRecord() {
+      // Keep video element playing (visible to user)
+      if (video) video.play().catch(()=>{});
+      drawLoop();
+
+      // Record from canvas stream (has logo)
+      const canvasStream = canvas.captureStream(30);
+      streamRef.current?.getAudioTracks().forEach(t => canvasStream.addTrack(t));
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9" : "video/webm";
+      const mr = new MediaRecorder(canvasStream, {mimeType});
+      mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        cancelAnimationFrame(animRef.current);
+        if (chunksRef.current.length===0) return;
+        const blob = new Blob(chunksRef.current, {type:"video/webm"});
+        setVideoBlob(blob);
+        setPreviewUrl(URL.createObjectURL(blob));
+        streamRef.current?.getTracks().forEach(t=>t.stop());
+        setPhase("preview");
+      };
+      mr.start(500);
+      setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
+      timerRef.current = setInterval(() => {
+        setTimer(t => {
+          if(t>=MAX_SEC-1){mr.stop();clearInterval(timerRef.current);return MAX_SEC;}
+          return t+1;
+        });
+      }, 1000);
+    }
+
+    if (logoImg.complete) beginRecord();
+    else { logoImg.onload = beginRecord; logoImg.onerror = beginRecord; }
+  }
 
 
   const handlePause = () => {
@@ -1177,13 +1217,21 @@ function VideoView() {
                     fontFamily:"'Noto Sans Thai',sans-serif"}}>
                   🔗 เปิด
                 </a>
-                <a href={v.videoUrl} download={`cockpitsure_${v.plate}.webm`}
+                <button onClick={()=>{
+                    // fl_attachment forces browser to download instead of play
+                    const dlUrl = v.videoUrl.replace('/upload/','/upload/fl_attachment/');
+                    const a = document.createElement('a');
+                    a.href = dlUrl;
+                    a.target = '_blank';
+                    a.download = `cockpitsure_${v.plate}.webm`;
+                    a.click();
+                  }}
                   style={{flex:1,padding:"6px 0",borderRadius:8,border:"none",
                     background:"#1A1A1A",color:"#FFE000",fontSize:12,fontWeight:700,
-                    cursor:"pointer",textDecoration:"none",textAlign:"center",
+                    cursor:"pointer",textAlign:"center",
                     fontFamily:"'Noto Sans Thai',sans-serif"}}>
                   ⬇ โหลด
-                </a>
+                </button>
               </div>
             </div>
           ))}
