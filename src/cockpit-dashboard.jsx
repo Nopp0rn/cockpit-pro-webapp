@@ -99,12 +99,15 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         audio: true
       });
       streamRef.current = s;
-      setStream(s);
-      if (videoRef.current) {
-        videoRef.current.srcObject = s;
-        videoRef.current.play().catch(()=>{});
-      }
-      setPhase("ready");
+      setPhase("ready");   // render video element ก่อน
+      // delay เพื่อให้ video element mount แล้วค่อย set stream
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = s;
+          videoRef.current.play().catch(() => {});
+        }
+        setStream(s);
+      }, 100);
     } catch(e) {
       setError("ไม่สามารถเปิดกล้องได้\nกรุณาอนุญาตการใช้กล้องใน Settings");
       setPhase("error");
@@ -250,10 +253,13 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
           throw new Error("Upload Preset ยังไม่ถูกต้อง\ncloudinary.com → Settings\n→ Upload Presets → cockpit_unsigned\n→ Signing Mode: Unsigned → Save");
         throw new Error(msg);
       }
-      await callAPI("POST",`/api/branch/${branchId}/bay/${qNo}/send-video`,
-        {videoUrl:upData.secure_url, plate:data.plate});
+      // PATCH ก่อน → LINE ส่ง status update (CockpitSure ✅) ก่อน
       await callAPI("PATCH",`/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`,
         {status:"done"});
+      // รอ 500ms ให้ LINE ส่ง status ไปก่อน แล้วค่อยส่ง video link ตาม
+      await new Promise(r => setTimeout(r, 500));
+      await callAPI("POST",`/api/branch/${branchId}/bay/${qNo}/send-video`,
+        {videoUrl:upData.secure_url, plate:data.plate});
       setPhase("done");
       setTimeout(()=>{ onSuccess(); onClose(); }, 2000);
     } catch(e) { setError(e.message); setPhase("error"); }
@@ -758,78 +764,84 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
       {/* ── ROW 1: Info + Status + Buttons ── */}
       <div style={{
         background: isIn ? "#059669" : "#1A1A1A",
-        padding:"7px 10px",
-        display:"flex",alignItems:"center",gap:8,
+        padding:"6px 8px",
+        display:"flex",alignItems:"center",gap:5,
+        overflow:"hidden",
       }}>
         {/* Queue badge */}
-        <div style={{background:"#FFE000",borderRadius:6,minWidth:28,height:28,
+        <div style={{background:"#FFE000",borderRadius:5,minWidth:24,height:24,
           display:"flex",alignItems:"center",justifyContent:"center",
-          fontSize:13,fontWeight:900,color:"#1A1A1A",flexShrink:0}}>
+          fontSize:12,fontWeight:900,color:"#1A1A1A",flexShrink:0}}>
           {qNo}
         </div>
 
-        {/* Plate + province + time */}
-        <div style={{flexShrink:0}}>
-          <div style={{fontSize:24,fontWeight:900,color:"#FFE000",letterSpacing:"0.04em",lineHeight:1}}>
+        {/* Plate + province + time — ให้หดได้เมื่อจอแคบ */}
+        <div style={{flexShrink:1,minWidth:0,overflow:"hidden"}}>
+          <div style={{fontSize:20,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",
+            lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
             {data.plate}
           </div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,.6)",marginTop:1,display:"flex",gap:5}}>
-            {data.province && <span>จ.{data.province}</span>}
-            {data.startTime && <span style={{color:"rgba(255,224,0,.75)"}}>{getElapsed(data.startTime)}</span>}
+          <div style={{fontSize:9,color:"rgba(255,255,255,.6)",marginTop:1,display:"flex",gap:4,
+            whiteSpace:"nowrap"}}>
+            {data.province && <span>จ.{data.province.slice(0,6)}</span>}
+            {data.startTime && <span style={{color:"rgba(255,224,0,.8)"}}>{getElapsed(data.startTime)}</span>}
           </div>
         </div>
 
-        {/* Progress (inline) */}
+        {/* Progress — ยืดได้ */}
         {real.length > 0 && (
-          <div style={{flex:1,minWidth:60}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-              <span style={{fontSize:9,color:"rgba(255,255,255,.5)",fontWeight:700}}>คืบหน้า</span>
-              <span style={{fontSize:11,fontWeight:900,color:"#fff"}}>{prog}%</span>
+          <div style={{flex:1,minWidth:40}}>
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:2}}>
+              <span style={{fontSize:10,fontWeight:900,color:"#fff"}}>{prog}%</span>
             </div>
-            <div style={{background:"rgba(255,255,255,.2)",borderRadius:99,height:5}}>
-              <div style={{background:prog===100?"#fff":"#FFE000",borderRadius:99,height:5,
+            <div style={{background:"rgba(255,255,255,.2)",borderRadius:99,height:4}}>
+              <div style={{background:prog===100?"#fff":"#FFE000",borderRadius:99,height:4,
                 width:`${prog}%`,transition:"width .4s"}}/>
             </div>
           </div>
         )}
         {real.length === 0 && <div style={{flex:1}}/>}
 
-        {/* Status + cancel + action buttons */}
-        <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
-          <span style={{background: isWait?"#FFE000":"rgba(255,255,255,.18)",
-            color: isWait?"#1A1A1A":"#fff",
-            borderRadius:10,padding:"3px 8px",fontSize:11,fontWeight:800}}>
-            {isWait?"⏳ รอ":"🔧 ซ่อม"}
+        {/* Buttons — icon only, ไม่หด */}
+        <div style={{display:"flex",alignItems:"center",gap:3,flexShrink:0}}>
+          {/* Status badge */}
+          <span style={{background:isWait?"#FFE000":"rgba(255,255,255,.18)",
+            color:isWait?"#1A1A1A":"#fff",
+            borderRadius:8,padding:"2px 6px",fontSize:10,fontWeight:800,whiteSpace:"nowrap"}}>
+            {isWait?"⏳":"🔧"}
           </span>
 
           <button onClick={() => onAddJobs(String(qNo))}
-            style={{padding:"4px 8px",borderRadius:7,border:"1.5px solid rgba(255,255,255,.3)",
-              background:"transparent",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",
-              fontFamily:"'Noto Sans Thai',sans-serif"}}>
+            style={{width:28,height:28,borderRadius:7,border:"1.5px solid rgba(255,255,255,.3)",
+              background:"transparent",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",
+              display:"flex",alignItems:"center",justifyContent:"center"}}>
             ➕
           </button>
 
           {isWait && real.length > 0 && (
             <button onClick={handleStart} disabled={busy}
-              style={{padding:"4px 10px",borderRadius:7,border:"none",
-                background:"#FFE000",color:"#1A1A1A",fontSize:11,fontWeight:800,cursor:"pointer",
+              style={{height:28,padding:"0 8px",borderRadius:7,border:"none",
+                background:"#FFE000",color:"#1A1A1A",fontSize:11,fontWeight:800,
+                cursor:"pointer",whiteSpace:"nowrap",
                 fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              ▶ เริ่ม
+              ▶เริ่ม
             </button>
           )}
           {isIn && (
             <button onClick={handleClose} disabled={busy}
-              style={{padding:"4px 10px",borderRadius:7,border:"none",
-                background:"#fff",color:"#059669",fontSize:11,fontWeight:900,cursor:"pointer",
+              style={{height:28,padding:"0 8px",borderRadius:7,border:"none",
+                background:"#fff",color:"#059669",fontSize:11,fontWeight:900,
+                cursor:"pointer",whiteSpace:"nowrap",
                 fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              ✓ เสร็จ
+              ✓
             </button>
           )}
           <button onClick={handleCancelCar} disabled={busy}
-            title="ยกเลิกรถ — ไม่แจ้ง LINE"
-            style={{padding:"4px 8px",borderRadius:7,border:"none",
-              background:"#dc2626",color:"#fff",fontSize:11,fontWeight:800,cursor:"pointer",
-              fontFamily:"'Noto Sans Thai',sans-serif",opacity:busy?0.5:1}}>
+            title="ยกเลิกรถ"
+            style={{width:28,height:28,borderRadius:7,border:"none",
+              background:"#dc2626",color:"#fff",fontSize:12,cursor:"pointer",
+              display:"flex",alignItems:"center",justifyContent:"center",
+              opacity:busy?0.5:1}}>
             🚫
           </button>
         </div>
@@ -1325,13 +1337,14 @@ export default function App() {
         boxShadow:"0 2px 16px rgba(0,0,0,.5)"}}>
         <div style={{marginBottom:14}}><CockpitLogo height={44}/></div>
         <div style={{display:"flex"}}>
-          {[{key:"staff",label:"👨‍🔧 พนักงาน"},{key:"admin",label:"📺 ข้อมูลการใช้บริการ"},{key:"history",label:"📊 สถิติ"}].map(t => (
+          {[{key:"staff",label:"👨‍🔧 พนักงาน"},{key:"admin",label:"📺 ข้อมูล"},{key:"history",label:"📊 สถิติ"}].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
-              flex:1,padding:"12px 0",border:"none",background:"transparent",
+              flex:1,padding:"10px 2px",border:"none",background:"transparent",
               color: tab===t.key ? "#FFE000" : "rgba(255,255,255,.4)",
-              fontSize:16,fontWeight:800,cursor:"pointer",
+              fontSize:13,fontWeight:800,cursor:"pointer",
               borderBottom: tab===t.key ? "3px solid #FFE000" : "3px solid transparent",
-              transition:"all .2s",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+              transition:"all .2s",fontFamily:"'Noto Sans Thai',sans-serif",
+              whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
               {t.label}
             </button>
           ))}
