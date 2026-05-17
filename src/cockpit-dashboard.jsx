@@ -1195,122 +1195,251 @@ function VideoView() {
 
 // ─── History View ─────────────────────────────────────────────────────────────
 function HistoryView() {
+  const today = new Date().toISOString().split('T')[0];
+  const weekAgo = new Date(Date.now()-7*24*60*60*1000).toISOString().split('T')[0];
+
   const [overview, setOverview] = useState([]);
   const [selBranch, setSelBranch] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [detLoad, setDetLoad] = useState(false);
+  const [history, setHistory]     = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [detLoad, setDetLoad]     = useState(false);
+  const [fromDate, setFromDate]   = useState(weekAgo);
+  const [toDate, setToDate]       = useState(today);
+  const [branchName, setBranchName] = useState("");
 
   useEffect(() => {
     fetch(`${API}/api/admin/overview`).then(r=>r.json()).then(d=>{
       setOverview(d.overview||[]);
-      if (d.overview?.length) loadHistory(d.overview[0].branchId);
+      if (d.overview?.length) loadHistory(d.overview[0].branchId, weekAgo, today, d.overview[0].name);
     }).catch(()=>{}).finally(()=>setLoading(false));
   },[]);
 
-  const loadHistory = async (id) => {
+  const loadHistory = async (id, from, to, name) => {
     setSelBranch(id); setDetLoad(true);
+    if (name) setBranchName(name);
     try {
-      const r = await fetch(`${API}/api/branch/${id}/history?limit=100`);
+      const params = new URLSearchParams({limit:500, from:from||fromDate, to:to||toDate});
+      const r = await fetch(`${API}/api/branch/${id}/history?${params}`);
       const d = await r.json();
-      setHistory(d.history||[]);
+      setHistory((d.history||[]).filter(h => !h.cancelled));
     } catch {}
     setDetLoad(false);
   };
 
-  // Stats from history
-  const totalJobs = history.reduce((a,h)=>(a+(h.jobs||[]).filter(j=>j.name!=="รับรถเข้า").length),0);
-  const jobCounts = {};
-  history.forEach(h=>(h.jobs||[]).filter(j=>j.name!=="รับรถเข้า").forEach(j=>{jobCounts[j.name]=(jobCounts[j.name]||0)+1;}));
+  const onSearch = () => {
+    if (selBranch) loadHistory(selBranch, fromDate, toDate);
+  };
+
+  // ── Export CSV ────────────────────────────────────────────────
+  const exportCSV = () => {
+    const BOM = '﻿';
+    const headers = ['วันที่','เวลา','ทะเบียน','จังหวัด','สาขา','รายการงาน','จำนวนงาน'];
+    const rows = history.map(h => {
+      const d = new Date(h.closedAt);
+      const realJobs = (h.jobs||[]).filter(j=>j.name!=="รับรถเข้า");
+      return [
+        d.toLocaleDateString('th-TH'),
+        d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}),
+        h.plate, h.province||'',
+        h.branchName||branchName||selBranch||'',
+        '"'+realJobs.map(j=>j.name).join(' | ')+'"',
+        realJobs.length
+      ].join(',');
+    });
+    const csv = BOM + [headers.join(','), ...rows].join('
+');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url;
+    a.download = `cockpit_${selBranch}_${fromDate}_${toDate}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  // ── Export Excel (HTML table → .xls) ─────────────────────────
+  const exportExcel = () => {
+    const realJobsList = history.map(h => (h.jobs||[]).filter(j=>j.name!=="รับรถเข้า"));
+    let rows = history.map((h,i) => {
+      const d = new Date(h.closedAt);
+      const jobs = realJobsList[i];
+      return `<tr>
+        <td>${d.toLocaleDateString('th-TH')}</td>
+        <td>${d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</td>
+        <td>${h.plate}</td>
+        <td>${h.province||''}</td>
+        <td>${h.branchName||branchName||''}</td>
+        <td>${jobs.map(j=>j.name).join(', ')}</td>
+        <td>${jobs.length}</td>
+      </tr>`;
+    }).join('');
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"/></head><body>
+      <table border="1">
+        <tr style="background:#1A1A1A;color:#FFE000;font-weight:bold;">
+          <th>วันที่</th><th>เวลา</th><th>ทะเบียน</th><th>จังหวัด</th>
+          <th>สาขา</th><th>รายการงาน</th><th>จำนวนงาน</th>
+        </tr>${rows}
+      </table></body></html>`;
+    const blob = new Blob(['﻿'+html], {type:'application/vnd.ms-excel;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url;
+    a.download = `cockpit_${selBranch}_${fromDate}_${toDate}.xls`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  // ── Stats ─────────────────────────────────────────────────────
+  const totalCars   = history.length;
+  const realJobsAll = history.flatMap(h=>(h.jobs||[]).filter(j=>j.name!=="รับรถเข้า"));
+  const totalJobs   = realJobsAll.length;
+  const jobCounts   = {};
+  realJobsAll.forEach(j=>{ jobCounts[j.name]=(jobCounts[j.name]||0)+1; });
   const topJobs = Object.entries(jobCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
   if (loading) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>;
 
   return (
     <div style={{padding:"8px 12px",paddingBottom:40}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-        <span style={{fontSize:12,fontWeight:700,color:"#6b7280"}}>📍 สาขา:</span>
-        <select value={selBranch||""} onChange={e=>loadHistory(e.target.value)}
-          style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #e5e7eb",
-            fontSize:13,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",
-            background:"#fff",cursor:"pointer",outline:"none"}}>
-          {overview.map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
-        </select>
-        <button onClick={()=>selBranch&&loadHistory(selBranch)} style={{
-          padding:"5px 12px",borderRadius:8,border:"1px solid #d1d5db",background:"#fff",
-          fontSize:12,fontWeight:700,cursor:"pointer",color:"#6b7280",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-          🔄
-        </button>
-        <span style={{fontSize:12,color:"#9ca3af"}}>{history.length} รายการ</span>
+
+      {/* ── Filter bar ── */}
+      <div style={{background:"#fff",borderRadius:10,padding:"10px 12px",
+        marginBottom:10,border:"1px solid #e5e7eb"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <span style={{fontSize:12,fontWeight:700,color:"#6b7280",flexShrink:0}}>📍 สาขา:</span>
+          <select value={selBranch||""} onChange={e=>setSelBranch(e.target.value)}
+            style={{flex:1,minWidth:0,padding:"5px 8px",borderRadius:8,
+              border:"1.5px solid #e5e7eb",fontSize:12,fontWeight:700,
+              fontFamily:"'Noto Sans Thai',sans-serif",background:"#fff",
+              cursor:"pointer",outline:"none"}}>
+            {overview.map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+          </select>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginTop:8,flexWrap:"wrap"}}>
+          <span style={{fontSize:12,fontWeight:700,color:"#6b7280",flexShrink:0}}>📅 จาก:</span>
+          <input type="date" value={fromDate} max={toDate}
+            onChange={e=>setFromDate(e.target.value)}
+            style={{flex:1,minWidth:100,padding:"5px 8px",borderRadius:8,
+              border:"1.5px solid #e5e7eb",fontSize:12,outline:"none",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}/>
+          <span style={{fontSize:12,fontWeight:700,color:"#6b7280",flexShrink:0}}>ถึง:</span>
+          <input type="date" value={toDate} min={fromDate} max={today}
+            onChange={e=>setToDate(e.target.value)}
+            style={{flex:1,minWidth:100,padding:"5px 8px",borderRadius:8,
+              border:"1.5px solid #e5e7eb",fontSize:12,outline:"none",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}/>
+          <button onClick={onSearch}
+            style={{flexShrink:0,padding:"5px 14px",borderRadius:8,border:"none",
+              background:"#1A1A1A",color:"#FFE000",fontSize:12,fontWeight:800,
+              cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+            🔍 ค้นหา
+          </button>
+        </div>
       </div>
 
-      {/* Summary stats */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:12}}>
-        {[
-          {v:history.length,l:"ทั้งหมด",bg:"#FFE000",c:"#1A1A1A"},
-          {v:totalJobs,l:"งานทั้งหมด",bg:"#1A1A1A",c:"#FFE000"},
-          {v:topJobs[0]?topJobs[0][0]:"-",l:"งานยอดนิยม",bg:"#059669",c:"#fff"},
-          {v:topJobs[0]?topJobs[0][1]:0,l:"ครั้ง",bg:"#d97706",c:"#fff"},
-        ].map(s=>(
-          <div key={s.l} style={{background:s.bg,borderRadius:8,padding:"8px 6px",textAlign:"center"}}>
-            <div style={{fontSize:s.l==="งานยอดนิยม"?11:20,fontWeight:900,color:s.c,lineHeight:1.2}}>{s.v}</div>
-            <div style={{fontSize:10,fontWeight:700,color:s.c,opacity:.85,marginTop:2}}>{s.l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Top jobs */}
-      {topJobs.length > 0 && (
-        <div style={{background:"#1A1A1A",borderRadius:8,padding:"10px 12px",marginBottom:12}}>
-          <div style={{fontSize:11,fontWeight:800,color:"#FFE000",marginBottom:8}}>งานที่ทำบ่อย</div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {topJobs.map(([name,count])=>(
-              <div key={name} style={{background:"#2a2a2a",borderRadius:6,padding:"4px 10px",
-                fontSize:12,fontWeight:700,color:"#fff"}}>
-                {name} <span style={{color:"#FFE000"}}>{count}</span>
+      {/* ── Summary stats ── */}
+      {!detLoad && history.length > 0 && (
+        <>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:10}}>
+            {[
+              {v:totalCars,l:"รถทั้งหมด",bg:"#FFE000",c:"#1A1A1A"},
+              {v:totalJobs,l:"งานทั้งหมด",bg:"#1A1A1A",c:"#FFE000"},
+              {v:topJobs[0]?topJobs[0][1]:0,l:"งานยอดนิยม",bg:"#059669",c:"#fff"},
+            ].map(s=>(
+              <div key={s.l} style={{background:s.bg,borderRadius:10,
+                padding:"8px 6px",textAlign:"center"}}>
+                <div style={{fontSize:22,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
+                <div style={{fontSize:10,fontWeight:700,color:s.c,opacity:.85,marginTop:2}}>{s.l}</div>
               </div>
             ))}
           </div>
+          {topJobs.length > 0 && (
+            <div style={{background:"#1A1A1A",borderRadius:8,padding:"8px 12px",marginBottom:10}}>
+              <div style={{fontSize:10,fontWeight:800,color:"#FFE000",marginBottom:6}}>🏆 งานยอดนิยม</div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {topJobs.map(([name,count])=>(
+                  <div key={name} style={{background:"#2a2a2a",borderRadius:6,
+                    padding:"3px 10px",fontSize:11,fontWeight:700,color:"#fff"}}>
+                    {name} <span style={{color:"#FFE000"}}>{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Export buttons ── */}
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            <button onClick={exportCSV} style={{flex:1,padding:"10px",borderRadius:10,
+              border:"2px solid #059669",background:"#fff",color:"#059669",
+              fontSize:13,fontWeight:800,cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif",
+              display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              📄 Export CSV
+            </button>
+            <button onClick={exportExcel} style={{flex:1,padding:"10px",borderRadius:10,
+              border:"none",background:"#059669",color:"#fff",
+              fontSize:13,fontWeight:800,cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif",
+              display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              📊 Export Excel
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ── History table ── */}
+      {detLoad && <div style={{textAlign:"center",padding:30,color:"#9ca3af"}}>⏳ โหลดข้อมูล...</div>}
+
+      {!detLoad && history.length === 0 && (
+        <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>
+          <div style={{fontSize:36,marginBottom:8}}>📋</div>
+          <div style={{fontSize:14,fontWeight:700}}>ไม่พบข้อมูลในช่วงวันที่เลือก</div>
+          <div style={{fontSize:12,marginTop:4}}>ลองเปลี่ยนช่วงวันที่แล้วกด 🔍 ค้นหา</div>
         </div>
       )}
 
-      {/* History table */}
-      {detLoad ? (
-        <div style={{textAlign:"center",padding:30,color:"#9ca3af"}}>⏳ โหลดประวัติ...</div>
-      ) : (
-        <div style={{background:"#fff",borderRadius:10,overflow:"hidden",border:"1px solid #e5e7eb"}}>
-          <div style={{display:"grid",gridTemplateColumns:"60px 100px 80px 1fr 80px",
-            background:"#1A1A1A",padding:"6px 10px",gap:8}}>
-            {["วันที่","ทะเบียน","จังหวัด","งานที่ทำ","เวลาปิด"].map(h=>(
+      {!detLoad && history.length > 0 && (
+        <div style={{background:"#fff",borderRadius:10,overflow:"hidden",
+          border:"1px solid #e5e7eb"}}>
+          {/* Table header */}
+          <div style={{display:"grid",
+            gridTemplateColumns:"56px 90px 70px 1fr",
+            background:"#1A1A1A",padding:"6px 10px",gap:6}}>
+            {["วันที่","ทะเบียน","จ.","งานที่ทำ"].map(h=>(
               <div key={h} style={{fontSize:10,fontWeight:800,color:"#FFE000"}}>{h}</div>
             ))}
           </div>
-          {history.length === 0 && (
-            <div style={{textAlign:"center",padding:30,color:"#9ca3af",fontSize:14}}>ยังไม่มีประวัติ</div>
-          )}
-          {history.slice(0,50).map((h,i) => {
+          {history.slice(0,200).map((h,i) => {
             const realJobs = (h.jobs||[]).filter(j=>j.name!=="รับรถเข้า");
-            const closedDate = h.closedAt ? new Date(h.closedAt).toLocaleDateString("th-TH",{day:"2-digit",month:"2-digit"}) : "-";
-            const closedTime = h.closedAt ? new Date(h.closedAt).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}) : "-";
+            const d = new Date(h.closedAt);
             return (
-              <div key={i} style={{display:"grid",gridTemplateColumns:"60px 100px 80px 1fr 80px",
-                padding:"5px 10px",gap:8,alignItems:"center",
-                borderBottom:"1px solid #f3f4f6",background:i%2===0?"#fff":"#f9fafb"}}>
-                <div style={{fontSize:10,color:"#9ca3af"}}>{closedDate}</div>
-                <div style={{fontSize:13,fontWeight:900,color:"#1A1A1A"}}>{h.plate}</div>
-                <div style={{fontSize:10,color:"#6b7280"}}>{h.province||"-"}</div>
-                <div style={{fontSize:10,color:"#374151",lineHeight:1.5}}>
-                  {realJobs.map(j=>j.name).join(" • ") || "-"}
+              <div key={i} style={{display:"grid",
+                gridTemplateColumns:"56px 90px 70px 1fr",
+                padding:"6px 10px",gap:6,alignItems:"center",
+                borderBottom:"1px solid #f3f4f6",
+                background:i%2===0?"#fff":"#f9fafb"}}>
+                <div style={{fontSize:10,color:"#9ca3af",lineHeight:1.4}}>
+                  {d.toLocaleDateString("th-TH",{day:"2-digit",month:"2-digit"})}
+                  <br/>
+                  {d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}
                 </div>
-                <div style={{fontSize:10,color:"#9ca3af"}}>{closedTime}</div>
+                <div style={{fontSize:14,fontWeight:900,color:"#1A1A1A"}}>{h.plate}</div>
+                <div style={{fontSize:10,color:"#6b7280"}}>{(h.province||"-").slice(0,6)}</div>
+                <div style={{fontSize:10,color:"#374151",lineHeight:1.6}}>
+                  {realJobs.map(j=>j.name).join(" · ")||"-"}
+                </div>
               </div>
             );
           })}
+          {history.length > 200 && (
+            <div style={{textAlign:"center",padding:10,fontSize:11,color:"#9ca3af"}}>
+              แสดง 200 รายการแรก — Export เพื่อดูทั้งหมด {history.length} รายการ
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
+
 
 // ─── Admin View (TV horizontal rows) ─────────────────────────────────────────
 function AdminView() {
