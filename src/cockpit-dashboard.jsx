@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
-const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
+const CLOUDINARY_CLOUD  = "dnmzyoobh";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
 
 // CockpitSure video frame overlay (transparent center)
@@ -215,6 +215,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       const fd = new FormData();
       fd.append("file", videoBlob, `cs_${data.plate}_${Date.now()}.webm`);
       fd.append("upload_preset", CLOUDINARY_PRESET);
+      fd.append("resource_type", "video");
       const upRes  = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,
         {method:"POST", body:fd}
