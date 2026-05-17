@@ -1195,304 +1195,298 @@ function VideoView() {
 
 // ─── History View ─────────────────────────────────────────────────────────────
 function HistoryView() {
-  const today   = new Date().toISOString().split('T')[0];
-  const weekAgo = new Date(Date.now()-7*24*60*60*1000).toISOString().split('T')[0];
+  const getToday   = () => new Date().toISOString().split('T')[0];
+  const getWeekAgo = () => new Date(Date.now()-7*24*60*60*1000).toISOString().split('T')[0];
 
-  const [overview, setOverview]   = useState([]);
-  const [selBranch, setSelBranch] = useState(null);
-  const [branchName, setBranchName] = useState("");
-  const [history, setHistory]     = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [detLoad, setDetLoad]     = useState(false);
-  const [fromDate, setFromDate]   = useState(weekAgo);
-  const [toDate, setToDate]       = useState(today);
+  const [overview,    setOverview]    = useState([]);
+  const [selBranch,   setSelBranch]   = useState(null);
+  const [branchName,  setBranchName]  = useState("");
+  const [history,     setHistory]     = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [detLoad,     setDetLoad]     = useState(false);
+  const [fromDate,    setFromDate]    = useState(getWeekAgo());
+  const [toDate,      setToDate]      = useState(getToday());
 
-  useEffect(() => {
-    fetch(`${API}/api/admin/overview`).then(r=>r.json()).then(d=>{
-      const ov = d.overview||[];
-      setOverview(ov);
-      if (ov.length) {
-        setSelBranch(ov[0].branchId);
-        setBranchName(ov[0].name);
-        doLoad(ov[0].branchId, weekAgo, today);
-      }
-    }).catch(()=>{}).finally(()=>setLoading(false));
-  },[]);
-
-  const doLoad = async (id, from, to) => {
+  // ── doLoad must be defined BEFORE useEffect ────────────────────────────────
+  async function doLoad(id, from, to) {
     if (!id) return;
     setDetLoad(true);
     try {
-      const params = new URLSearchParams({limit:500, from, to});
+      const params = new URLSearchParams({ limit: 500, from, to });
       const r = await fetch(`${API}/api/branch/${id}/history?${params}`);
       const d = await r.json();
-      setHistory((d.history||[]).filter(h=>!h.cancelled));
-    } catch {}
+      setHistory((d.history || []).filter(h => !h.cancelled));
+    } catch(e) { console.error(e); }
     setDetLoad(false);
-  };
+  }
 
-  const onSearch = () => {
+  useEffect(() => {
+    fetch(`${API}/api/admin/overview`)
+      .then(r => r.json())
+      .then(d => {
+        const ov = d.overview || [];
+        setOverview(ov);
+        if (ov.length) {
+          const f = getWeekAgo(), t = getToday();
+          setSelBranch(ov[0].branchId);
+          setBranchName(ov[0].name);
+          doLoad(ov[0].branchId, f, t);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function onSearch() {
     if (selBranch) doLoad(selBranch, fromDate, toDate);
-  };
+  }
 
-  const onBranchChange = (e) => {
+  function onBranchChange(e) {
     const id = e.target.value;
-    const br = overview.find(b=>b.branchId===id);
+    const br = overview.find(b => b.branchId === id);
     setSelBranch(id);
-    setBranchName(br?.name||"");
+    setBranchName(br ? br.name : "");
     doLoad(id, fromDate, toDate);
-  };
+  }
 
-  // ── Export CSV ────────────────────────────────────────────────
-  const exportCSV = () => {
-    const BOM = "﻿";
+  function setQuickRange(f, t) {
+    setFromDate(f); setToDate(t);
+  }
+
+  // ── Export CSV ─────────────────────────────────────────────────────────────
+  function exportCSV() {
+    const BOM = "\uFEFF";
     const hdrs = ["วันที่","เวลา","ทะเบียน","จังหวัด","สาขา","รายการงาน","จำนวนงาน"];
     const rows = history.map(h => {
       const d = new Date(h.closedAt);
-      const jobs = (h.jobs||[]).filter(j=>j.name!=="รับรถเข้า");
+      const jobs = (h.jobs || []).filter(j => j.name !== "รับรถเข้า");
       return [
         d.toLocaleDateString("th-TH"),
-        d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}),
-        h.plate, h.province||"",
-        h.branchName||branchName,
-        '"'+jobs.map(j=>j.name).join(" | ")+'"',
+        d.toLocaleTimeString("th-TH", { hour:"2-digit", minute:"2-digit" }),
+        h.plate,
+        h.province || "",
+        h.branchName || branchName,
+        '"' + jobs.map(j => j.name).join(" | ") + '"',
         jobs.length
       ].join(",");
     });
-    const csv = BOM + [hdrs.join(","), ...rows].join("
-");
-    const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href=url;
-    a.download = `cockpit_${selBranch}_${fromDate}_to_${toDate}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-  };
+    const csv = BOM + [hdrs.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `cockpit_${selBranch}_${fromDate}_${toDate}.csv`;
+    a.click();
+  }
 
-  // ── Export Excel ─────────────────────────────────────────────
-  const exportExcel = () => {
+  // ── Export Excel (HTML→XLS) ────────────────────────────────────────────────
+  function exportExcel() {
     const rows = history.map(h => {
       const d = new Date(h.closedAt);
-      const jobs = (h.jobs||[]).filter(j=>j.name!=="รับรถเข้า");
-      return `<tr>
-        <td>${d.toLocaleDateString("th-TH")}</td>
-        <td>${d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}</td>
-        <td>${h.plate}</td><td>${h.province||""}</td>
-        <td>${h.branchName||branchName}</td>
-        <td>${jobs.map(j=>j.name).join(", ")}</td>
-        <td>${jobs.length}</td>
-      </tr>`;
+      const jobs = (h.jobs || []).filter(j => j.name !== "รับรถเข้า");
+      return "<tr><td>" + [
+        d.toLocaleDateString("th-TH"),
+        d.toLocaleTimeString("th-TH", { hour:"2-digit", minute:"2-digit" }),
+        h.plate,
+        h.province || "",
+        h.branchName || branchName,
+        jobs.map(j => j.name).join(", "),
+        jobs.length
+      ].join("</td><td>") + "</td></tr>";
     }).join("");
-    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
-      xmlns:x="urn:schemas-microsoft-com:office:excel"
-      xmlns="http://www.w3.org/TR/REC-html40">
-      <head><meta charset="utf-8"/></head><body><table border="1">
-      <tr style="background:#1A1A1A;color:#FFE000;font-weight:bold;">
-        <th>วันที่</th><th>เวลา</th><th>ทะเบียน</th><th>จังหวัด</th>
-        <th>สาขา</th><th>รายการงาน</th><th>จำนวนงาน</th>
-      </tr>${rows}</table></body></html>`;
-    const blob = new Blob(["﻿"+html], {type:"application/vnd.ms-excel;charset=utf-8"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href=url;
-    a.download = `cockpit_${selBranch}_${fromDate}_to_${toDate}.xls`;
-    a.click(); URL.revokeObjectURL(url);
-  };
+    const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" '
+      + 'xmlns:x="urn:schemas-microsoft-com:office:excel">'
+      + '<head><meta charset="utf-8"/></head><body><table border="1">'
+      + '<tr style="background:#1A1A1A;color:#FFE000;font-weight:bold;">'
+      + '<th>วันที่</th><th>เวลา</th><th>ทะเบียน</th><th>จังหวัด</th>'
+      + '<th>สาขา</th><th>รายการงาน</th><th>จำนวนงาน</th></tr>'
+      + rows + '</table></body></html>';
+    const blob = new Blob(["\uFEFF" + html], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `cockpit_${selBranch}_${fromDate}_${toDate}.xls`;
+    a.click();
+  }
 
-  // ── Stats ─────────────────────────────────────────────────────
-  const allJobs  = history.flatMap(h=>(h.jobs||[]).filter(j=>j.name!=="รับรถเข้า"));
+  // ── Computed stats ─────────────────────────────────────────────────────────
+  const allJobs = history.flatMap(h => (h.jobs || []).filter(j => j.name !== "รับรถเข้า"));
   const jobCount = {};
-  allJobs.forEach(j=>{ jobCount[j.name]=(jobCount[j.name]||0)+1; });
-  const topJobs = Object.entries(jobCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  allJobs.forEach(j => { jobCount[j.name] = (jobCount[j.name] || 0) + 1; });
+  const topJobs = Object.entries(jobCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   if (loading) return (
-    <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>
+    <div style={{ textAlign:"center", padding:40, color:"#9ca3af" }}>⏳ กำลังโหลด...</div>
   );
 
+  const quickRanges = [
+    { l:"วันนี้",  f: getToday(),   t: getToday() },
+    { l:"7 วัน",  f: getWeekAgo(), t: getToday() },
+    { l:"30 วัน", f: new Date(Date.now()-30*864e5).toISOString().split('T')[0], t: getToday() },
+    { l:"เดือนนี้",f: new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().split('T')[0], t: getToday() },
+  ];
+
   return (
-    <div style={{padding:"10px 12px",paddingBottom:40}}>
+    <div style={{ padding:"10px 12px", paddingBottom:40 }}>
 
       {/* ── Filter Panel ── */}
-      <div style={{background:"#1A1A1A",borderRadius:12,padding:"14px 16px",marginBottom:12}}>
-        <div style={{fontSize:11,fontWeight:800,color:"#FFE000",
-          letterSpacing:"1px",marginBottom:10}}>📊 ค้นหาข้อมูล</div>
+      <div style={{ background:"#1A1A1A", borderRadius:12, padding:"14px 16px", marginBottom:12 }}>
+        <div style={{ fontSize:11, fontWeight:800, color:"#FFE000", letterSpacing:"1px", marginBottom:10 }}>
+          📊 ค้นหาข้อมูล
+        </div>
 
-        {/* Branch */}
-        <div style={{marginBottom:10}}>
-          <div style={{fontSize:11,color:"#9ca3af",fontWeight:700,marginBottom:4}}>สาขา</div>
-          <select value={selBranch||""} onChange={onBranchChange}
-            style={{width:"100%",padding:"8px 10px",borderRadius:8,
-              border:"none",fontSize:13,fontWeight:700,
-              fontFamily:"'Noto Sans Thai',sans-serif",
-              background:"#2a2a2a",color:"#fff",cursor:"pointer",outline:"none"}}>
-            {overview.map(b=>(
+        {/* Branch selector */}
+        <div style={{ marginBottom:10 }}>
+          <div style={{ fontSize:11, color:"#9ca3af", fontWeight:700, marginBottom:4 }}>สาขา</div>
+          <select value={selBranch || ""} onChange={onBranchChange}
+            style={{ width:"100%", padding:"8px 10px", borderRadius:8, border:"none",
+              fontSize:13, fontWeight:700, fontFamily:"'Noto Sans Thai',sans-serif",
+              background:"#2a2a2a", color:"#fff", cursor:"pointer", outline:"none" }}>
+            {overview.map(b => (
               <option key={b.branchId} value={b.branchId}>{b.name}</option>
             ))}
           </select>
         </div>
 
-        {/* Date range */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+        {/* Date inputs */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
           <div>
-            <div style={{fontSize:11,color:"#9ca3af",fontWeight:700,marginBottom:4}}>จากวันที่</div>
+            <div style={{ fontSize:11, color:"#9ca3af", fontWeight:700, marginBottom:4 }}>จากวันที่</div>
             <input type="date" value={fromDate} max={toDate}
-              onChange={e=>setFromDate(e.target.value)}
-              style={{width:"100%",padding:"8px 10px",borderRadius:8,
-                border:"none",fontSize:12,background:"#2a2a2a",
-                color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+              onChange={e => setFromDate(e.target.value)}
+              style={{ width:"100%", padding:"8px", borderRadius:8, border:"none",
+                fontSize:12, background:"#2a2a2a", color:"#fff",
+                outline:"none", boxSizing:"border-box" }}/>
           </div>
           <div>
-            <div style={{fontSize:11,color:"#9ca3af",fontWeight:700,marginBottom:4}}>ถึงวันที่</div>
-            <input type="date" value={toDate} min={fromDate} max={today}
-              onChange={e=>setToDate(e.target.value)}
-              style={{width:"100%",padding:"8px 10px",borderRadius:8,
-                border:"none",fontSize:12,background:"#2a2a2a",
-                color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+            <div style={{ fontSize:11, color:"#9ca3af", fontWeight:700, marginBottom:4 }}>ถึงวันที่</div>
+            <input type="date" value={toDate} min={fromDate} max={getToday()}
+              onChange={e => setToDate(e.target.value)}
+              style={{ width:"100%", padding:"8px", borderRadius:8, border:"none",
+                fontSize:12, background:"#2a2a2a", color:"#fff",
+                outline:"none", boxSizing:"border-box" }}/>
           </div>
         </div>
 
-        {/* Shortcut buttons */}
-        <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
-          {[
-            {l:"วันนี้",  f:today,   t:today},
-            {l:"7 วัน",  f:weekAgo, t:today},
-            {l:"30 วัน", f:new Date(Date.now()-30*864e5).toISOString().split("T")[0], t:today},
-            {l:"เดือนนี้",f:new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().split("T")[0], t:today},
-          ].map(s=>(
-            <button key={s.l} onClick={()=>{setFromDate(s.f);setToDate(s.t);}}
-              style={{padding:"4px 10px",borderRadius:6,border:"1px solid #444",
-                background:fromDate===s.f&&toDate===s.t?"#FFE000":"#2a2a2a",
-                color:fromDate===s.f&&toDate===s.t?"#1A1A1A":"#ccc",
-                fontSize:11,fontWeight:700,cursor:"pointer",
-                fontFamily:"'Noto Sans Thai',sans-serif"}}>
+        {/* Quick range buttons */}
+        <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+          {quickRanges.map(s => (
+            <button key={s.l} onClick={() => setQuickRange(s.f, s.t)}
+              style={{ padding:"4px 12px", borderRadius:6,
+                border: fromDate===s.f && toDate===s.t ? "none" : "1px solid #444",
+                background: fromDate===s.f && toDate===s.t ? "#FFE000" : "#2a2a2a",
+                color: fromDate===s.f && toDate===s.t ? "#1A1A1A" : "#ccc",
+                fontSize:12, fontWeight:700, cursor:"pointer",
+                fontFamily:"'Noto Sans Thai',sans-serif" }}>
               {s.l}
             </button>
           ))}
         </div>
 
-        <button onClick={onSearch} style={{
-          width:"100%",padding:"10px",borderRadius:8,border:"none",
-          background:"#FFE000",color:"#1A1A1A",fontSize:14,fontWeight:900,
-          cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-          🔍 ค้นหา {detLoad && "..."}
+        <button onClick={onSearch} disabled={detLoad}
+          style={{ width:"100%", padding:"11px", borderRadius:8, border:"none",
+            background: detLoad ? "#555" : "#FFE000",
+            color: detLoad ? "#999" : "#1A1A1A",
+            fontSize:14, fontWeight:900, cursor: detLoad ? "not-allowed" : "pointer",
+            fontFamily:"'Noto Sans Thai',sans-serif" }}>
+          {detLoad ? "⏳ กำลังโหลด..." : "🔍 ค้นหา"}
         </button>
       </div>
 
-      {detLoad && <div style={{textAlign:"center",padding:20,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>}
-
       {/* ── Results ── */}
-      {!detLoad && (
+      {!detLoad && history.length > 0 && (
         <>
           {/* Stats */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6,marginBottom:10}}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:6, marginBottom:10 }}>
             {[
-              {v:history.length, l:"รถทั้งหมด",    bg:"#FFE000", c:"#1A1A1A"},
-              {v:allJobs.length, l:"งานทั้งหมด",   bg:"#1A1A1A", c:"#FFE000"},
-              {v:topJobs[0]?topJobs[0][0]:"-", l:"งานยอดนิยม", bg:"#059669", c:"#fff"},
-              {v:topJobs[0]?topJobs[0][1]:0,  l:"ครั้ง",       bg:"#d97706", c:"#fff"},
-            ].map(s=>(
-              <div key={s.l} style={{background:s.bg,borderRadius:10,
-                padding:"10px 8px",textAlign:"center"}}>
-                <div style={{fontSize:s.l==="งานยอดนิยม"?12:24,fontWeight:900,
-                  color:s.c,lineHeight:1.2}}>{s.v}</div>
-                <div style={{fontSize:10,fontWeight:700,color:s.c,
-                  opacity:.85,marginTop:3}}>{s.l}</div>
+              { v: history.length, l:"รถทั้งหมด",  bg:"#FFE000", c:"#1A1A1A" },
+              { v: allJobs.length, l:"งานทั้งหมด", bg:"#1A1A1A", c:"#FFE000" },
+              { v: topJobs[0] ? topJobs[0][0] : "-", l:"งานยอดนิยม", bg:"#059669", c:"#fff" },
+              { v: topJobs[0] ? topJobs[0][1] : 0,  l:"ครั้ง",       bg:"#d97706", c:"#fff" },
+            ].map(s => (
+              <div key={s.l} style={{ background:s.bg, borderRadius:10, padding:"10px 8px", textAlign:"center" }}>
+                <div style={{ fontSize: s.l==="งานยอดนิยม"?11:22, fontWeight:900,
+                  color:s.c, lineHeight:1.2 }}>{s.v}</div>
+                <div style={{ fontSize:10, fontWeight:700, color:s.c, opacity:.85, marginTop:3 }}>{s.l}</div>
               </div>
             ))}
           </div>
 
-          {/* Top jobs chips */}
           {topJobs.length > 0 && (
-            <div style={{background:"#1A1A1A",borderRadius:8,
-              padding:"10px 12px",marginBottom:10}}>
-              <div style={{fontSize:10,fontWeight:800,color:"#FFE000",marginBottom:6}}>
-                🏆 งานที่ทำบ่อย
-              </div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {topJobs.map(([name,count])=>(
-                  <div key={name} style={{background:"#2a2a2a",borderRadius:6,
-                    padding:"3px 10px",fontSize:11,fontWeight:700,color:"#fff"}}>
-                    {name} <span style={{color:"#FFE000"}}>{count}</span>
+            <div style={{ background:"#1A1A1A", borderRadius:8, padding:"10px 12px", marginBottom:10 }}>
+              <div style={{ fontSize:10, fontWeight:800, color:"#FFE000", marginBottom:6 }}>🏆 งานที่ทำบ่อย</div>
+              <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                {topJobs.map(([name, count]) => (
+                  <div key={name} style={{ background:"#2a2a2a", borderRadius:6,
+                    padding:"3px 10px", fontSize:11, fontWeight:700, color:"#fff" }}>
+                    {name} <span style={{ color:"#FFE000" }}>{count}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Export buttons */}
-          {history.length > 0 && (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-              <button onClick={exportCSV} style={{
-                padding:"11px 0",borderRadius:10,
-                border:"2px solid #059669",background:"#fff",
-                color:"#059669",fontSize:13,fontWeight:800,cursor:"pointer",
-                fontFamily:"'Noto Sans Thai',sans-serif"}}>
-                📄 CSV
-              </button>
-              <button onClick={exportExcel} style={{
-                padding:"11px 0",borderRadius:10,border:"none",
-                background:"#059669",color:"#fff",
-                fontSize:13,fontWeight:800,cursor:"pointer",
-                fontFamily:"'Noto Sans Thai',sans-serif"}}>
-                📊 Excel
-              </button>
-            </div>
-          )}
+          {/* Export */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+            <button onClick={exportCSV} style={{ padding:"11px 0", borderRadius:10,
+              border:"2px solid #059669", background:"#fff", color:"#059669",
+              fontSize:13, fontWeight:800, cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif" }}>
+              📄 Export CSV
+            </button>
+            <button onClick={exportExcel} style={{ padding:"11px 0", borderRadius:10,
+              border:"none", background:"#059669", color:"#fff",
+              fontSize:13, fontWeight:800, cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif" }}>
+              📊 Export Excel
+            </button>
+          </div>
 
-          {/* Empty state */}
-          {history.length === 0 && (
-            <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>
-              <div style={{fontSize:36,marginBottom:8}}>📋</div>
-              <div style={{fontSize:14,fontWeight:700}}>ไม่พบข้อมูล</div>
-              <div style={{fontSize:12,marginTop:4}}>ลองเปลี่ยนช่วงวันที่</div>
+          {/* Table */}
+          <div style={{ background:"#fff", borderRadius:10, overflow:"hidden", border:"1px solid #e5e7eb" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"50px 80px 55px 1fr 44px",
+              background:"#1A1A1A", padding:"6px 8px", gap:4 }}>
+              {["วันที่","ทะเบียน","จ.","งานที่ทำ","เวลา"].map(h => (
+                <div key={h} style={{ fontSize:10, fontWeight:800, color:"#FFE000" }}>{h}</div>
+              ))}
             </div>
-          )}
-
-          {/* Data table */}
-          {history.length > 0 && (
-            <div style={{background:"#fff",borderRadius:10,overflow:"hidden",
-              border:"1px solid #e5e7eb"}}>
-              <div style={{display:"grid",
-                gridTemplateColumns:"52px 80px 60px 1fr 46px",
-                background:"#1A1A1A",padding:"6px 8px",gap:4}}>
-                {["วันที่","ทะเบียน","จ.","งานที่ทำ","เวลา"].map(h=>(
-                  <div key={h} style={{fontSize:10,fontWeight:800,color:"#FFE000"}}>{h}</div>
-                ))}
-              </div>
-              {history.slice(0,200).map((h,i) => {
-                const jobs = (h.jobs||[]).filter(j=>j.name!=="รับรถเข้า");
-                const d = new Date(h.closedAt);
-                return (
-                  <div key={i} style={{display:"grid",
-                    gridTemplateColumns:"52px 80px 60px 1fr 46px",
-                    padding:"6px 8px",gap:4,alignItems:"center",
-                    borderBottom:"1px solid #f3f4f6",
-                    background:i%2===0?"#fff":"#fafafa"}}>
-                    <div style={{fontSize:10,color:"#9ca3af",lineHeight:1.4}}>
-                      {d.toLocaleDateString("th-TH",{day:"2-digit",month:"2-digit"})}
-                    </div>
-                    <div style={{fontSize:13,fontWeight:900,color:"#1A1A1A"}}>
-                      {h.plate}
-                    </div>
-                    <div style={{fontSize:10,color:"#6b7280"}}>
-                      {(h.province||"-").slice(0,5)}
-                    </div>
-                    <div style={{fontSize:10,color:"#374151",lineHeight:1.5}}>
-                      {jobs.map(j=>j.name).join(" · ")||"-"}
-                    </div>
-                    <div style={{fontSize:10,color:"#9ca3af",textAlign:"right"}}>
-                      {d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}
-                    </div>
+            {history.slice(0, 200).map((h, i) => {
+              const jobs = (h.jobs || []).filter(j => j.name !== "รับรถเข้า");
+              const d = new Date(h.closedAt);
+              return (
+                <div key={i} style={{ display:"grid",
+                  gridTemplateColumns:"50px 80px 55px 1fr 44px",
+                  padding:"6px 8px", gap:4, alignItems:"center",
+                  borderBottom:"1px solid #f3f4f6",
+                  background: i%2===0 ? "#fff" : "#fafafa" }}>
+                  <div style={{ fontSize:10, color:"#9ca3af" }}>
+                    {d.toLocaleDateString("th-TH",{day:"2-digit",month:"2-digit"})}
                   </div>
-                );
-              })}
-              {history.length > 200 && (
-                <div style={{textAlign:"center",padding:10,fontSize:11,color:"#9ca3af",
-                  background:"#fafafa"}}>
-                  แสดง 200 จาก {history.length} รายการ — กด Export เพื่อดูทั้งหมด
+                  <div style={{ fontSize:13, fontWeight:900, color:"#1A1A1A" }}>{h.plate}</div>
+                  <div style={{ fontSize:10, color:"#6b7280" }}>{(h.province||"-").slice(0,5)}</div>
+                  <div style={{ fontSize:10, color:"#374151", lineHeight:1.5 }}>
+                    {jobs.map(j => j.name).join(" · ") || "-"}
+                  </div>
+                  <div style={{ fontSize:10, color:"#9ca3af", textAlign:"right" }}>
+                    {d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
+              );
+            })}
+            {history.length > 200 && (
+              <div style={{ textAlign:"center", padding:10, fontSize:11,
+                color:"#9ca3af", background:"#fafafa" }}>
+                แสดง 200 จาก {history.length} รายการ — กด Export เพื่อดูทั้งหมด
+              </div>
+            )}
+          </div>
         </>
+      )}
+
+      {!detLoad && history.length === 0 && (
+        <div style={{ textAlign:"center", padding:40, color:"#9ca3af" }}>
+          <div style={{ fontSize:36, marginBottom:8 }}>📋</div>
+          <div style={{ fontSize:14, fontWeight:700 }}>ไม่พบข้อมูล</div>
+          <div style={{ fontSize:12, marginTop:4 }}>ลองเปลี่ยนช่วงวันที่แล้วกด ค้นหา</div>
+        </div>
       )}
     </div>
   );
