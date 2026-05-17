@@ -74,38 +74,36 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const [timer, setTimer]           = useState(0);
   const [error, setError]           = useState("");
 
-  const videoRef   = useRef(null);   // live camera element
-  const previewRef = useRef(null);   // playback element
-  const canvasRef  = useRef(null);   // hidden — compositing only
+  const videoRef   = useRef(null);
+  const previewRef = useRef(null);
+  const canvasRef  = useRef(null);
   const timerRef   = useRef(null);
   const chunksRef  = useRef([]);
   const animRef    = useRef(null);
+  const streamRef  = useRef(null); // track current stream for canvas draw
   const MAX_SEC    = 120;
 
-  // Cleanup on unmount
   useEffect(() => () => {
-    stream?.getTracks().forEach(t => t.stop());
+    streamRef.current?.getTracks().forEach(t => t.stop());
     clearInterval(timerRef.current);
     cancelAnimationFrame(animRef.current);
-  }, [stream]);
+  }, []);
 
-  // Attach stream to video element whenever stream changes
-  useEffect(() => {
-    if (!stream || !videoRef.current) return;
-    videoRef.current.srcObject = stream;
-    videoRef.current.play().catch(() => {});
-  }, [stream]);
-
-  // ── Open camera ──────────────────────────────────────────────
+  // ── Open camera (initial) ────────────────────────────────────
   const openCamera = async (facing) => {
     const f = facing ?? facingMode;
-    stream?.getTracks().forEach(t => t.stop());
+    streamRef.current?.getTracks().forEach(t => t.stop());
     try {
       const s = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: f, width:{ideal:1280}, height:{ideal:720} },
         audio: true
       });
+      streamRef.current = s;
       setStream(s);
+      if (videoRef.current) {
+        videoRef.current.srcObject = s;
+        videoRef.current.play().catch(()=>{});
+      }
       setPhase("ready");
     } catch(e) {
       setError("ไม่สามารถเปิดกล้องได้\nกรุณาอนุญาตการใช้กล้องใน Settings");
@@ -113,44 +111,45 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     }
   };
 
+  // ── Switch camera (swap video track only — recorder keeps running) ──
   const switchCamera = async () => {
     const next = facingMode === "environment" ? "user" : "environment";
     setFacingMode(next);
-
-    if (phase === "recording" && paused) {
-      // ขณะ paused: หยุด recorder แต่เก็บ chunks ไว้ แล้วสลับกล้อง
-      cancelAnimationFrame(animRef.current);
-      if (recorder && recorder.state !== "inactive") {
-        // ดึง chunk สุดท้ายออกก่อน stop
-        recorder.requestData();
-        recorder.stop();
-        // recorder.onstop จะ fire → แต่เราจะ override ไม่ให้เปลี่ยน phase
-      }
-      clearInterval(timerRef.current);
-      setRecorder(null);
-      // เปิดกล้องใหม่ กลับไป ready แต่ chunks ยังอยู่ (ไม่ reset)
-      stream?.getTracks().forEach(t => t.stop());
-      try {
-        const s = await navigator.mediaDevices.getUserMedia({
+    try {
+      if (phase === "ready") {
+        // ก่อนบันทึก: เปลี่ยน stream ทั้งหมด
+        await openCamera(next);
+      } else {
+        // ระหว่างบันทึก: เปลี่ยนแค่ video track, recorder ยังทำงานต่อ
+        const newVidStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: next, width:{ideal:1280}, height:{ideal:720} },
-          audio: true
+          audio: false
         });
-        setStream(s);
-        setPhase("ready"); // กลับไป ready แต่ chunks ยังสะสมอยู่
-        setPaused(false);
-      } catch(e) {
-        setError("สลับกล้องไม่สำเร็จ: " + e.message);
-        setPhase("error");
+        // หยุด video track เดิม
+        streamRef.current?.getVideoTracks().forEach(t => t.stop());
+        // ประกอบ stream ใหม่: video ใหม่ + audio เดิม
+        const audioTracks = streamRef.current?.getAudioTracks() || [];
+        const combined = new MediaStream([
+          ...newVidStream.getVideoTracks(),
+          ...audioTracks,
+        ]);
+        streamRef.current = combined;
+        setStream(combined);
+        // อัปเดต video element → canvas draw loop จะรับโดยอัตโนมัติ
+        if (videoRef.current) {
+          videoRef.current.srcObject = combined;
+          videoRef.current.play().catch(()=>{});
+        }
+        // ไม่ต้อง reset recorder, timer, หรือ phase
       }
-    } else {
-      // ใน ready phase: สลับกล้องปกติ
-      await openCamera(next);
+    } catch(e) {
+      setError("สลับกล้องไม่สำเร็จ: " + e.message);
     }
   };
 
-  // ── Start recording (canvas composite in background) ─────────
-  const startRec = (continueMode = false) => {
-    if (!continueMode) chunksRef.current = []; // reset only if fresh start
+  // ── Start recording ──────────────────────────────────────────
+  const startRec = () => {
+    chunksRef.current = [];
     const canvas = canvasRef.current;
     const ctx    = canvas.getContext("2d");
     const video  = videoRef.current;
@@ -159,15 +158,15 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     const frameImg = new Image();
     frameImg.src   = COCKPITSURE_FRAME;
 
-    // Draw loop: video + frame (multiply) → hidden canvas
+    // Draw loop: video + frame → canvas (canvas stream is what gets recorded)
     const drawLoop = () => {
       if (video && video.readyState >= 2 && video.videoWidth) {
-        const vW = video.videoWidth, vH = video.videoHeight;
-        const cW = canvas.width,     cH = canvas.height;
-        const vA = vW/vH, cA = cW/cH;
+        const vW=video.videoWidth, vH=video.videoHeight;
+        const cW=canvas.width, cH=canvas.height;
+        const vA=vW/vH, cA=cW/cH;
         let sx=0,sy=0,sw=vW,sh=vH;
-        if (vA > cA){ sw = vH*cA; sx=(vW-sw)/2; }
-        else        { sh = vW/cA; sy=(vH-sh)/2; }
+        if (vA>cA){ sw=vH*cA; sx=(vW-sw)/2; }
+        else      { sh=vW/cA; sy=(vH-sh)/2; }
         ctx.globalCompositeOperation = "source-over";
         ctx.drawImage(video, sx,sy,sw,sh, 0,0,cW,cH);
         if (frameImg.complete && frameImg.naturalWidth>0){
@@ -182,27 +181,26 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     const beginRecord = () => {
       drawLoop();
       const canvasStream = canvas.captureStream(30);
-      stream.getAudioTracks().forEach(t => canvasStream.addTrack(t));
+      // ใช้ audio จาก streamRef (อัปเดตได้เมื่อสลับกล้อง)
+      streamRef.current?.getAudioTracks().forEach(t => canvasStream.addTrack(t));
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
         ? "video/webm;codecs=vp9" : "video/webm";
       const mr = new MediaRecorder(canvasStream, {mimeType});
       mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
       mr.onstop = () => {
         cancelAnimationFrame(animRef.current);
-        // ถ้า phase เปลี่ยนเป็น "ready" แล้ว (สลับกล้อง) ไม่ต้องทำอะไร
         if (chunksRef.current.length === 0) return;
         const blob = new Blob(chunksRef.current, {type:"video/webm"});
         setVideoBlob(blob);
         setPreviewUrl(URL.createObjectURL(blob));
-        stream?.getTracks().forEach(t=>t.stop());
-        setStream(null);
+        streamRef.current?.getTracks().forEach(t=>t.stop());
         setPhase("preview");
       };
       mr.start(500);
       setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
       timerRef.current = setInterval(() => {
         setTimer(t => {
-          if (t >= MAX_SEC-1){ mr.stop(); clearInterval(timerRef.current); return MAX_SEC; }
+          if(t>=MAX_SEC-1){ mr.stop(); clearInterval(timerRef.current); return MAX_SEC; }
           return t+1;
         });
       }, 1000);
@@ -212,7 +210,6 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     else { frameImg.onload = beginRecord; frameImg.onerror = beginRecord; }
   };
 
-  // ── Pause / Resume / Finish ───────────────────────────────────
   const handlePause = () => {
     if (!recorder || recorder.state!=="recording") return;
     recorder.pause(); setPaused(true); clearInterval(timerRef.current);
@@ -247,13 +244,13 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       const upData = await upRes.json();
       if (!upData.secure_url) {
         const msg = upData.error?.message || "Upload ไม่สำเร็จ";
-        if (msg.includes("Unknown API key") || msg.includes("api_key"))
+        if (msg.includes("Unknown API key")||msg.includes("api_key"))
           throw new Error("Upload Preset ยังไม่ถูกต้อง\ncloudinary.com → Settings\n→ Upload Presets → cockpit_unsigned\n→ Signing Mode: Unsigned → Save");
         throw new Error(msg);
       }
-      await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/send-video`,
-        {videoUrl: upData.secure_url, plate: data.plate});
-      await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`,
+      await callAPI("POST",`/api/branch/${branchId}/bay/${qNo}/send-video`,
+        {videoUrl:upData.secure_url, plate:data.plate});
+      await callAPI("PATCH",`/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`,
         {status:"done"});
       setPhase("done");
       setTimeout(()=>{ onSuccess(); onClose(); }, 2000);
@@ -265,9 +262,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
   return (
     <>
-      {/* Hidden canvas — compositing for recording only */}
       <canvas ref={canvasRef} style={{display:"none"}}/>
-
       <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.95)",
         display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
         padding:"12px 16px"}}>
@@ -293,57 +288,55 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
             )}
           </div>
 
-          {/* ── LIVE CAMERA VIEW (ready + recording) ── */}
+          {/* ── CAMERA VIEW (ready + recording) ── */}
           {isCameraActive && (
             <div>
-              {/* Camera preview with CockpitSure frame overlay */}
               <div style={{position:"relative",borderRadius:14,overflow:"hidden",
                 background:"#111",aspectRatio:"9/16",maxHeight:"54vh",marginBottom:8}}>
 
-                {/* Live video — always visible when camera is active */}
+                {/* Live video */}
                 <video ref={videoRef} autoPlay muted playsInline
                   style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
 
-                {/* Frame overlay: mix-blend-mode:multiply makes white transparent */}
+                {/* Frame overlay */}
                 <img src={COCKPITSURE_FRAME} alt="" style={{
                   position:"absolute",inset:0,width:"100%",height:"100%",
-                  objectFit:"fill",pointerEvents:"none",mixBlendMode:"multiply",
-                  zIndex:5
+                  objectFit:"fill",pointerEvents:"none",
+                  mixBlendMode:"multiply",zIndex:5
                 }}/>
 
-                {/* Camera switch: ใน ready หรือตอน paused */}
-                {(phase==="ready" || (phase==="recording" && paused)) && (
-                  <button onClick={switchCamera} style={{
-                    position:"absolute",top:8,left:8,zIndex:20,
-                    background:"rgba(0,0,0,0.7)",border:"none",borderRadius:20,
-                    padding:"5px 12px",color:"#fff",fontSize:12,fontWeight:700,
-                    cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-                    🔄 {facingMode==="environment" ? "กล้องหน้า" : "กล้องหลัง"}
-                  </button>
-                )}
+                {/* Camera switch — กดได้ตลอด (ready/recording/paused) */}
+                <button onClick={switchCamera} style={{
+                  position:"absolute",top:8,left:8,zIndex:20,
+                  background:"rgba(0,0,0,0.75)",border:"1px solid rgba(255,255,255,0.3)",
+                  borderRadius:20,padding:"6px 12px",color:"#fff",
+                  fontSize:12,fontWeight:700,cursor:"pointer",
+                  display:"flex",alignItems:"center",gap:5}}>
+                  🔄 {facingMode==="environment" ? "กล้องหน้า" : "กล้องหลัง"}
+                </button>
 
-                {/* REC badge (only in recording) */}
+                {/* REC badge */}
                 {phase==="recording" && (
-                  <div style={{position:"absolute",top:8,right:8,
+                  <div style={{position:"absolute",top:8,right:8,zIndex:20,
                     background:paused?"#d97706":"#dc2626",color:"#fff",
                     borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:800,
                     display:"flex",alignItems:"center",gap:5}}>
                     <span style={{width:7,height:7,borderRadius:"50%",background:"#fff",
                       display:"inline-block",
                       animation:paused?"none":"blink 1s infinite"}}/>
-                    {paused ? "⏸" : `⏺ ${timer}s`}
+                    {paused ? `⏸ ${timer}s` : `⏺ ${timer}s`}
                   </div>
                 )}
 
                 {/* Pause overlay */}
                 {phase==="recording" && paused && (
-                  <div style={{position:"absolute",inset:0,
-                    background:"rgba(0,0,0,0.4)",display:"flex",
+                  <div style={{position:"absolute",inset:0,zIndex:10,
+                    background:"rgba(0,0,0,0.35)",display:"flex",
                     alignItems:"center",justifyContent:"center",fontSize:52}}>⏸</div>
                 )}
               </div>
 
-              {/* Progress bar (recording only) */}
+              {/* Progress bar */}
               {phase==="recording" && (
                 <>
                   <div style={{background:"#374151",borderRadius:99,height:4,marginBottom:5}}>
@@ -352,31 +345,20 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                       transition:paused?"none":"width 1s linear"}}/>
                   </div>
                   <div style={{fontSize:10,color:"#9ca3af",marginBottom:8,textAlign:"center"}}>
-                    {paused ? `⏸ หยุดชั่วคราว ${timer}s/${MAX_SEC}s`
+                    {paused ? `⏸ ${timer}s/${MAX_SEC}s — กด ▶ บันทึกต่อ`
                             : `⏺ ${timer}s / ${MAX_SEC}s`}
                   </div>
                 </>
               )}
 
-              {/* Buttons */}
+              {/* Action buttons */}
               {phase==="ready" && (
-                <div style={{display:"flex",gap:8}}>
-                  {chunksRef.current.length > 0 && (
-                    <button onClick={()=>{chunksRef.current=[];setTimer(0);}}
-                      style={{flex:1,padding:"14px",borderRadius:12,border:"1.5px solid #dc2626",
-                        background:"transparent",color:"#dc2626",fontSize:13,fontWeight:700,
-                        cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-                      🗑 เริ่มใหม่
-                    </button>
-                  )}
-                  <button onClick={()=>startRec(chunksRef.current.length > 0)} style={{
-                    flex:2,padding:"14px",borderRadius:12,border:"none",
-                    background: chunksRef.current.length > 0 ? "#2563eb" : "#dc2626",
-                    color:"#fff",fontSize:15,fontWeight:900,
-                    cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-                    {chunksRef.current.length > 0 ? "▶ บันทึกต่อ (กล้องใหม่)" : "⏺ เริ่มบันทึก"}
-                  </button>
-                </div>
+                <button onClick={startRec} style={{
+                  width:"100%",padding:"14px",borderRadius:12,border:"none",
+                  background:"#dc2626",color:"#fff",fontSize:15,fontWeight:900,
+                  cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                  ⏺ เริ่มบันทึก
+                </button>
               )}
 
               {phase==="recording" && (
