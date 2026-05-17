@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
-const CLOUDINARY_CLOUD  = "dnmzyoobh";
+const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
 
 // CockpitSure logo — transparent bg, yellow badge only
@@ -150,78 +150,46 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     }
   };
 
-  // ── Start recording ──────────────────────────────────────────
+  // ── Start recording (direct from camera stream, cross-browser safe) ──────────
   const startRec = () => {
     chunksRef.current = [];
-    const canvas = canvasRef.current;
-    const ctx    = canvas.getContext("2d");
-    const video  = videoRef.current;
-    canvas.width = 720; canvas.height = 1280;
-
-    const logoImg = new Image();
-    logoImg.src   = COCKPITSURE_LOGO;
-
-    // Draw loop: video + logo → canvas (canvas stream is what gets recorded)
-    const drawLoop = () => {
-      if (video && video.readyState >= 2 && video.videoWidth) {
-        const vW=video.videoWidth, vH=video.videoHeight;
-        const cW=canvas.width, cH=canvas.height;
-        const vA=vW/vH, cA=cW/cH;
-        let sx=0,sy=0,sw=vW,sh=vH;
-        if (vA>cA){ sw=vH*cA; sx=(vW-sw)/2; }
-        else      { sh=vW/cA; sy=(vH-sh)/2; }
-        ctx.globalCompositeOperation = "source-over";
-        ctx.drawImage(video, sx,sy,sw,sh, 0,0,cW,cH);
-        if (logoImg.complete && logoImg.naturalWidth>0){
-          // วาดโลโก้มุมซ้ายบน — PNG โปร่งใส วาดปกติได้เลย
-          const lw = Math.round(cW * 0.60);
-          const lh = Math.round(lw * logoImg.naturalHeight / logoImg.naturalWidth);
-          ctx.globalCompositeOperation = "source-over";
-          ctx.drawImage(logoImg, 8, 8, lw, lh);
-        }
-      }
-      animRef.current = requestAnimationFrame(drawLoop);
+    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      ? "video/webm;codecs=vp9"
+      : MediaRecorder.isTypeSupported("video/webm")
+      ? "video/webm"
+      : "";
+    const mr = new MediaRecorder(streamRef.current, mimeType ? {mimeType} : {});
+    mr.ondataavailable = e => { if(e.data.size > 0) chunksRef.current.push(e.data); };
+    mr.onstop = () => {
+      if (chunksRef.current.length === 0) return;
+      const blob = new Blob(chunksRef.current, {type: mr.mimeType || "video/webm"});
+      setVideoBlob(blob);
+      setPreviewUrl(URL.createObjectURL(blob));
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      setPhase("preview");
     };
-
-    const beginRecord = () => {
-      drawLoop(); // drawLoop ใช้ logoImg ที่ load แล้ว
-      const canvasStream = canvas.captureStream(30);
-      // ใช้ audio จาก streamRef (อัปเดตได้เมื่อสลับกล้อง)
-      streamRef.current?.getAudioTracks().forEach(t => canvasStream.addTrack(t));
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9" : "video/webm";
-      const mr = new MediaRecorder(canvasStream, {mimeType});
-      mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
-      mr.onstop = () => {
-        cancelAnimationFrame(animRef.current);
-        if (chunksRef.current.length === 0) return;
-        const blob = new Blob(chunksRef.current, {type:"video/webm"});
-        setVideoBlob(blob);
-        setPreviewUrl(URL.createObjectURL(blob));
-        streamRef.current?.getTracks().forEach(t=>t.stop());
-        setPhase("preview");
-      };
-      mr.start(500);
-      setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
-      timerRef.current = setInterval(() => {
-        setTimer(t => {
-          if(t>=MAX_SEC-1){ mr.stop(); clearInterval(timerRef.current); return MAX_SEC; }
-          return t+1;
-        });
-      }, 1000);
-    };
-
-    if (logoImg.complete) beginRecord();
-    else { logoImg.onload = beginRecord; logoImg.onerror = beginRecord; }
+    mr.start(500);
+    setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
+    timerRef.current = setInterval(() => {
+      setTimer(t => {
+        if(t >= MAX_SEC-1){ mr.stop(); clearInterval(timerRef.current); return MAX_SEC; }
+        return t + 1;
+      });
+    }, 1000);
   };
+
 
   const handlePause = () => {
     if (!recorder || recorder.state!=="recording") return;
     recorder.pause(); setPaused(true); clearInterval(timerRef.current);
+    // Android: ensure video preview stays alive
+    if (videoRef.current) videoRef.current.play().catch(()=>{});
   };
   const handleResume = () => {
     if (!recorder || recorder.state!=="paused") return;
     recorder.resume(); setPaused(false);
+    // Android: ensure video keeps playing
+    if (videoRef.current) videoRef.current.play().catch(()=>{});
     timerRef.current = setInterval(() => {
       setTimer(t => {
         if(t>=MAX_SEC-1){ recorder.stop(); clearInterval(timerRef.current); return MAX_SEC; }
@@ -247,6 +215,9 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         {method:"POST", body:fd}
       );
       const upData = await upRes.json();
+      // เพิ่มโลโก้ CockpitSure ผ่าน Cloudinary transformation (ไม่ต้องใช้ canvas)
+      // Upload โลโก้แยกต่างหากที่ Cloudinary แล้วตั้งชื่อ public_id ว่า "cockpitsure_logo"
+      // ตัวอย่าง URL: .../upload/l_cockpitsure_logo,w_0.5,g_north_west,x_20,y_20/v.../file.webm
       if (!upData.secure_url) {
         const msg = upData.error?.message || "Upload ไม่สำเร็จ";
         if (msg.includes("Unknown API key")||msg.includes("api_key"))
