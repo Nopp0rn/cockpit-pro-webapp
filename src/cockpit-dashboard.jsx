@@ -11,6 +11,8 @@ const COCKPITSURE_LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABwgAAAEs
 const API = "https://cockpit-pro-backend.onrender.com";
 const JOB_TYPES = [
   {name:"เปลี่ยนยาง 4 เส้น", duration:52, timeLabel:"45-60 นาที"},
+  {name:"สลับยาง", duration:12, timeLabel:"10-15 นาที"},
+  {name:"ยาง 1,2,3 เส้น", duration:20, timeLabel:"15-25 นาที"},
   {name:"ถ่วงล้อ", duration:35, timeLabel:"30-40 นาที"},
   {name:"ตั้งศูนย์ล้อ", duration:52, timeLabel:"45-60 นาที"},
   {name:"เปลี่ยนถ่ายน้ำมันเครื่อง", duration:35, timeLabel:"30-40 นาที"},
@@ -876,6 +878,7 @@ function StaffView() {
   const [openModal, setOpenModal]   = useState(false);
   const [addTarget, setAddTarget]   = useState(null);
   const [completion, setCompletion] = useState(null);
+  const [todayHistory, setTodayHistory] = useState([]);
 
   // โหลดรายชื่อสาขาจาก API
   useEffect(() => {
@@ -896,9 +899,29 @@ function StaffView() {
       const data = await res.json();
       setQueues(data.baysData || {});
       setBranchName(data.name || "Cockpit Pro");
+      // ดึงประวัติวันนี้เพื่อแสดงปุ่มคืนสถานะ
+      try {
+        const hr = await fetch(`${API}/api/branch/${branchId}/history?limit=50`);
+        const hd = await hr.json();
+        const today = new Date().toDateString();
+        setTodayHistory((hd.history||[]).filter(h =>
+          h.closedAt && new Date(h.closedAt).toDateString() === today && !h.cancelled
+        ));
+      } catch {}
     } catch {}
     setLoading(false);
   }, [branchId]);
+
+  const handleReopen = async (historyId) => {
+    if (!window.confirm("คืนสถานะรถนี้กลับสู่คิว?")) return;
+    try {
+      const r = await callAPI("POST",
+        `/api/branch/${branchId}/history/${historyId}/reopen`, {});
+      if (r.error) { alert(r.error); return; }
+      alert(`✅ คืนสถานะสำเร็จ — ช่องที่ ${r.bay}`);
+      fetch_();
+    } catch(e) { alert("เกิดข้อผิดพลาด: " + e.message); }
+  };
 
   useEffect(() => {
     if (!branchId) return;
@@ -974,6 +997,40 @@ function StaffView() {
       </div>
 
       {/* FAB */}
+      {/* ── คืนสถานะ — รถที่ปิดงานวันนี้ ── */}
+      {todayHistory.length > 0 && (
+        <div style={{padding:"8px 12px 4px"}}>
+          <div style={{fontSize:11,fontWeight:800,color:"#9ca3af",
+            letterSpacing:"0.5px",marginBottom:6}}>
+            ↩ คืนสถานะได้ (ปิดงานวันนี้)
+          </div>
+          {todayHistory.map(h => (
+            <div key={h.id} style={{background:"#fff",borderRadius:10,
+              marginBottom:6,padding:"8px 10px",
+              border:"1px solid #fbbf24",
+              display:"flex",alignItems:"center",gap:8}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:16,fontWeight:900,color:"#1A1A1A"}}>
+                  {h.plate}
+                </div>
+                <div style={{fontSize:10,color:"#9ca3af"}}>
+                  {h.province ? `จ.${h.province} · ` : ""}
+                  ปิด {new Date(h.closedAt).toLocaleTimeString("th-TH",
+                    {hour:"2-digit",minute:"2-digit"})}น.
+                  {" · "}{(h.jobs||[]).filter(j=>j.name!=="รับรถเข้า").map(j=>j.name).join(", ")}
+                </div>
+              </div>
+              <button onClick={() => handleReopen(h.id)}
+                style={{flexShrink:0,padding:"6px 12px",borderRadius:8,border:"none",
+                  background:"#d97706",color:"#fff",fontSize:12,fontWeight:800,
+                  cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                ↩ คืน
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {nextQ && !openModal && !addTarget && !completion && (
         <button onClick={() => setOpenModal(true)} style={{
           position:"fixed",bottom:76,right:16,
