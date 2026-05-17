@@ -307,13 +307,14 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                 {/* Frame overlay: mix-blend-mode:multiply makes white transparent */}
                 <img src={COCKPITSURE_FRAME} alt="" style={{
                   position:"absolute",inset:0,width:"100%",height:"100%",
-                  objectFit:"fill",pointerEvents:"none",mixBlendMode:"multiply"
+                  objectFit:"fill",pointerEvents:"none",mixBlendMode:"multiply",
+                  zIndex:5
                 }}/>
 
                 {/* Camera switch: ใน ready หรือตอน paused */}
                 {(phase==="ready" || (phase==="recording" && paused)) && (
                   <button onClick={switchCamera} style={{
-                    position:"absolute",top:8,left:8,
+                    position:"absolute",top:8,left:8,zIndex:20,
                     background:"rgba(0,0,0,0.7)",border:"none",borderRadius:20,
                     padding:"5px 12px",color:"#fff",fontSize:12,fontWeight:700,
                     cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
