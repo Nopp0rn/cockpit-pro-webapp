@@ -994,6 +994,148 @@ function StaffView() {
 }
 
 // ─── Admin View (TV-optimized) ────────────────────────────────────────────────
+// ─── Video View ───────────────────────────────────────────────────────────────
+function VideoView() {
+  const [overview, setOverview] = useState([]);
+  const [selBranch, setSelBranch] = useState(null);
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [detLoad, setDetLoad] = useState(false);
+  const [playingId, setPlayingId] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API}/api/admin/overview`).then(r=>r.json()).then(d=>{
+      setOverview(d.overview||[]);
+      if (d.overview?.length) loadVideos(d.overview[0].branchId);
+    }).catch(()=>{}).finally(()=>setLoading(false));
+  },[]);
+
+  const loadVideos = async (id) => {
+    setSelBranch(id); setDetLoad(true); setPlayingId(null);
+    try {
+      const r = await fetch(`${API}/api/branch/${id}/videos?limit=60`);
+      const d = await r.json();
+      setVideos(d.videos||[]);
+    } catch {}
+    setDetLoad(false);
+  };
+
+  // Cloudinary thumbnail URL (replace extension with .jpg)
+  const thumbUrl = (url) => {
+    try {
+      return url.replace(/\/upload\//, '/upload/w_400,h_300,c_fill,q_60/').replace(/\.[^.]+$/, '.jpg');
+    } catch { return ""; }
+  };
+
+  const formatDate = (iso) => {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    return d.toLocaleDateString("th-TH",{day:"2-digit",month:"short",year:"2-digit"}) +
+      " " + d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"});
+  };
+
+  if (loading) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>;
+
+  return (
+    <div style={{padding:"8px 12px",paddingBottom:40}}>
+      {/* Branch selector + stats */}
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+        <span style={{fontSize:12,fontWeight:700,color:"#6b7280"}}>📍 สาขา:</span>
+        <select value={selBranch||""} onChange={e=>loadVideos(e.target.value)}
+          style={{flex:1,minWidth:0,padding:"5px 10px",borderRadius:8,
+            border:"1.5px solid #e5e7eb",fontSize:13,fontWeight:700,
+            fontFamily:"'Noto Sans Thai',sans-serif",background:"#fff",
+            cursor:"pointer",outline:"none"}}>
+          {overview.map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+        </select>
+        <button onClick={()=>selBranch&&loadVideos(selBranch)}
+          style={{padding:"5px 12px",borderRadius:8,border:"1px solid #d1d5db",
+            background:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",
+            color:"#6b7280",fontFamily:"'Noto Sans Thai',sans-serif"}}>🔄</button>
+        {!detLoad && (
+          <span style={{fontSize:12,color:"#9ca3af"}}>{videos.length} คลิป</span>
+        )}
+      </div>
+
+      {detLoad && <div style={{textAlign:"center",padding:30,color:"#9ca3af"}}>⏳</div>}
+
+      {!detLoad && videos.length === 0 && (
+        <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>
+          <div style={{fontSize:48,marginBottom:12}}>🎥</div>
+          <div style={{fontSize:15,fontWeight:700}}>ยังไม่มีวีดีโอ</div>
+          <div style={{fontSize:12,marginTop:6}}>วีดีโอจะปรากฎหลังจากพนักงานส่ง CockpitSure</div>
+        </div>
+      )}
+
+      {/* Video grid */}
+      {!detLoad && videos.length > 0 && (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
+          {videos.map(v => (
+            <div key={v.id} style={{background:"#fff",borderRadius:12,overflow:"hidden",
+              boxShadow:"0 2px 8px rgba(0,0,0,.08)",border:"1px solid #f0f0f0"}}>
+
+              {/* Thumbnail / Player */}
+              {playingId === v.id ? (
+                <video src={v.videoUrl} controls autoPlay playsInline
+                  style={{width:"100%",aspectRatio:"9/16",objectFit:"cover",display:"block",background:"#000"}}/>
+              ) : (
+                <div style={{position:"relative",cursor:"pointer",aspectRatio:"9/16",
+                  background:"#1A1A1A",overflow:"hidden"}}
+                  onClick={()=>setPlayingId(v.id)}>
+                  <img src={thumbUrl(v.videoUrl)} alt=""
+                    style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
+                    onError={e=>{e.target.style.display="none";}}/>
+                  {/* Play button overlay */}
+                  <div style={{position:"absolute",inset:0,display:"flex",
+                    alignItems:"center",justifyContent:"center",
+                    background:"rgba(0,0,0,0.3)"}}>
+                    <div style={{width:44,height:44,borderRadius:22,
+                      background:"rgba(255,224,0,0.9)",display:"flex",
+                      alignItems:"center",justifyContent:"center",fontSize:20}}>
+                      ▶
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Info */}
+              <div style={{padding:"8px 10px"}}>
+                <div style={{fontSize:16,fontWeight:900,color:"#1A1A1A",lineHeight:1}}>
+                  {v.plate}
+                </div>
+                {v.province && (
+                  <div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>จ.{v.province}</div>
+                )}
+                <div style={{fontSize:10,color:"#9ca3af",marginTop:4}}>
+                  {formatDate(v.uploadedAt)}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{display:"flex",gap:6,padding:"0 10px 10px"}}>
+                <a href={v.videoUrl} target="_blank" rel="noreferrer"
+                  style={{flex:1,padding:"6px 0",borderRadius:8,border:"1px solid #e5e7eb",
+                    background:"#f9fafb",color:"#374151",fontSize:12,fontWeight:700,
+                    cursor:"pointer",textDecoration:"none",textAlign:"center",
+                    fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                  🔗 เปิด
+                </a>
+                <a href={v.videoUrl} download={`cockpitsure_${v.plate}.webm`}
+                  style={{flex:1,padding:"6px 0",borderRadius:8,border:"none",
+                    background:"#1A1A1A",color:"#FFE000",fontSize:12,fontWeight:700,
+                    cursor:"pointer",textDecoration:"none",textAlign:"center",
+                    fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                  ⬇ โหลด
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── History View ─────────────────────────────────────────────────────────────
 function HistoryView() {
   const [overview, setOverview] = useState([]);
@@ -1308,7 +1450,7 @@ export default function App() {
         boxShadow:"0 2px 16px rgba(0,0,0,.5)"}}>
         <div style={{marginBottom:14}}><CockpitLogo height={44}/></div>
         <div style={{display:"flex"}}>
-          {[{key:"staff",label:"👨‍🔧 พนักงาน"},{key:"admin",label:"📺 ข้อมูล"},{key:"history",label:"📊 สถิติ"}].map(t => (
+          {[{key:"staff",label:"👨‍🔧 พนักงาน"},{key:"admin",label:"📺 ข้อมูล"},{key:"history",label:"📊 สถิติ"},{key:"videos",label:"🎥 วีดีโอ"}].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               flex:1,padding:"10px 2px",border:"none",background:"transparent",
               color: tab===t.key ? "#FFE000" : "rgba(255,255,255,.4)",
@@ -1322,7 +1464,7 @@ export default function App() {
         </div>
       </div>
 
-      <div>{tab === "staff" ? <StaffView/> : tab === "admin" ? <AdminView/> : <HistoryView/>}</div>
+      <div>{tab === "staff" ? <StaffView/> : tab === "admin" ? <AdminView/> : tab === "videos" ? <VideoView/> : <HistoryView/>}</div>
     </div>
   );
 }
