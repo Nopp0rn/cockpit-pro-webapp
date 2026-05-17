@@ -131,9 +131,11 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
           else { sh = vW / cAspect; sy = (vH-sh)/2; }
           ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cW, cH);
         }
-        // Draw frame overlay (transparent center shows video)
+        // Draw frame overlay with multiply blend (white becomes transparent)
         if (frameImg.complete && frameImg.naturalWidth > 0) {
+          ctx.globalCompositeOperation = "multiply";
           ctx.drawImage(frameImg, 0, 0, cW, cH);
+          ctx.globalCompositeOperation = "source-over"; // reset
         }
       }
       animRef.current = requestAnimationFrame(draw);
@@ -287,8 +289,10 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
               <video ref={null} autoPlay muted playsInline
                 style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
                 ref={videoRef}/>
-              <img src={COCKPITSURE_FRAME} alt="" style={{position:"absolute",inset:0,
-                width:"100%",height:"100%",objectFit:"fill",pointerEvents:"none"}}/>
+              <img src={COCKPITSURE_FRAME} alt="" style={{
+                position:"absolute",inset:0,width:"100%",height:"100%",
+                objectFit:"fill",pointerEvents:"none",
+                mixBlendMode:"multiply"}}/>
               {/* Camera switch */}
               <button onClick={switchCamera} style={{position:"absolute",top:10,left:10,
                 background:"rgba(0,0,0,0.65)",border:"none",borderRadius:20,
