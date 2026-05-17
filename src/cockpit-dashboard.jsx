@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
-const CLOUDINARY_CLOUD  = "dnmzyoobh";
+const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
 
 // CockpitSure video frame overlay (transparent center)
@@ -116,6 +116,13 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const switchCamera = async () => {
     const next = facingMode === "environment" ? "user" : "environment";
     setFacingMode(next);
+    // If recording, stop first then reopen camera (can't switch mid-record)
+    if (phase === "recording") {
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+      clearInterval(timerRef.current);
+      cancelAnimationFrame(animRef.current);
+      setRecorder(null); setTimer(0); setPaused(false);
+    }
     await openCamera(next);
   };
 
@@ -278,16 +285,14 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                   objectFit:"fill",pointerEvents:"none",mixBlendMode:"multiply"
                 }}/>
 
-                {/* Camera switch button (only in ready) */}
-                {phase==="ready" && (
-                  <button onClick={switchCamera} style={{
-                    position:"absolute",top:8,left:8,
-                    background:"rgba(0,0,0,0.6)",border:"none",borderRadius:20,
-                    padding:"5px 12px",color:"#fff",fontSize:12,fontWeight:700,
-                    cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-                    🔄 {facingMode==="environment" ? "สลับกล้องหน้า" : "สลับกล้องหลัง"}
-                  </button>
-                )}
+                {/* Camera switch — available in ready AND recording */}
+                <button onClick={switchCamera} style={{
+                  position:"absolute",top:8,left:8,
+                  background:"rgba(0,0,0,0.65)",border:"none",borderRadius:20,
+                  padding:"5px 12px",color:"#fff",fontSize:12,fontWeight:700,
+                  cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                  🔄 {facingMode==="environment" ? "กล้องหน้า" : "กล้องหลัง"}
+                </button>
 
                 {/* REC badge (only in recording) */}
                 {phase==="recording" && (
