@@ -794,16 +794,12 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
             lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
             {data.plate}
           </div>
-          <div style={{fontSize:9,color:"rgba(255,255,255,.6)",marginTop:1,display:"flex",
-            flexWrap:"wrap",gap:4,whiteSpace:"nowrap"}}>
+          <div style={{fontSize:9,color:"rgba(255,255,255,.6)",marginTop:1,display:"flex",gap:4,
+            whiteSpace:"nowrap"}}>
             {data.province && <span>จ.{data.province.slice(0,6)}</span>}
+            {data.phone && <span>📞{data.phone}</span>}
             {data.startTime && <span style={{color:"rgba(255,224,0,.8)"}}>{getElapsed(data.startTime)}</span>}
           </div>
-          {data.phone && (
-            <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,.85)",marginTop:1}}>
-              📞 {data.phone}
-            </div>
-          )}
         </div>
 
         {/* Progress — ยืดได้ */}
