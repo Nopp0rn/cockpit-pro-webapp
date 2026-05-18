@@ -676,36 +676,62 @@ function AddJobsModal({ qNo, branchId, existingJobs, onClose, onSuccess }) {
   };
 
   return (
-    <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"flex-end"}}>
-      <div style={{background:"#fff",borderRadius:"24px 24px 0 0",width:"100%",padding:"24px 20px 48px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-          <div style={{fontSize:22,fontWeight:900,color:"#1A1A1A"}}>🔧 เพิ่มงาน – ลำดับที่ {qNo}</div>
-          <button onClick={onClose} style={{background:"#f3f4f6",border:"none",borderRadius:10,width:40,height:40,fontSize:22,cursor:"pointer"}}>✕</button>
+    <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.75)",
+      display:"flex",alignItems:"flex-end"}}>
+      <div style={{background:"#fff",borderRadius:"24px 24px 0 0",width:"100%",
+        maxHeight:"92dvh", display:"flex",flexDirection:"column"}}>
+
+        {/* Header — fixed */}
+        <div style={{padding:"20px 20px 12px",flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:20,fontWeight:900,color:"#1A1A1A"}}>🔧 เพิ่มงาน – ลำดับที่ {qNo}</div>
+            <button onClick={onClose}
+              style={{background:"#f3f4f6",border:"none",borderRadius:10,
+                width:40,height:40,fontSize:22,cursor:"pointer"}}>✕</button>
+          </div>
+          {error && (
+            <div style={{background:"#fee2e2",color:"#dc2626",padding:"10px 12px",
+              borderRadius:10,marginTop:10,fontWeight:700,fontSize:14}}>{error}</div>
+          )}
         </div>
-        {error && <div style={{background:"#fee2e2",color:"#dc2626",padding:"12px",borderRadius:10,marginBottom:12,fontWeight:700}}>{error}</div>}
-        {avail.length === 0
-          ? <div style={{textAlign:"center",padding:"30px 0",color:"#9ca3af",fontSize:16}}>เพิ่มงานครบทุกประเภทแล้ว</div>
-          : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
-              {avail.map(job => (
-                <button key={job.name} onClick={() => toggle(job)}
-                  style={{padding:"10px 6px",borderRadius:10,textAlign:"center",minHeight:48,
-                    border: sel.includes(job) ? "3px solid #1A1A1A" : "2px solid #e5e7eb",
-                    background: sel.includes(job) ? "#FFE000" : "#f9fafb",
-                    fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-                  {sel.includes(job) ? "✅ " : ""}{job.name}
-                  <div style={{fontSize:10,color:"#9ca3af",fontWeight:400,marginTop:2}}>{job.timeLabel}</div>
-                </button>
-              ))}
-            </div>
-        }
-        <button onClick={submit} disabled={loading || !sel.length}
-          style={{width:"100%",padding:"20px",borderRadius:14,border:"none",
-            background: sel.length&&!loading ? "#1A1A1A" : "#e5e7eb",
-            color: sel.length&&!loading ? "#FFE000" : "#9ca3af",
-            fontSize:20,fontWeight:900,cursor:sel.length?"pointer":"default",
-            fontFamily:"'Noto Sans Thai',sans-serif"}}>
-          {loading ? "⏳ กำลังบันทึก..." : `➕ เพิ่ม ${sel.length} งาน`}
-        </button>
+
+        {/* Scrollable job grid */}
+        <div style={{flex:1,overflowY:"auto",padding:"0 20px",minHeight:0}}>
+          {avail.length === 0
+            ? <div style={{textAlign:"center",padding:"30px 0",color:"#9ca3af",fontSize:16}}>
+                เพิ่มงานครบทุกประเภทแล้ว
+              </div>
+            : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,paddingBottom:8}}>
+                {avail.map(job => (
+                  <button key={job.name} onClick={() => toggle(job)}
+                    style={{padding:"12px 6px",borderRadius:10,textAlign:"center",minHeight:52,
+                      border: sel.includes(job) ? "3px solid #1A1A1A" : "2px solid #e5e7eb",
+                      background: sel.includes(job) ? "#FFE000" : "#f9fafb",
+                      fontSize:13,fontWeight:700,cursor:"pointer",
+                      fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                    {sel.includes(job) ? "✅ " : ""}{job.name}
+                    <div style={{fontSize:10,color:"#9ca3af",fontWeight:400,marginTop:2}}>
+                      {job.timeLabel}
+                    </div>
+                  </button>
+                ))}
+              </div>
+          }
+        </div>
+
+        {/* Submit button — fixed at bottom */}
+        <div style={{padding:"12px 20px 32px",flexShrink:0,
+          borderTop:"1px solid #f3f4f6",background:"#fff"}}>
+          <button onClick={submit} disabled={loading || !sel.length}
+            style={{width:"100%",padding:"18px",borderRadius:14,border:"none",
+              background: sel.length&&!loading ? "#1A1A1A" : "#e5e7eb",
+              color: sel.length&&!loading ? "#FFE000" : "#9ca3af",
+              fontSize:18,fontWeight:900,cursor:sel.length?"pointer":"default",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}>
+            {loading ? "⏳ กำลังบันทึก..." : `➕ เพิ่ม ${sel.length} งาน`}
+          </button>
+        </div>
+
       </div>
     </div>
   );
