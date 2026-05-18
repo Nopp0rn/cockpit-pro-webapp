@@ -1120,7 +1120,10 @@ function VideoView() {
   // Cloudinary thumbnail URL (replace extension with .jpg)
   const thumbUrl = (url) => {
     try {
-      return url.replace(/\/upload\//, '/upload/w_400,h_300,c_fill,q_60/').replace(/\.[^.]+$/, '.jpg');
+      // Cloudinary video thumbnail: ใช้ so_0 (screenshot at 0s) + format jpg
+      return url
+        .replace('/upload/', '/upload/w_400,h_711,c_fill,so_0,q_60/')
+        .replace(/\.(webm|mp4|mov|avi)$/i, '.jpg');
     } catch { return ""; }
   };
 
