@@ -1,6 +1,16 @@
 {
-  "buildCommand": "npm install && npm run build",
-  "outputDirectory": "dist",
-  "framework": "vite",
-  "installCommand": "npm install"
+  "rewrites": [
+    {
+      "source": "/tv",
+      "destination": "/display.html"
+    },
+    {
+      "source": "/tv/:branch",
+      "destination": "/display.html?branch=:branch"
+    },
+    {
+      "source": "/((?!display\\.html|icons|manifest\\.json|sw\\.js|register\\.html).*)",
+      "destination": "/"
+    }
+  ]
 }
