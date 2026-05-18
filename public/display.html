@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Cockpit Pro — จอแสดงผล</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans Thai', sans-serif;
+    background: #1A1A1A;
+    color: #fff;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: #111;
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 3px solid #FFE000;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header-logo { height: 44px; }
+  .header-branch {
+    font-size: 22px;
+    font-weight: 900;
+    color: #FFE000;
+    letter-spacing: 0.02em;
+  }
+  .header-time {
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    min-width: 100px;
+    text-align: right;
+  }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border-bottom: 2px solid #2a2a2a;
+  }
+  .stat-box {
+    padding: 18px 0;
+    text-align: center;
+    border-right: 2px solid #2a2a2a;
+  }
+  .stat-box:last-child { border-right: none; }
+  .stat-num { font-size: 48px; font-weight: 900; line-height: 1; }
+  .stat-label { font-size: 13px; font-weight: 700; color: rgba(255,255,255,.6); margin-top: 4px; }
+  .stat-total .stat-num { color: #FFE000; }
+  .stat-active .stat-num { color: #34d399; }
+  .stat-wait   .stat-num { color: #f97316; }
+
+  /* ── Queue table ── */
+  .table-wrap { padding: 20px 24px; }
+  .table-head {
+    display: grid;
+    grid-template-columns: 60px 160px 80px 1fr 140px;
+    gap: 12px;
+    padding: 10px 16px;
+    background: #111;
+    border-radius: 10px 10px 0 0;
+    border-bottom: 2px solid #FFE000;
+    font-size: 13px;
+    font-weight: 800;
+    color: #FFE000;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .table-row {
+    display: grid;
+    grid-template-columns: 60px 160px 80px 1fr 140px;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid #2a2a2a;
+    align-items: center;
+    transition: background .2s;
+    animation: rowIn .4s ease;
+  }
+  @keyframes rowIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .table-row:last-child { border-bottom: none; }
+  .table-row.in-service { background: rgba(5,150,105,.12); }
+  .table-row.waiting    { background: rgba(249,115,22,.06); }
+
+  .bay-badge {
+    width: 46px; height: 46px;
+    background: #FFE000;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 900; color: #1A1A1A;
+  }
+  .plate {
+    font-size: 26px;
+    font-weight: 900;
+    color: #FFE000;
+    letter-spacing: 0.03em;
+    line-height: 1;
+  }
+  .province {
+    font-size: 12px;
+    color: rgba(255,255,255,.5);
+    margin-top: 3px;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .status-badge.active { background: #059669; color: #fff; }
+  .status-badge.wait   { background: #f97316; color: #fff; }
+
+  .jobs-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .job-chip {
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .job-chip.done    { background: #064e3b; color: #6ee7b7; text-decoration: line-through; }
+  .job-chip.active  { background: #1e3a5f; color: #93c5fd; }
+  .job-chip.waiting { background: #2a2a2a; color: rgba(255,255,255,.6); }
+
+  .prog-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .prog-bar-bg {
+    background: rgba(255,255,255,.15);
+    border-radius: 99px;
+    height: 8px;
+    overflow: hidden;
+  }
+  .prog-bar-fill {
+    height: 8px;
+    border-radius: 99px;
+    transition: width .6s ease;
+  }
+  .prog-pct {
+    font-size: 20px;
+    font-weight: 900;
+    text-align: right;
+  }
+
+  /* ── Empty state ── */
+  .empty {
+    text-align: center;
+    padding: 80px 20px;
+    color: rgba(255,255,255,.3);
+  }
+  .empty-icon { font-size: 80px; margin-bottom: 20px; }
+  .empty-text { font-size: 24px; font-weight: 700; }
+
+  /* ── Branch selector ── */
+  .branch-select-wrap {
+    padding: 20px 24px 0;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .branch-select-wrap label { font-size: 14px; color: rgba(255,255,255,.5); font-weight:700; }
+  .branch-select {
+    background: #2a2a2a;
+    border: 1.5px solid #3a3a3a;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: 'Noto Sans Thai', sans-serif;
+    padding: 8px 14px;
+    cursor: pointer;
+    outline: none;
+  }
+  .refresh-dot {
+    width: 10px; height: 10px;
+    background: #34d399;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: .3; }
+  }
+  .last-refresh { font-size: 12px; color: rgba(255,255,255,.3); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img class="header-logo"
+    src="https://cockpit-pro-webapp.vercel.app/icons/icon-192x192.png"
+    onerror="this.style.display='none'"
+    alt="Cockpit"/>
+  <div class="header-branch" id="branch-name">Cockpit Pro</div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+    <div class="header-time" id="clock">--:--</div>
+    <div class="last-refresh" id="last-refresh">กำลังโหลด...</div>
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-box stat-total">
+    <div class="stat-num" id="cnt-total">0</div>
+    <div class="stat-label">คิวทั้งหมด</div>
+  </div>
+  <div class="stat-box stat-active">
+    <div class="stat-num" id="cnt-active">0</div>
+    <div class="stat-label">กำลังดำเนินการ</div>
+  </div>
+  <div class="stat-box stat-wait">
+    <div class="stat-num" id="cnt-wait">0</div>
+    <div class="stat-label">รอเข้าช่องซ่อม</div>
+  </div>
+</div>
+
+<div class="branch-select-wrap">
+  <label>📍 สาขา:</label>
+  <select class="branch-select" id="branch-select" onchange="onBranchChange(this.value)">
+    <option value="">-- กำลังโหลด --</option>
+  </select>
+  <div class="refresh-dot" id="dot"></div>
+  <span class="last-refresh" id="next-refresh"></span>
+</div>
+
+<div class="table-wrap">
+  <div class="table-head">
+    <div>ช่อง</div>
+    <div>ทะเบียน</div>
+    <div>สถานะ</div>
+    <div>รายการงาน</div>
+    <div style="text-align:right">ความคืบหน้า</div>
+  </div>
+  <div id="queue-body"></div>
+</div>
+
+<script>
+const API = "https://cockpit-pro-backend.onrender.com";
+let currentBranch = null;
+let refreshTimer = null;
+let countdown = 20;
+
+// ── Clock ──────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById("clock").textContent =
+    now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── URL param ─────────────────────────────────────────────────
+const urlParams = new URLSearchParams(location.search);
+const forceBranch = urlParams.get("branch");
+
+// ── Load branches ─────────────────────────────────────────────
+async function loadBranches() {
+  try {
+    const r = await fetch(`${API}/api/admin/overview`);
+    const d = await r.json();
+    const sel = document.getElementById("branch-select");
+    sel.innerHTML = "";
+    (d.overview || []).forEach(b => {
+      const opt = document.createElement("option");
+      opt.value = b.branchId;
+      opt.textContent = b.name;
+      sel.appendChild(opt);
+    });
+    const target = forceBranch || (d.overview?.[0]?.branchId);
+    if (target) { sel.value = target; onBranchChange(target); }
+  } catch(e) { console.error(e); }
+}
+
+function onBranchChange(id) {
+  currentBranch = id;
+  clearInterval(refreshTimer);
+  loadQueue(id);
+  startCountdown();
+}
+
+// ── Load queue ────────────────────────────────────────────────
+async function loadQueue(branchId) {
+  if (!branchId) return;
+  document.getElementById("dot").style.background = "#FFE000";
+  try {
+    const r = await fetch(`${API}/api/branch/${branchId}`);
+    const d = await r.json();
+    document.getElementById("branch-name").textContent = d.name || "Cockpit Pro";
+    renderQueue(d.baysData || {});
+    document.getElementById("last-refresh").textContent =
+      "อัปเดตล่าสุด " + new Date().toLocaleTimeString("th-TH", {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  } catch(e) { console.error(e); }
+  document.getElementById("dot").style.background = "#34d399";
+}
+
+function renderQueue(baysData) {
+  const entries = Object.entries(baysData)
+    .sort((a,b) => Number(a[0]) - Number(b[0]));
+
+  // Stats
+  const total  = entries.length;
+  const active = entries.filter(([,v]) => v.bayStatus === "in_service").length;
+  const wait   = entries.filter(([,v]) => v.bayStatus === "waiting_entry").length;
+  document.getElementById("cnt-total").textContent  = total;
+  document.getElementById("cnt-active").textContent = active;
+  document.getElementById("cnt-wait").textContent   = wait;
+
+  // Table rows
+  const body = document.getElementById("queue-body");
+  if (entries.length === 0) {
+    body.innerHTML = `<div class="empty">
+      <div class="empty-icon">🅿️</div>
+      <div class="empty-text">ยังไม่มีรถในคิว</div>
+    </div>`;
+    return;
+  }
+
+  body.innerHTML = entries.map(([bay, car]) => {
+    const isIn = car.bayStatus === "in_service";
+    const realJobs = (car.jobs || []).filter(j => j.name !== "รับรถเข้า");
+    const done = realJobs.filter(j => j.status === "done").length;
+    const pct  = realJobs.length ? Math.round(done / realJobs.length * 100) : 0;
+    const prog = pct === 100 ? "#fff" : pct > 50 ? "#34d399" : "#FFE000";
+
+    const chipsHtml = (car.jobs || [])
+      .filter(j => j.name !== "รับรถเข้า")
+      .map(j => {
+        const cls = j.status==="done" ? "done" : j.status==="in_progress" ? "active" : "waiting";
+        const icon = j.status==="done" ? "✅ " : j.status==="in_progress" ? "🔧 " : "⏳ ";
+        return `<span class="job-chip ${cls}">${icon}${j.name}</span>`;
+      }).join("");
+
+    return `<div class="table-row ${isIn ? "in-service" : "waiting"}">
+      <div><div class="bay-badge">${bay}</div></div>
+      <div>
+        <div class="plate">${car.plate || "-"}</div>
+        <div class="province">${car.province ? "จ."+car.province : ""}</div>
+      </div>
+      <div>
+        <span class="status-badge ${isIn ? "active" : "wait"}">
+          ${isIn ? "🔧 ซ่อม" : "⏳ รอ"}
+        </span>
+      </div>
+      <div><div class="jobs-list">${chipsHtml || '<span style="color:rgba(255,255,255,.3);font-size:13px">รับรถเข้าแล้ว</span>'}</div></div>
+      <div class="prog-wrap">
+        <div class="prog-pct" style="color:${prog}">${pct}%</div>
+        <div class="prog-bar-bg">
+          <div class="prog-bar-fill" style="width:${pct}%;background:${prog}"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ── Auto refresh countdown ────────────────────────────────────
+function startCountdown() {
+  countdown = 20;
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => {
+    countdown--;
+    document.getElementById("next-refresh").textContent = `รีเฟรชใน ${countdown}s`;
+    if (countdown <= 0) {
+      loadQueue(currentBranch);
+      countdown = 20;
+    }
+  }, 1000);
+}
+
+loadBranches();
+</script>
+</body>
+</html>
