@@ -1099,6 +1099,7 @@ function VideoView() {
   const [loading, setLoading] = useState(true);
   const [detLoad, setDetLoad] = useState(false);
   const [playingId, setPlayingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     fetch(`${API}/api/admin/overview`).then(r=>r.json()).then(d=>{
@@ -1221,7 +1222,6 @@ function VideoView() {
                   🔗 เปิด
                 </a>
                 <button onClick={()=>{
-                    // fl_attachment forces browser to download instead of play
                     const dlUrl = v.videoUrl.replace('/upload/','/upload/fl_attachment/');
                     const a = document.createElement('a');
                     a.href = dlUrl;
@@ -1234,6 +1234,25 @@ function VideoView() {
                     cursor:"pointer",textAlign:"center",
                     fontFamily:"'Noto Sans Thai',sans-serif"}}>
                   ⬇ โหลด
+                </button>
+                <button
+                  disabled={deletingId === v.id}
+                  onClick={async () => {
+                    if (!window.confirm(`ลบวีดีโอ ${v.plate} ?\nไม่สามารถกู้คืนได้`)) return;
+                    setDeletingId(v.id);
+                    try {
+                      const r = await callAPI("DELETE", `/api/branch/${selBranch}/videos/${v.id}`);
+                      if (r.success) setVideos(prev => prev.filter(x => x.id !== v.id));
+                      else alert("ลบไม่สำเร็จ: " + (r.error||""));
+                    } catch(e) { alert("เกิดข้อผิดพลาด: " + e.message); }
+                    finally { setDeletingId(null); }
+                  }}
+                  style={{width:34,padding:"6px 0",borderRadius:8,border:"none",
+                    background: deletingId===v.id ? "#9ca3af" : "#dc2626",
+                    color:"#fff",fontSize:14,fontWeight:700,
+                    cursor: deletingId===v.id ? "not-allowed" : "pointer",
+                    textAlign:"center"}}>
+                  {deletingId===v.id ? "⏳" : "🗑"}
                 </button>
               </div>
             </div>
