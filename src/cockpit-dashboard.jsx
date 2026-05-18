@@ -777,33 +777,47 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
       {/* ── ROW 1: Info + Status + Buttons ── */}
       <div style={{
         background: isIn ? "#059669" : "#1A1A1A",
-        padding:"6px 8px",
-        display:"flex",alignItems:"center",gap:5,
+        padding:"7px 10px",
+        display:"flex",alignItems:"center",gap:8,
         overflow:"hidden",
       }}>
         {/* Queue badge */}
-        <div style={{background:"#FFE000",borderRadius:5,minWidth:24,height:24,
+        <div style={{background:"#FFE000",borderRadius:5,minWidth:26,height:26,
           display:"flex",alignItems:"center",justifyContent:"center",
-          fontSize:12,fontWeight:900,color:"#1A1A1A",flexShrink:0}}>
+          fontSize:13,fontWeight:900,color:"#1A1A1A",flexShrink:0}}>
           {qNo}
         </div>
 
-        {/* Plate + province + time — ให้หดได้เมื่อจอแคบ */}
-        <div style={{flexShrink:1,minWidth:0,overflow:"hidden"}}>
-          <div style={{fontSize:20,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",
-            lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-            {data.plate}{data.phone ? ` · ${data.phone}` : ""}
+        {/* Plate + phone + province + time */}
+        <div style={{flexShrink:1,minWidth:0}}>
+          {/* Row A: plate + phone */}
+          <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
+            <span style={{fontSize:20,fontWeight:900,color:"#FFE000",
+              letterSpacing:"0.03em",lineHeight:1}}>
+              {data.plate}
+            </span>
+            {data.phone && (
+              <span style={{fontSize:14,fontWeight:800,color:"rgba(255,255,255,.9)",
+                lineHeight:1}}>
+                {data.phone}
+              </span>
+            )}
           </div>
-          <div style={{fontSize:9,color:"rgba(255,255,255,.6)",marginTop:1,display:"flex",gap:4,
-            whiteSpace:"nowrap"}}>
-            {data.province && <span>จ.{data.province.slice(0,6)}</span>}
-            {data.startTime && <span style={{color:"rgba(255,224,0,.8)"}}>{getElapsed(data.startTime)}</span>}
+          {/* Row B: province + elapsed */}
+          <div style={{fontSize:9,color:"rgba(255,255,255,.6)",marginTop:2,
+            display:"flex",gap:5,flexWrap:"wrap"}}>
+            {data.province && <span>จ.{data.province.slice(0,7)}</span>}
+            {data.startTime && (
+              <span style={{color:"rgba(255,224,0,.8)"}}>
+                {getElapsed(data.startTime)}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Progress — ยืดได้ */}
+        {/* Progress */}
         {real.length > 0 && (
-          <div style={{flex:1,minWidth:40}}>
+          <div style={{flex:1,minWidth:50}}>
             <div style={{display:"flex",justifyContent:"flex-end",marginBottom:2}}>
               <span style={{fontSize:10,fontWeight:900,color:"#fff"}}>{prog}%</span>
             </div>
@@ -815,44 +829,48 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
         )}
         {real.length === 0 && <div style={{flex:1}}/>}
 
-        {/* Buttons — icon only, ไม่หด */}
-        <div style={{display:"flex",alignItems:"center",gap:3,flexShrink:0}}>
+        {/* Buttons — เพิ่ม gap และทำให้ปุ่ม Cancel โดดเด่นขึ้น */}
+        <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
           {/* Status badge */}
           <span style={{background:isWait?"#FFE000":"rgba(255,255,255,.18)",
             color:isWait?"#1A1A1A":"#fff",
-            borderRadius:8,padding:"2px 6px",fontSize:10,fontWeight:800,whiteSpace:"nowrap"}}>
+            borderRadius:8,padding:"3px 7px",fontSize:10,fontWeight:800,whiteSpace:"nowrap"}}>
             {isWait?"⏳":"🔧"}
           </span>
 
           <button onClick={() => onAddJobs(String(qNo))}
-            style={{width:28,height:28,borderRadius:7,border:"1.5px solid rgba(255,255,255,.3)",
-              background:"transparent",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",
+            style={{width:30,height:30,borderRadius:8,
+              border:"1.5px solid rgba(255,255,255,.35)",
+              background:"transparent",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",
               display:"flex",alignItems:"center",justifyContent:"center"}}>
             ➕
           </button>
 
           {isWait && real.length > 0 && (
             <button onClick={handleStart} disabled={busy}
-              style={{height:28,padding:"0 8px",borderRadius:7,border:"none",
-                background:"#FFE000",color:"#1A1A1A",fontSize:11,fontWeight:800,
+              style={{height:30,padding:"0 10px",borderRadius:8,border:"none",
+                background:"#FFE000",color:"#1A1A1A",fontSize:12,fontWeight:800,
                 cursor:"pointer",whiteSpace:"nowrap",
                 fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              ▶เริ่ม
+              ▶ เริ่ม
             </button>
           )}
           {isIn && (
             <button onClick={handleClose} disabled={busy}
-              style={{height:28,padding:"0 8px",borderRadius:7,border:"none",
-                background:"#fff",color:"#059669",fontSize:11,fontWeight:900,
+              style={{height:30,padding:"0 10px",borderRadius:8,border:"none",
+                background:"#fff",color:"#059669",fontSize:12,fontWeight:900,
                 cursor:"pointer",whiteSpace:"nowrap",
                 fontFamily:"'Noto Sans Thai',sans-serif"}}>
               ✓
             </button>
           )}
+
+          {/* Cancel — border ขาวเพื่อให้โดดเด่นจาก border การ์ด */}
           <button onClick={handleCancelCar} disabled={busy}
-            title="ยกเลิกรถ"
-            style={{width:28,height:28,borderRadius:7,border:"none",
-              background:"#dc2626",color:"#fff",fontSize:12,cursor:"pointer",
+            title="ยกเลิกรถ (ไม่แจ้ง LINE)"
+            style={{width:30,height:30,borderRadius:8,
+              border:"2px solid rgba(255,255,255,0.6)",
+              background:"#dc2626",color:"#fff",fontSize:13,cursor:"pointer",
               display:"flex",alignItems:"center",justifyContent:"center",
               opacity:busy?0.5:1}}>
             🚫
