@@ -797,6 +797,7 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
           <div style={{fontSize:9,color:"rgba(255,255,255,.6)",marginTop:1,display:"flex",gap:4,
             whiteSpace:"nowrap"}}>
             {data.province && <span>จ.{data.province.slice(0,6)}</span>}
+            {data.phone && <span>📞{data.phone}</span>}
             {data.startTime && <span style={{color:"rgba(255,224,0,.8)"}}>{getElapsed(data.startTime)}</span>}
           </div>
         </div>
