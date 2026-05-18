@@ -792,12 +792,11 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
         <div style={{flexShrink:1,minWidth:0,overflow:"hidden"}}>
           <div style={{fontSize:20,fontWeight:900,color:"#FFE000",letterSpacing:"0.03em",
             lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-            {data.plate}
+            {data.plate}{data.phone ? ` · ${data.phone}` : ""}
           </div>
           <div style={{fontSize:9,color:"rgba(255,255,255,.6)",marginTop:1,display:"flex",gap:4,
             whiteSpace:"nowrap"}}>
             {data.province && <span>จ.{data.province.slice(0,6)}</span>}
-            {data.phone && <span>📞{data.phone}</span>}
             {data.startTime && <span style={{color:"rgba(255,224,0,.8)"}}>{getElapsed(data.startTime)}</span>}
           </div>
         </div>
