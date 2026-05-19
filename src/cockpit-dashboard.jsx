@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
-const CLOUDINARY_CLOUD  = "dnmzyoobh";
+const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
 
 // CockpitSure logo — transparent bg, yellow badge only
@@ -1034,7 +1034,11 @@ function StaffView() {
             style={{flex:1,padding:"5px 10px",borderRadius:8,border:"1.5px solid #e5e7eb",
               fontSize:13,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",
               background:"#fff",cursor:"pointer",outline:"none"}}>
-            {branches.map(b => (
+            {[...branches].sort((a,b)=>{
+                const at=a.name.toLowerCase().includes("test")?1:0;
+                const bt=b.name.toLowerCase().includes("test")?1:0;
+                return at-bt||a.name.localeCompare(b.name,"th");
+              }).map(b => (
               <option key={b.branchId} value={b.branchId}>{b.name}</option>
             ))}
           </select>
@@ -1191,7 +1195,7 @@ function VideoView() {
             border:"1.5px solid #e5e7eb",fontSize:13,fontWeight:700,
             fontFamily:"'Noto Sans Thai',sans-serif",background:"#fff",
             cursor:"pointer",outline:"none"}}>
-          {overview.map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+          {[...overview].sort((a,b)=>{ const at=a.name.toLowerCase().includes("test")?1:0, bt=b.name.toLowerCase().includes("test")?1:0; return at-bt||a.name.localeCompare(b.name,"th"); }).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
         </select>
         <button onClick={()=>selBranch&&loadVideos(selBranch)}
           style={{padding:"5px 12px",borderRadius:8,border:"1px solid #d1d5db",
@@ -1454,9 +1458,7 @@ function HistoryView() {
             style={{ width:"100%", padding:"8px 10px", borderRadius:8, border:"none",
               fontSize:13, fontWeight:700, fontFamily:"'Noto Sans Thai',sans-serif",
               background:"#2a2a2a", color:"#fff", cursor:"pointer", outline:"none" }}>
-            {overview.map(b => (
-              <option key={b.branchId} value={b.branchId}>{b.name}</option>
-            ))}
+            {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;return at-bt||a.name.localeCompare(b.name,"th");}).map(b=>(<option key={b.branchId} value={b.branchId}>{b.name}</option>))}
           </select>
         </div>
 
@@ -1668,7 +1670,7 @@ function AdminView() {
         <select value={selBranch||""} onChange={e=>selectBranch(e.target.value)}
           style={{padding:"4px 10px",borderRadius:8,border:"1px solid #444",background:"#2a2a2a",
             color:"#fff",fontSize:12,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",cursor:"pointer",outline:"none"}}>
-          {overview.map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+          {[...overview].sort((a,b)=>{ const at=a.name.toLowerCase().includes("test")?1:0, bt=b.name.toLowerCase().includes("test")?1:0; return at-bt||a.name.localeCompare(b.name,"th"); }).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
         </select>
         {/* Stats */}
         <div style={{display:"flex",alignItems:"center",gap:6}}>
