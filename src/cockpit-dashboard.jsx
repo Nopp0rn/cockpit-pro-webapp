@@ -1221,13 +1221,13 @@ function VideoView() {
 
               {/* Thumbnail / Player */}
               {playingId === v.id ? (
-                <video src={v.videoUrl} controls autoPlay playsInline
+                <video src={v.video_url} controls autoPlay playsInline
                   style={{width:"100%",aspectRatio:"9/16",objectFit:"cover",display:"block",background:"#000"}}/>
               ) : (
                 <div style={{position:"relative",cursor:"pointer",aspectRatio:"9/16",
                   background:"#1A1A1A",overflow:"hidden"}}
                   onClick={()=>setPlayingId(v.id)}>
-                  <img src={thumbUrl(v.videoUrl)} alt=""
+                  <img src={thumbUrl(v.video_url)} alt=""
                     style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
                     onError={e=>{e.target.style.display="none";}}/>
                   {/* Play button overlay */}
@@ -1252,13 +1252,13 @@ function VideoView() {
                   <div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>จ.{v.province}</div>
                 )}
                 <div style={{fontSize:10,color:"#9ca3af",marginTop:4}}>
-                  {formatDate(v.uploadedAt)}
+                  {formatDate(v.uploaded_at)}
                 </div>
               </div>
 
               {/* Actions */}
               <div style={{display:"flex",gap:6,padding:"0 10px 10px"}}>
-                <a href={v.videoUrl} target="_blank" rel="noreferrer"
+                <a href={v.video_url} target="_blank" rel="noreferrer"
                   style={{flex:1,padding:"6px 0",borderRadius:8,border:"1px solid #e5e7eb",
                     background:"#f9fafb",color:"#374151",fontSize:12,fontWeight:700,
                     cursor:"pointer",textDecoration:"none",textAlign:"center",
@@ -1266,7 +1266,7 @@ function VideoView() {
                   🔗 เปิด
                 </a>
                 <button onClick={()=>{
-                    const dlUrl = v.videoUrl.replace('/upload/','/upload/fl_attachment/');
+                    const dlUrl = v.video_url.replace('/upload/','/upload/fl_attachment/');
                     const a = document.createElement('a');
                     a.href = dlUrl;
                     a.target = '_blank';
