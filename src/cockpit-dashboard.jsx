@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
-const CLOUDINARY_CLOUD  = "YOUR_CLOUD_NAME";
+const CLOUDINARY_CLOUD  = "dnmzyoobh";
 const CLOUDINARY_PRESET = "cockpit_unsigned";
 
 // CockpitSure logo — transparent bg, yellow badge only
@@ -48,11 +48,16 @@ const getNextQNo = (queues) => {
 };
 
 const callAPI = async (method, path, body) => {
-  const r = await fetch(`${API}${path}`, {
-    method, headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return r.json();
+  try {
+    const r = await fetch(`${API}${path}`, {
+      method, headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    try { return await r.json(); }
+    catch { return { error: `Server error (${r.status})` }; }
+  } catch(e) {
+    return { error: e.message || "Network error" };
+  }
 };
 
 // ─── Brand Logo ───────────────────────────────────────────────────────────────
@@ -193,14 +198,20 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       // Record from canvas stream (has logo)
       const canvasStream = canvas.captureStream(30);
       streamRef.current?.getAudioTracks().forEach(t => canvasStream.addTrack(t));
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9" : "video/webm";
-      const mr = new MediaRecorder(canvasStream, {mimeType});
+      const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
+        ? "video/mp4;codecs=h264,aac"
+        : MediaRecorder.isTypeSupported("video/mp4")
+        ? "video/mp4"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : "video/webm";
+      const mr = new MediaRecorder(canvasStream, mimeType ? {mimeType} : {});
       mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
       mr.onstop = () => {
         cancelAnimationFrame(animRef.current);
         if (chunksRef.current.length===0) return;
-        const blob = new Blob(chunksRef.current, {type:"video/webm"});
+        const finalType = mr.mimeType || mimeType;
+        const blob = new Blob(chunksRef.current, {type: finalType});
         setVideoBlob(blob);
         setPreviewUrl(URL.createObjectURL(blob));
         streamRef.current?.getTracks().forEach(t=>t.stop());
@@ -249,7 +260,9 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     setPhase("uploading");
     try {
       const fd = new FormData();
-      fd.append("file", videoBlob, `cs_${data.plate}_${Date.now()}.webm`);
+      const ext = videoBlob.type.includes("mp4") ? "mp4"
+        : videoBlob.type.includes("quicktime") ? "mov" : "webm";
+      fd.append("file", videoBlob, `cs_${data.plate}_${Date.now()}.${ext}`);
       fd.append("upload_preset", CLOUDINARY_PRESET);
       fd.append("resource_type", "video");
       const upRes  = await fetch(
@@ -260,7 +273,11 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       // เพิ่มโลโก้ CockpitSure ผ่าน Cloudinary transformation (ไม่ต้องใช้ canvas)
       // Upload โลโก้แยกต่างหากที่ Cloudinary แล้วตั้งชื่อ public_id ว่า "cockpitsure_logo"
       // ตัวอย่าง URL: .../upload/l_cockpitsure_logo,w_0.5,g_north_west,x_20,y_20/v.../file.webm
-      if (!upData.secure_url) {
+      // แปลง URL ให้เป็น MP4 เสมอ (Cloudinary auto-transcode)
+      const videoUrl = upData.secure_url
+        ? upData.secure_url.replace(/\.webm$/, '.mp4').replace(/\.mov$/, '.mp4')
+        : null;
+      if (!videoUrl) {
         const msg = upData.error?.message || "Upload ไม่สำเร็จ";
         if (msg.includes("Unknown API key")||msg.includes("api_key"))
           throw new Error("Upload Preset ยังไม่ถูกต้อง\ncloudinary.com → Settings\n→ Upload Presets → cockpit_unsigned\n→ Signing Mode: Unsigned → Save");
@@ -272,7 +289,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       // รอ 500ms ให้ LINE ส่ง status ไปก่อน แล้วค่อยส่ง video link ตาม
       await new Promise(r => setTimeout(r, 500));
       await callAPI("POST",`/api/branch/${branchId}/bay/${qNo}/send-video`,
-        {videoUrl:upData.secure_url, plate:data.plate});
+        {videoUrl: videoUrl, plate: data.plate});
       setPhase("done");
       setTimeout(()=>{ onSuccess(); onClose(); }, 2000);
     } catch(e) { setError(e.message); setPhase("error"); }
@@ -748,7 +765,7 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
   const isWait = data.bayStatus === "waiting_entry";
   const isIn   = data.bayStatus === "in_service";
 
-  const run = async (fn) => { setBusy(true); try { await fn(); } finally { setBusy(false); } };
+  const run = async (fn) => { setBusy(true); try { await fn(); } catch(e) { console.error("run:", e.message); } finally { setBusy(false); } };
 
   const handleStart = () => run(async () => {
     await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/start`, {});
@@ -1037,7 +1054,10 @@ function StaffView() {
             {[...branches].sort((a,b)=>{
                 const at=a.name.toLowerCase().includes("test")?1:0;
                 const bt=b.name.toLowerCase().includes("test")?1:0;
-                return at-bt||a.name.localeCompare(b.name,"th");
+                if(at!==bt) return at-bt;
+                const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999;
+                const bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;
+                return ai-bi;
               }).map(b => (
               <option key={b.branchId} value={b.branchId}>{b.name}</option>
             ))}
@@ -1195,7 +1215,7 @@ function VideoView() {
             border:"1.5px solid #e5e7eb",fontSize:13,fontWeight:700,
             fontFamily:"'Noto Sans Thai',sans-serif",background:"#fff",
             cursor:"pointer",outline:"none"}}>
-          {[...overview].sort((a,b)=>{ const at=a.name.toLowerCase().includes("test")?1:0, bt=b.name.toLowerCase().includes("test")?1:0; return at-bt||a.name.localeCompare(b.name,"th"); }).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+          {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
         </select>
         <button onClick={()=>selBranch&&loadVideos(selBranch)}
           style={{padding:"5px 12px",borderRadius:8,border:"1px solid #d1d5db",
@@ -1274,7 +1294,9 @@ function VideoView() {
                     const a = document.createElement('a');
                     a.href = dlUrl;
                     a.target = '_blank';
-                    a.download = `cockpitsure_${v.plate}.webm`;
+                    const dlExt = (v.video_url||"").includes(".mp4") ? "mp4"
+                      : (v.video_url||"").includes(".mov") ? "mov" : "webm";
+                    a.download = `cockpitsure_${v.plate}.${dlExt}`;
                     a.click();
                   }}
                   style={{flex:1,padding:"6px 0",borderRadius:8,border:"none",
@@ -1458,7 +1480,7 @@ function HistoryView() {
             style={{ width:"100%", padding:"8px 10px", borderRadius:8, border:"none",
               fontSize:13, fontWeight:700, fontFamily:"'Noto Sans Thai',sans-serif",
               background:"#2a2a2a", color:"#fff", cursor:"pointer", outline:"none" }}>
-            {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;return at-bt||a.name.localeCompare(b.name,"th");}).map(b=>(<option key={b.branchId} value={b.branchId}>{b.name}</option>))}
+            {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=>(<option key={b.branchId} value={b.branchId}>{b.name}</option>))}
           </select>
         </div>
 
@@ -1670,7 +1692,7 @@ function AdminView() {
         <select value={selBranch||""} onChange={e=>selectBranch(e.target.value)}
           style={{padding:"4px 10px",borderRadius:8,border:"1px solid #444",background:"#2a2a2a",
             color:"#fff",fontSize:12,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",cursor:"pointer",outline:"none"}}>
-          {[...overview].sort((a,b)=>{ const at=a.name.toLowerCase().includes("test")?1:0, bt=b.name.toLowerCase().includes("test")?1:0; return at-bt||a.name.localeCompare(b.name,"th"); }).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+          {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
         </select>
         {/* Stats */}
         <div style={{display:"flex",alignItems:"center",gap:6}}>
