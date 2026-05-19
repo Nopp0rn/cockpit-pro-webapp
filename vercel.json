@@ -9,8 +9,8 @@
       "destination": "/display.html?branch=:branch"
     },
     {
-      "source": "/((?!display\\.html|icons|manifest\\.json|sw\\.js|register\\.html).*)",
-      "destination": "/"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
