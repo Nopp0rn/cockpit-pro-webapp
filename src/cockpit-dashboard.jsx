@@ -268,7 +268,11 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       // เพิ่มโลโก้ CockpitSure ผ่าน Cloudinary transformation (ไม่ต้องใช้ canvas)
       // Upload โลโก้แยกต่างหากที่ Cloudinary แล้วตั้งชื่อ public_id ว่า "cockpitsure_logo"
       // ตัวอย่าง URL: .../upload/l_cockpitsure_logo,w_0.5,g_north_west,x_20,y_20/v.../file.webm
-      if (!upData.secure_url) {
+      // แปลง URL ให้เป็น MP4 เสมอ (Cloudinary auto-transcode)
+      const videoUrl = upData.secure_url
+        ? upData.secure_url.replace(/\.webm$/, '.mp4').replace(/\.mov$/, '.mp4')
+        : null;
+      if (!videoUrl) {
         const msg = upData.error?.message || "Upload ไม่สำเร็จ";
         if (msg.includes("Unknown API key")||msg.includes("api_key"))
           throw new Error("Upload Preset ยังไม่ถูกต้อง\ncloudinary.com → Settings\n→ Upload Presets → cockpit_unsigned\n→ Signing Mode: Unsigned → Save");
@@ -280,7 +284,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       // รอ 500ms ให้ LINE ส่ง status ไปก่อน แล้วค่อยส่ง video link ตาม
       await new Promise(r => setTimeout(r, 500));
       await callAPI("POST",`/api/branch/${branchId}/bay/${qNo}/send-video`,
-        {videoUrl:upData.secure_url, plate:data.plate});
+        {videoUrl: videoUrl, plate: data.plate});
       setPhase("done");
       setTimeout(()=>{ onSuccess(); onClose(); }, 2000);
     } catch(e) { setError(e.message); setPhase("error"); }
