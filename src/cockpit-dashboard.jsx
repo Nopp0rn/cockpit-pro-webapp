@@ -193,14 +193,20 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       // Record from canvas stream (has logo)
       const canvasStream = canvas.captureStream(30);
       streamRef.current?.getAudioTracks().forEach(t => canvasStream.addTrack(t));
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9" : "video/webm";
-      const mr = new MediaRecorder(canvasStream, {mimeType});
+      const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
+        ? "video/mp4;codecs=h264,aac"
+        : MediaRecorder.isTypeSupported("video/mp4")
+        ? "video/mp4"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : "video/webm";
+      const mr = new MediaRecorder(canvasStream, mimeType ? {mimeType} : {});
       mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
       mr.onstop = () => {
         cancelAnimationFrame(animRef.current);
         if (chunksRef.current.length===0) return;
-        const blob = new Blob(chunksRef.current, {type:"video/webm"});
+        const finalType = mr.mimeType || mimeType;
+        const blob = new Blob(chunksRef.current, {type: finalType});
         setVideoBlob(blob);
         setPreviewUrl(URL.createObjectURL(blob));
         streamRef.current?.getTracks().forEach(t=>t.stop());
@@ -249,7 +255,9 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     setPhase("uploading");
     try {
       const fd = new FormData();
-      fd.append("file", videoBlob, `cs_${data.plate}_${Date.now()}.webm`);
+      const ext = videoBlob.type.includes("mp4") ? "mp4"
+        : videoBlob.type.includes("quicktime") ? "mov" : "webm";
+      fd.append("file", videoBlob, `cs_${data.plate}_${Date.now()}.${ext}`);
       fd.append("upload_preset", CLOUDINARY_PRESET);
       fd.append("resource_type", "video");
       const upRes  = await fetch(
@@ -1277,7 +1285,9 @@ function VideoView() {
                     const a = document.createElement('a');
                     a.href = dlUrl;
                     a.target = '_blank';
-                    a.download = `cockpitsure_${v.plate}.webm`;
+                    const dlExt = (v.video_url||"").includes(".mp4") ? "mp4"
+                      : (v.video_url||"").includes(".mov") ? "mov" : "webm";
+                    a.download = `cockpitsure_${v.plate}.${dlExt}`;
                     a.click();
                   }}
                   style={{flex:1,padding:"6px 0",borderRadius:8,border:"none",
