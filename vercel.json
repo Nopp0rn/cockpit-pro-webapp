@@ -9,7 +9,7 @@
       "destination": "/display.html?branch=:branch"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!.*\\.).*)",
       "destination": "/index.html"
     }
   ]
