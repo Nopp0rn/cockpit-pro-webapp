@@ -1346,6 +1346,7 @@ function HistoryView() {
   const [detLoad,     setDetLoad]     = useState(false);
   const [fromDate,    setFromDate]    = useState(getWeekAgo());
   const [toDate,      setToDate]      = useState(getToday());
+  const [selJobs,     setSelJobs]     = useState([]); // job name filter
 
   // ── doLoad must be defined BEFORE useEffect ────────────────────────────────
   async function doLoad(id, from, to) {
@@ -1397,7 +1398,7 @@ function HistoryView() {
   function exportCSV() {
     const BOM = "\uFEFF";
     const hdrs = ["วันที่","เวลา","ทะเบียน","จังหวัด","สาขา","รายการงาน","จำนวนงาน"];
-    const rows = history.map(h => {
+    const rows = filteredHistory.map(h => {
       const d = new Date(h.closedAt);
       const jobs = (h.jobs || []).filter(j => j.name !== "รับรถเข้า");
       return [
@@ -1420,7 +1421,7 @@ function HistoryView() {
 
   // ── Export Excel (HTML→XLS) ────────────────────────────────────────────────
   function exportExcel() {
-    const rows = history.map(h => {
+    const rows = filteredHistory.map(h => {
       const d = new Date(h.closedAt);
       const jobs = (h.jobs || []).filter(j => j.name !== "รับรถเข้า");
       return "<tr><td>" + [
@@ -1452,6 +1453,19 @@ function HistoryView() {
   const jobCount = {};
   allJobs.forEach(j => { jobCount[j.name] = (jobCount[j.name] || 0) + 1; });
   const topJobs = Object.entries(jobCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  // Job names for filter chips (all unique jobs in result)
+  const allJobNames = Object.keys(jobCount).sort((a,b) =>
+    (jobCount[b]||0) - (jobCount[a]||0)
+  );
+
+  // Filtered history by selected jobs
+  const filteredHistory = selJobs.length === 0 ? history : history.filter(h =>
+    selJobs.every(j => (h.jobs||[]).some(jb => jb.name === j))
+  );
+
+  const toggleJob = (name) =>
+    setSelJobs(prev => prev.includes(name) ? prev.filter(x=>x!==name) : [...prev, name]);
 
   if (loading) return (
     <div style={{ textAlign:"center", padding:40, color:"#9ca3af" }}>⏳ กำลังโหลด...</div>
@@ -1527,6 +1541,44 @@ function HistoryView() {
             fontFamily:"'Noto Sans Thai',sans-serif" }}>
           {detLoad ? "⏳ กำลังโหลด..." : "🔍 ค้นหา"}
         </button>
+
+        {/* Job filter chips */}
+        {allJobNames.length > 0 && (
+          <div style={{ marginTop:12 }}>
+            <div style={{ fontSize:10, fontWeight:800, color:"#FFE000",
+              letterSpacing:"0.5px", marginBottom:6 }}>
+              🔧 กรองตามประเภทงาน {selJobs.length > 0 &&
+                <span style={{ color:"#9ca3af", fontWeight:600 }}>
+                  ({selJobs.length} เลือก)
+                </span>}
+            </div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+              {allJobNames.map(name => (
+                <button key={name} onClick={() => toggleJob(name)}
+                  style={{ padding:"4px 10px", borderRadius:20,
+                    border: selJobs.includes(name) ? "none" : "1px solid #444",
+                    background: selJobs.includes(name) ? "#FFE000" : "#2a2a2a",
+                    color: selJobs.includes(name) ? "#1A1A1A" : "#ccc",
+                    fontSize:11, fontWeight:700, cursor:"pointer",
+                    fontFamily:"'Noto Sans Thai',sans-serif" }}>
+                  {name}
+                  <span style={{ marginLeft:4, opacity:0.65 }}>
+                    {jobCount[name]}
+                  </span>
+                </button>
+              ))}
+              {selJobs.length > 0 && (
+                <button onClick={() => setSelJobs([])}
+                  style={{ padding:"4px 10px", borderRadius:20,
+                    border:"1px solid #dc2626", background:"transparent",
+                    color:"#dc2626", fontSize:11, fontWeight:700, cursor:"pointer",
+                    fontFamily:"'Noto Sans Thai',sans-serif" }}>
+                  ✕ ล้างตัวกรอง
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Results ── */}
@@ -1535,7 +1587,7 @@ function HistoryView() {
           {/* Stats */}
           <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:6, marginBottom:10 }}>
             {[
-              { v: history.length, l:"รถทั้งหมด",  bg:"#FFE000", c:"#1A1A1A" },
+              { v: filteredHistory.length, l: selJobs.length?"รถที่กรอง":"รถทั้งหมด", bg:"#FFE000", c:"#1A1A1A" },
               { v: allJobs.length, l:"งานทั้งหมด", bg:"#1A1A1A", c:"#FFE000" },
               { v: topJobs[0] ? topJobs[0][0] : "-", l:"งานยอดนิยม", bg:"#059669", c:"#fff" },
               { v: topJobs[0] ? topJobs[0][1] : 0,  l:"ครั้ง",       bg:"#d97706", c:"#fff" },
@@ -1586,7 +1638,7 @@ function HistoryView() {
                 <div key={h} style={{ fontSize:10, fontWeight:800, color:"#FFE000" }}>{h}</div>
               ))}
             </div>
-            {history.slice(0, 200).map((h, i) => {
+            {filteredHistory.slice(0, 200).map((h, i) => {
               const jobs = (h.jobs || []).filter(j => j.name !== "รับรถเข้า");
               const d = new Date(h.closedAt);
               return (
@@ -1609,10 +1661,10 @@ function HistoryView() {
                 </div>
               );
             })}
-            {history.length > 200 && (
+            {filteredHistory.length > 200 && (
               <div style={{ textAlign:"center", padding:10, fontSize:11,
                 color:"#9ca3af", background:"#fafafa" }}>
-                แสดง 200 จาก {history.length} รายการ — กด Export เพื่อดูทั้งหมด
+                แสดง 200 จาก {filteredHistory.length} รายการ — กด Export เพื่อดูทั้งหมด
               </div>
             )}
           </div>
