@@ -100,6 +100,27 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const openCamera = async (facing) => {
     const f = facing ?? facingMode;
     streamRef.current?.getTracks().forEach(t => t.stop());
+
+    // ตรวจ LINE in-app browser บน iOS
+    const ua = navigator.userAgent || "";
+    const isLineBrowser = /Line\//.test(ua) || /LIFF/.test(ua);
+    const isIOS = /iPad|iPhone|iPod/.test(ua);
+
+    if (isLineBrowser && isIOS) {
+      setError(
+        "กล้องไม่รองรับใน LINE Browser\n\n" +
+        "กรุณาเปิดในเบราว์เซอร์ Safari:\n" +
+        "กด ··· มุมขวาบน → เปิดใน Browser"
+      );
+      setPhase("error");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("Browser นี้ไม่รองรับกล้อง\nกรุณาเปิดใน Safari หรือ Chrome");
+      setPhase("error");
+      return;
+    }
+
     try {
       const s = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: f, width:{ideal:1280}, height:{ideal:720} },
@@ -116,7 +137,12 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         setStream(s);
       }, 100);
     } catch(e) {
-      setError("ไม่สามารถเปิดกล้องได้\nกรุณาอนุญาตการใช้กล้องใน Settings");
+      const msg = e.name === "NotAllowedError"
+        ? "ไม่ได้รับอนุญาตใช้กล้อง\nกรุณาไปที่ Settings → Safari → กล้อง → อนุญาต"
+        : e.name === "NotFoundError"
+        ? "ไม่พบกล้องในอุปกรณ์นี้"
+        : `เปิดกล้องไม่ได้: ${e.message}`;
+      setError(msg);
       setPhase("error");
     }
   };
