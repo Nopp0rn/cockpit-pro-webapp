@@ -1006,7 +1006,7 @@ function StaffView() {
         const hd = await hr.json();
         const today = new Date().toDateString();
         setTodayHistory((hd.history||[]).filter(h =>
-          h.closedAt && new Date(h.closedAt).toDateString() === today && !h.cancelled
+          h.closed_at && new Date(h.closed_at).toDateString() === today && !h.cancelled
         ));
       } catch {}
     } catch {}
@@ -1123,7 +1123,7 @@ function StaffView() {
                 </div>
                 <div style={{fontSize:10,color:"#9ca3af"}}>
                   {h.province ? `จ.${h.province} · ` : ""}
-                  ปิด {new Date(h.closedAt).toLocaleTimeString("th-TH",
+                  ปิด {new Date(h.closed_at).toLocaleTimeString("th-TH",
                     {hour:"2-digit",minute:"2-digit"})}น.
                   {" · "}{(h.jobs||[]).filter(j=>j.name!=="รับรถเข้า").map(j=>j.name).join(", ")}
                 </div>
@@ -1399,7 +1399,7 @@ function HistoryView() {
     const BOM = "\uFEFF";
     const hdrs = ["วันที่","เวลา","ทะเบียน","จังหวัด","สาขา","รายการงาน","จำนวนงาน"];
     const rows = filteredHistory.map(h => {
-      const d = new Date(h.closedAt);
+      const d = new Date(h.closed_at);
       const jobs = (h.jobs || []).filter(j => j.name !== "รับรถเข้า");
       return [
         d.toLocaleDateString("th-TH"),
@@ -1422,7 +1422,7 @@ function HistoryView() {
   // ── Export Excel (HTML→XLS) ────────────────────────────────────────────────
   function exportExcel() {
     const rows = filteredHistory.map(h => {
-      const d = new Date(h.closedAt);
+      const d = new Date(h.closed_at);
       const jobs = (h.jobs || []).filter(j => j.name !== "รับรถเข้า");
       return "<tr><td>" + [
         d.toLocaleDateString("th-TH"),
@@ -1640,7 +1640,7 @@ function HistoryView() {
             </div>
             {filteredHistory.slice(0, 200).map((h, i) => {
               const jobs = (h.jobs || []).filter(j => j.name !== "รับรถเข้า");
-              const d = new Date(h.closedAt);
+              const d = new Date(h.closed_at);
               return (
                 <div key={i} style={{ display:"grid",
                   gridTemplateColumns:"50px 80px 55px 1fr 44px",
