@@ -1059,7 +1059,7 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
 // ─── Staff View ───────────────────────────────────────────────────────────────
 function StaffView() {
   const [branches, setBranches]     = useState([]);
-  const [branchId, setBranchId]     = useState(null);
+  const [branchId, setBranchId]     = useState(() => localStorage.getItem("lockedBranch") || null);
   const [queues, setQueues]         = useState({});
   const [branchName, setBranchName] = useState("Cockpit Pro");
   const [loading, setLoading]       = useState(true);
@@ -1067,6 +1067,19 @@ function StaffView() {
   const [addTarget, setAddTarget]   = useState(null);
   const [completion, setCompletion] = useState(null);
   const [todayHistory, setTodayHistory] = useState([]);
+  const [locked, setLocked]         = useState(() => !!localStorage.getItem("lockedBranch"));
+
+  const handleLock = () => {
+    if (locked) {
+      if (!window.confirm("ปลดล็อคสาขา?\nพนักงานจะสามารถเปลี่ยนสาขาได้")) return;
+      localStorage.removeItem("lockedBranch");
+      setLocked(false);
+    } else {
+      if (!branchId) return;
+      localStorage.setItem("lockedBranch", branchId);
+      setLocked(true);
+    }
+  };
 
   // โหลดรายชื่อสาขาจาก API
   useEffect(() => {
@@ -1075,9 +1088,14 @@ function StaffView() {
       .then(d => {
         const list = d.overview || [];
         setBranches(list);
-        if (list.length) setBranchId(list[0].branchId);
+        const saved = localStorage.getItem("lockedBranch");
+        if (saved && list.some(b => b.branchId === saved)) {
+          setBranchId(saved); // ใช้สาขาที่ lock ไว้
+        } else if (!branchId && list.length) {
+          setBranchId(list[0].branchId);
+        }
       })
-      .catch(() => setBranchId("BR107"));
+      .catch(() => {});
   }, []);
 
   const fetch_ = useCallback(async () => {
@@ -1128,27 +1146,46 @@ function StaffView() {
   return (
     <div style={{paddingBottom:80}}>
 
-      {/* Branch selector dropdown */}
+      {/* Branch selector + Lock button */}
       {branches.length > 0 && (
         <div style={{padding:"6px 12px 2px",display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:12,fontWeight:700,color:"#6b7280",flexShrink:0}}>📍 สาขา:</span>
-          <select
-            value={branchId||""}
-            onChange={e => setBranchId(e.target.value)}
-            style={{flex:1,padding:"5px 10px",borderRadius:8,border:"1.5px solid #e5e7eb",
-              fontSize:13,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",
-              background:"#fff",cursor:"pointer",outline:"none"}}>
-            {[...branches].sort((a,b)=>{
-                const at=a.name.toLowerCase().includes("test")?1:0;
-                const bt=b.name.toLowerCase().includes("test")?1:0;
-                if(at!==bt) return at-bt;
-                const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999;
-                const bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;
-                return ai-bi;
-              }).map(b => (
-              <option key={b.branchId} value={b.branchId}>{b.name}</option>
-            ))}
-          </select>
+          {locked ? (
+            <div style={{flex:1,padding:"5px 10px",borderRadius:8,
+              border:"2px solid #059669",background:"#f0fdf4",
+              fontSize:13,fontWeight:900,color:"#065f46",
+              display:"flex",alignItems:"center",gap:6}}>
+              🔒 {branchName}
+            </div>
+          ) : (
+            <select
+              value={branchId||""}
+              onChange={e => setBranchId(e.target.value)}
+              style={{flex:1,padding:"5px 10px",borderRadius:8,border:"1.5px solid #e5e7eb",
+                fontSize:13,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",
+                background:"#fff",cursor:"pointer",outline:"none"}}>
+              {[...branches].sort((a,b)=>{
+                  const at=a.name.toLowerCase().includes("test")?1:0;
+                  const bt=b.name.toLowerCase().includes("test")?1:0;
+                  if(at!==bt) return at-bt;
+                  const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999;
+                  const bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;
+                  return ai-bi;
+                }).map(b => (
+                <option key={b.branchId} value={b.branchId}>{b.name}</option>
+              ))}
+            </select>
+          )}
+          <button onClick={handleLock}
+            title={locked ? "ปลดล็อคสาขา" : "ล็อคสาขานี้"}
+            style={{flexShrink:0,width:34,height:34,borderRadius:8,
+              border:`2px solid ${locked?"#059669":"#d1d5db"}`,
+              background: locked?"#059669":"#fff",
+              color: locked?"#fff":"#6b7280",
+              fontSize:16,cursor:"pointer",
+              display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {locked ? "🔒" : "🔓"}
+          </button>
         </div>
       )}
 
