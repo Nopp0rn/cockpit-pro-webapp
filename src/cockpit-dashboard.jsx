@@ -996,7 +996,10 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
 }
 
 // ─── Staff View ───────────────────────────────────────────────────────────────
-function StaffView({ branchId: propBranchId, branchName: propBranchName, locked }) {
+function StaffView(props) {
+  const propBranchId = props.branchId;
+  const propBranchName = props.branchName;
+  const locked = props.locked;
   const [branches, setBranches]     = useState([]);
   const [branchId, setBranchId]     = useState(null);
   const [queues, setQueues]         = useState({});
@@ -1165,7 +1168,9 @@ function StaffView({ branchId: propBranchId, branchName: propBranchName, locked 
 
 // ─── Admin View (TV-optimized) ────────────────────────────────────────────────
 // ─── Video View ───────────────────────────────────────────────────────────────
-function VideoView({ branchId: propBranchId, branchName: propBranchName }) {
+function VideoView(props) {
+  const propBranchId = props.branchId;
+  const propBranchName = props.branchName;
   const [overview, setOverview] = useState([]);
   const [selBranch, setSelBranch] = useState(null);
   const [videos, setVideos] = useState([]);
@@ -1322,7 +1327,9 @@ function VideoView({ branchId: propBranchId, branchName: propBranchName }) {
 }
 
 // ─── History View ─────────────────────────────────────────────────────────────
-function HistoryView({ branchId: propBranchId, branchName: propBranchName }) {
+function HistoryView(props) {
+  const propBranchId = props.branchId;
+  const propBranchName = props.branchName;
   const getToday   = () => new Date().toISOString().split('T')[0];
   const getWeekAgo = () => new Date(Date.now()-7*24*60*60*1000).toISOString().split('T')[0];
 
@@ -1665,7 +1672,9 @@ function HistoryView({ branchId: propBranchId, branchName: propBranchName }) {
 
 
 // ─── Admin View (TV horizontal rows) ─────────────────────────────────────────
-function AdminView({ branchId: propBranchId, branchName: propBranchName }) {
+function AdminView(props) {
+  const propBranchId = props.branchId;
+  const propBranchName = props.branchName;
   const [overview, setOverview]   = useState([]);
   const [selBranch, setSelBranch] = useState(null);
   const [detail, setDetail]       = useState(null);
