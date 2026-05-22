@@ -1006,8 +1006,6 @@ function StaffView({ branchId: propBranchId, branchName: propBranchName, locked 
   const [addTarget, setAddTarget]   = useState(null);
   const [completion, setCompletion] = useState(null);
   const [todayHistory, setTodayHistory] = useState([]);
-
-  // sync สาขาจาก App
   useEffect(() => { if(propBranchId) setBranchId(propBranchId); }, [propBranchId]);
   useEffect(() => { if(propBranchName) setBranchName(propBranchName); }, [propBranchName]);
 
@@ -1071,29 +1069,6 @@ function StaffView({ branchId: propBranchId, branchName: propBranchName, locked 
   return (
     <div style={{paddingBottom:80}}>
 
-      {/* Branch selector dropdown */}
-      {branches.length > 0 && (
-        <div style={{padding:"6px 12px 2px",display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:12,fontWeight:700,color:"#6b7280",flexShrink:0}}>📍 สาขา:</span>
-          <select
-            value={branchId||""}
-            onChange={e => setBranchId(e.target.value)}
-            style={{flex:1,padding:"5px 10px",borderRadius:8,border:"1.5px solid #e5e7eb",
-              fontSize:13,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",
-              background:"#fff",cursor:"pointer",outline:"none"}}>
-            {[...branches].sort((a,b)=>{
-                const at=a.name.toLowerCase().includes("test")?1:0;
-                const bt=b.name.toLowerCase().includes("test")?1:0;
-                if(at!==bt) return at-bt;
-                const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999;
-                const bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;
-                return ai-bi;
-              }).map(b => (
-              <option key={b.branchId} value={b.branchId}>{b.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
 
       <div style={{padding:"4px 12px 2px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{fontSize:13,fontWeight:800,color:"#374151"}}>📍 {branchName}</div>
@@ -1238,23 +1213,6 @@ function VideoView({ branchId: propBranchId, branchName: propBranchName }) {
   return (
     <div style={{padding:"8px 12px",paddingBottom:40}}>
       {/* Branch selector + stats */}
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-        <span style={{fontSize:12,fontWeight:700,color:"#6b7280"}}>📍 สาขา:</span>
-        <select value={selBranch||""} onChange={e=>loadVideos(e.target.value)}
-          style={{flex:1,minWidth:0,padding:"5px 10px",borderRadius:8,
-            border:"1.5px solid #e5e7eb",fontSize:13,fontWeight:700,
-            fontFamily:"'Noto Sans Thai',sans-serif",background:"#fff",
-            cursor:"pointer",outline:"none"}}>
-          {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
-        </select>
-        <button onClick={()=>selBranch&&loadVideos(selBranch)}
-          style={{padding:"5px 12px",borderRadius:8,border:"1px solid #d1d5db",
-            background:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",
-            color:"#6b7280",fontFamily:"'Noto Sans Thai',sans-serif"}}>🔄</button>
-        {!detLoad && (
-          <span style={{fontSize:12,color:"#9ca3af"}}>{videos.length} คลิป</span>
-        )}
-      </div>
 
       {detLoad && <div style={{textAlign:"center",padding:30,color:"#9ca3af"}}>⏳</div>}
 
@@ -1371,8 +1329,6 @@ function HistoryView({ branchId: propBranchId, branchName: propBranchName }) {
   const [overview,    setOverview]    = useState([]);
   const [selBranch,   setSelBranch]   = useState(propBranchId||null);
   const [branchName,  setBranchName]  = useState(propBranchName||"");
-
-  // sync สาขาจาก App
   useEffect(() => { if(propBranchId) setSelBranch(propBranchId); }, [propBranchId]);
   const [history,     setHistory]     = useState([]);
   const [loading,     setLoading]     = useState(true);
@@ -1522,15 +1478,7 @@ function HistoryView({ branchId: propBranchId, branchName: propBranchName }) {
 
         {/* Branch selector */}
         <div style={{ marginBottom:10 }}>
-          <div style={{ fontSize:11, color:"#9ca3af", fontWeight:700, marginBottom:4 }}>สาขา</div>
-          <select value={selBranch || ""} onChange={onBranchChange}
-            style={{ width:"100%", padding:"8px 10px", borderRadius:8, border:"none",
-              fontSize:13, fontWeight:700, fontFamily:"'Noto Sans Thai',sans-serif",
-              background:"#2a2a2a", color:"#fff", cursor:"pointer", outline:"none" }}>
-            {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=>(<option key={b.branchId} value={b.branchId}>{b.name}</option>))}
-          </select>
-        </div>
-
+  
         {/* Date inputs */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
           <div>
@@ -1726,7 +1674,6 @@ function AdminView({ branchId: propBranchId, branchName: propBranchName }) {
   const [lastUpdate, setLastUpdate] = useState("");
 
   useEffect(() => { if(propBranchId) setSelBranch(propBranchId); }, [propBranchId]);
-
   const fetchOv = async () => {
     try {
       const r = await fetch(`${API}/api/admin/overview`);
@@ -1775,12 +1722,6 @@ function AdminView({ branchId: propBranchId, branchName: propBranchName }) {
           </div>
           <div style={{fontSize:14,fontWeight:900,color:"#fff"}}>{detail?.name||"..."}</div>
         </div>
-        {/* Branch dropdown */}
-        <select value={selBranch||""} onChange={e=>selectBranch(e.target.value)}
-          style={{padding:"4px 10px",borderRadius:8,border:"1px solid #444",background:"#2a2a2a",
-            color:"#fff",fontSize:12,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",cursor:"pointer",outline:"none"}}>
-          {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
-        </select>
         {/* Stats */}
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           {[{v:total,l:"ทั้งหมด",bg:"#FFE000",c:"#1A1A1A"},{v:inSrv,l:"ซ่อมอยู่",bg:"#059669",c:"#fff"},
@@ -1941,7 +1882,6 @@ export default function App() {
         @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
         @keyframes slideRight{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}
       `}</style>
-
       <div style={{background:"#1A1A1A",padding:"12px 16px 0",position:"sticky",top:0,zIndex:40,
         boxShadow:"0 2px 16px rgba(0,0,0,.5)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
@@ -1988,7 +1928,6 @@ export default function App() {
           ))}
         </div>
       </div>
-
       <div>
         {tab==="staff"   ? <StaffView   branchId={branchId} branchName={branchName} locked={locked}/> :
          tab==="admin"   ? <AdminView   branchId={branchId} branchName={branchName}/> :
