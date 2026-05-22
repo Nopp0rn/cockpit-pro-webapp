@@ -960,327 +960,7 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
         {real.length === 0 && <div style={{flex:1}}/>}
 
         {/* Buttons — เพิ่ม gap และทำให้ปุ่ม Cancel โดดเด่นขึ้น */}
-        <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
-          {/* Status badge */}
-          <span style={{background:isWait?"#FFE000":"rgba(255,255,255,.18)",
-            color:isWait?"#1A1A1A":"#fff",
-            borderRadius:8,padding:"3px 7px",fontSize:10,fontWeight:800,whiteSpace:"nowrap"}}>
-            {isWait?"⏳":"🔧"}
-          </span>
-
-          <button onClick={() => onAddJobs(String(qNo))}
-            style={{width:30,height:30,borderRadius:8,
-              border:"1.5px solid rgba(255,255,255,.35)",
-              background:"transparent",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",
-              display:"flex",alignItems:"center",justifyContent:"center"}}>
-            ➕
-          </button>
-
-          {isWait && real.length > 0 && (
-            <button onClick={handleStart} disabled={busy}
-              style={{height:30,padding:"0 10px",borderRadius:8,border:"none",
-                background:"#FFE000",color:"#1A1A1A",fontSize:12,fontWeight:800,
-                cursor:"pointer",whiteSpace:"nowrap",
-                fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              ▶ เริ่ม
-            </button>
-          )}
-          {isIn && (
-            <button onClick={handleClose} disabled={busy}
-              style={{height:30,padding:"0 10px",borderRadius:8,border:"none",
-                background:"#fff",color:"#059669",fontSize:12,fontWeight:900,
-                cursor:"pointer",whiteSpace:"nowrap",
-                fontFamily:"'Noto Sans Thai',sans-serif"}}>
-              ✓
-            </button>
-          )}
-
-          {/* Cancel — border ขาวเพื่อให้โดดเด่นจาก border การ์ด */}
-          <button onClick={handleCancelCar} disabled={busy}
-            title="ยกเลิกรถ (ไม่แจ้ง LINE)"
-            style={{width:30,height:30,borderRadius:8,
-              border:"2px solid rgba(255,255,255,0.6)",
-              background:"#dc2626",color:"#fff",fontSize:13,cursor:"pointer",
-              display:"flex",alignItems:"center",justifyContent:"center",
-              opacity:busy?0.5:1}}>
-            🚫
-          </button>
-        </div>
-      </div>
-
-      {/* ── ROW 2: Jobs inline ── */}
-      {real.length > 0 ? (
-        <div style={{padding:"4px 10px 5px",display:"flex",flexWrap:"wrap",gap:4,alignItems:"center",
-          background:"#fafafa",borderTop:"1px solid #f0f0f0"}}>
-          {real.map(job => (
-            <div key={job.idx} style={{
-              display:"flex",alignItems:"center",gap:3,
-              background: job.status==="done"?"#d1fae5":job.status==="in_progress"?"#fef3c7":"#f3f4f6",
-              borderRadius:6,padding:"3px 6px 3px 8px",
-              border: job.status==="in_progress"?"1.5px solid #d97706":"1px solid transparent"
-            }}>
-              <span style={{fontSize:11}}>
-                {job.status==="done"?"✅":job.status==="in_progress"?"🔧":"⏳"}
-              </span>
-              <button
-                onClick={() => isIn && !busy && handleToggle(job.idx)}
-                style={{fontSize:12,fontWeight:700,background:"none",border:"none",padding:0,
-                  cursor: isIn?"pointer":"default",fontFamily:"'Noto Sans Thai',sans-serif",
-                  color:job.status==="done"?"#6b7280":"#1A1A1A",
-                  textDecoration:job.status==="done"?"line-through":"none"}}>
-                {job.name}
-              </button>
-              <span style={{fontSize:10,color:"#9ca3af"}}>{job.duration}น.</span>
-              <button onClick={() => !busy && handleCancelJob(job.idx)}
-                style={{background:"none",border:"none",cursor:"pointer",color:"#dc2626",
-                  fontSize:11,fontWeight:900,padding:"0 2px",lineHeight:1}}>✕</button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div style={{padding:"4px 10px 5px",background:"#fafafa",
-          borderTop:"1px solid #f0f0f0",fontSize:11,color:"#9ca3af",fontStyle:"italic"}}>
-          ยังไม่มีรายการงาน — กด ➕ เพิ่มงาน
-        </div>
-      )}
-    </div>
-    {csModal && (
-      <CockpitSureModal
-        qNo={qNo} branchId={branchId} data={data}
-        jobIdx={csModal.jobIdx}
-        onClose={() => setCsModal(null)}
-        onSuccess={() => { setCsModal(null); onRefresh(); }}
-      />
-    )}
-    </>
-  );
-}
-
-// ─── Staff View ───────────────────────────────────────────────────────────────
-function StaffView({ branchId: initBranchId, branchName: initBranchName, branches: initBranches, locked }) {
-  const [branchId, setBranchId]     = useState(initBranchId||null);
-  const [branchName, setBranchName] = useState(initBranchName||"Cockpit Pro");
-  const [queues, setQueues]         = useState({});
-  const [loading, setLoading]       = useState(true);
-  const [openModal, setOpenModal]   = useState(false);
-  const [addTarget, setAddTarget]   = useState(null);
-  const [completion, setCompletion] = useState(null);
-  const [todayHistory, setTodayHistory] = useState([]);
-
-  // sync branchId/Name จาก App (เมื่อผู้ใช้เปลี่ยนสาขาจาก header)
-  useEffect(() => { if(initBranchId) setBranchId(initBranchId); }, [initBranchId]);
-  useEffect(() => { if(initBranchName) setBranchName(initBranchName); }, [initBranchName]);
-
-  const fetch_ = useCallback(async () => {
-    if (!branchId) return;
-    try {
-      const res = await fetch(`${API}/api/branch/${branchId}`);
-      const data = await res.json();
-      setQueues(data.baysData || {});
-      setBranchName(data.name || "Cockpit Pro");
-      // ดึงประวัติวันนี้เพื่อแสดงปุ่มคืนสถานะ
-      try {
-        const hr = await fetch(`${API}/api/branch/${branchId}/history?limit=50`);
-        const hd = await hr.json();
-        const today = new Date().toDateString();
-        setTodayHistory((hd.history||[]).filter(h =>
-          h.closed_at && new Date(h.closed_at).toDateString() === today && !h.cancelled
-        ));
-      } catch {}
-    } catch {}
-    setLoading(false);
-  }, [branchId]);
-
-  const handleReopen = async (historyId) => {
-    if (!window.confirm("คืนสถานะรถนี้กลับสู่คิว?")) return;
-    try {
-      const r = await callAPI("POST",
-        `/api/branch/${branchId}/history/${historyId}/reopen`, {});
-      if (r.error) { alert(r.error); return; }
-      alert(`✅ คืนสถานะสำเร็จ — ช่องที่ ${r.bay}`);
-      fetch_();
-    } catch(e) { alert("เกิดข้อผิดพลาด: " + e.message); }
-  };
-
-  useEffect(() => {
-    if (!branchId) return;
-    setLoading(true); setQueues({});
-    fetch_();
-    const t = setInterval(fetch_, 15000);
-    return () => clearInterval(t);
-  }, [fetch_, branchId]);
-
-  const qList = Object.values(queues);
-  const total = qList.length, inSrv = qList.filter(q=>q.bayStatus==="in_service").length;
-  const wait  = qList.filter(q=>q.bayStatus==="waiting_entry").length;
-  const nextQ = getNextQNo(queues);
-  const sorted = Object.entries(queues).sort((a,b) => parseInt(a[0])-parseInt(b[0]));
-
-  return (
-    <div style={{paddingBottom:80}}>
-
-
-
-      <div style={{padding:"4px 12px 2px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{fontSize:13,fontWeight:800,color:"#374151"}}>📍 {branchName}</div>
-        <button onClick={fetch_} style={{background:"none",border:"1px solid #d1d5db",borderRadius:6,
-          padding:"3px 8px",fontSize:12,fontWeight:700,cursor:"pointer",color:"#6b7280",
-          fontFamily:"'Noto Sans Thai',sans-serif"}}>🔄 รีเฟรช</button>
-      </div>
-
-      {/* Stats */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,padding:"4px 12px 6px"}}>
-        {[
-          {label:"คิวทั้งหมด",value:total,bg:"#FFE000",color:"#1A1A1A"},
-          {label:"เริ่มทำแล้ว",value:inSrv,bg:"#059669",color:"#fff"},
-          {label:"รออีก",value:wait,bg:"#d97706",color:"#fff"},
-        ].map(s => (
-          <div key={s.label} style={{background:s.bg,borderRadius:10,padding:"6px 4px",textAlign:"center"}}>
-            <div style={{fontSize:26,fontWeight:900,color:s.color,lineHeight:1}}>{s.value}</div>
-            <div style={{fontSize:11,fontWeight:700,color:s.color,opacity:.9,marginTop:2}}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {loading && <div style={{textAlign:"center",padding:40,fontSize:16,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>}
-      {!loading && total===0 && (
-        <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>
-          <div style={{fontSize:48,marginBottom:12}}>🅿️</div>
-          <div style={{fontSize:16,fontWeight:700}}>ยังไม่มีรถในคิว</div>
-          <div style={{fontSize:13,marginTop:6}}>กดปุ่ม + ด้านล่างเพื่อเพิ่มรถ</div>
-        </div>
-      )}
-
-      <div style={{padding:"0 8px"}}>
-        {sorted.map(([qNo, data]) => (
-          <QueueCard key={qNo} qNo={qNo} data={data} branchId={branchId}
-            onRefresh={fetch_}
-            onAddJobs={setAddTarget}
-            onComplete={plate => { setCompletion(plate); fetch_(); }}/>
-        ))}
-      </div>
-
-      {/* FAB */}
-      {/* ── คืนสถานะ — รถที่ปิดงานวันนี้ ── */}
-      {todayHistory.length > 0 && (
-        <div style={{padding:"8px 12px 4px"}}>
-          <div style={{fontSize:11,fontWeight:800,color:"#9ca3af",
-            letterSpacing:"0.5px",marginBottom:6}}>
-            ↩ คืนสถานะได้ (ปิดงานวันนี้)
-          </div>
-          {todayHistory.map(h => (
-            <div key={h.id} style={{background:"#fff",borderRadius:10,
-              marginBottom:6,padding:"8px 10px",
-              border:"1px solid #fbbf24",
-              display:"flex",alignItems:"center",gap:8}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:16,fontWeight:900,color:"#1A1A1A"}}>
-                  {h.plate}
-                </div>
-                <div style={{fontSize:10,color:"#9ca3af"}}>
-                  {h.province ? `จ.${h.province} · ` : ""}
-                  ปิด {new Date(h.closed_at).toLocaleTimeString("th-TH",
-                    {hour:"2-digit",minute:"2-digit"})}น.
-                  {" · "}{(h.jobs||[]).filter(j=>j.name!=="รับรถเข้า").map(j=>j.name).join(", ")}
-                </div>
-              </div>
-              <button onClick={() => handleReopen(h.id)}
-                style={{flexShrink:0,padding:"6px 12px",borderRadius:8,border:"none",
-                  background:"#d97706",color:"#fff",fontSize:12,fontWeight:800,
-                  cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-                ↩ คืน
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {nextQ && !openModal && !addTarget && !completion && (
-        <button onClick={() => setOpenModal(true)} style={{
-          position:"fixed",bottom:76,right:16,
-          width:52,height:52,borderRadius:26,
-          background:"#FFE000",border:"none",fontSize:26,cursor:"pointer",zIndex:50,
-          boxShadow:"0 3px 14px rgba(0,0,0,.3)",display:"flex",alignItems:"center",
-          justifyContent:"center",fontWeight:900,color:"#1A1A1A"}}>+</button>
-      )}
-
-      {openModal && <OpenQueueModal qNo={nextQ} branchId={branchId}
-        onClose={() => setOpenModal(false)} onSuccess={fetch_}/>}
-      {addTarget && <AddJobsModal qNo={addTarget} branchId={branchId}
-        existingJobs={queues[addTarget]?.jobs||[]}
-        onClose={() => setAddTarget(null)} onSuccess={fetch_}/>}
-      {completion && <CompletionToast plate={completion} onClose={() => setCompletion(null)}/>}
-    </div>
-  );
-}
-
-// ─── Admin View (TV-optimized) ────────────────────────────────────────────────
-// ─── Video View ───────────────────────────────────────────────────────────────
-function VideoView({ branchId: initBranchId, branchName: initBranchName, branches: initBranches }) {
-  const [overview, setOverview] = useState([]);
-  const [selBranch, setSelBranch] = useState(null);
-  const [videos, setVideos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [detLoad, setDetLoad] = useState(false);
-  const [playingId, setPlayingId] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-
-  useEffect(() => {
-    fetch(`${API}/api/admin/overview`).then(r=>r.json()).then(d=>{
-      setOverview(d.overview||[]);
-      if (d.overview?.length) loadVideos(d.overview[0].branchId);
-    }).catch(()=>{}).finally(()=>setLoading(false));
-  },[]);
-
-  const loadVideos = async (id) => {
-    setSelBranch(id); setDetLoad(true); setPlayingId(null);
-    try {
-      const r = await fetch(`${API}/api/branch/${id}/videos?limit=60`);
-      const d = await r.json();
-      setVideos(d.videos||[]);
-    } catch {}
-    setDetLoad(false);
-  };
-
-  // Cloudinary thumbnail URL (replace extension with .jpg)
-  const thumbUrl = (url) => {
-    try {
-      // Cloudinary video thumbnail: ใช้ so_0 (screenshot at 0s) + format jpg
-      return url
-        .replace('/upload/', '/upload/w_400,h_711,c_fill,so_0,q_60/')
-        .replace(/\.(webm|mp4|mov|avi)$/i, '.jpg');
-    } catch { return ""; }
-  };
-
-  const formatDate = (iso) => {
-    if (!iso) return "-";
-    const d = new Date(iso);
-    return d.toLocaleDateString("th-TH",{day:"2-digit",month:"short",year:"2-digit"}) +
-      " " + d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"});
-  };
-
-  if (loading) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>;
-
-  return (
-    <div style={{padding:"8px 12px",paddingBottom:40}}>
-      {/* Branch selector + stats */}
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-        <span style={{fontSize:12,fontWeight:700,color:"#6b7280"}}>📍 สาขา:</span>
-        <select value={selBranch||""} onChange={e=>loadVideos(e.target.value)}
-          style={{flex:1,minWidth:0,padding:"5px 10px",borderRadius:8,
-            border:"1.5px solid #e5e7eb",fontSize:13,fontWeight:700,
-            fontFamily:"'Noto Sans Thai',sans-serif",background:"#fff",
-            cursor:"pointer",outline:"none"}}>
-          {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
-        </select>
-        <button onClick={()=>selBranch&&loadVideos(selBranch)}
-          style={{padding:"5px 12px",borderRadius:8,border:"1px solid #d1d5db",
-            background:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",
-            color:"#6b7280",fontFamily:"'Noto Sans Thai',sans-serif"}}>🔄</button>
-        {!detLoad && (
-          <span style={{fontSize:12,color:"#9ca3af"}}>{videos.length} คลิป</span>
-        )}
-      </div>
+        
 
       {detLoad && <div style={{textAlign:"center",padding:30,color:"#9ca3af"}}>⏳</div>}
 
@@ -1394,12 +1074,14 @@ function HistoryView({ branchId: initBranchId, branchName: initBranchName, branc
   const getToday   = () => new Date().toISOString().split('T')[0];
   const getWeekAgo = () => new Date(Date.now()-7*24*60*60*1000).toISOString().split('T')[0];
 
-  const [overview,    setOverview]    = useState([]);
-  const [selBranch,   setSelBranch]   = useState(null);
+  const [selBranch,   setSelBranch]   = useState(initBranchId||null);
   const [branchName,  setBranchName]  = useState("");
   const [history,     setHistory]     = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [detLoad,     setDetLoad]     = useState(false);
+
+  // sync สาขาจาก App
+  useEffect(() => { if(initBranchId) setSelBranch(initBranchId); }, [initBranchId]);
   const [fromDate,    setFromDate]    = useState(getWeekAgo());
   const [toDate,      setToDate]      = useState(getToday());
   const [selJobs,     setSelJobs]     = useState([]); // job name filter
@@ -1417,22 +1099,6 @@ function HistoryView({ branchId: initBranchId, branchName: initBranchName, branc
     setDetLoad(false);
   }
 
-  useEffect(() => {
-    fetch(`${API}/api/admin/overview`)
-      .then(r => r.json())
-      .then(d => {
-        const ov = d.overview || [];
-        setOverview(ov);
-        if (ov.length) {
-          const f = getWeekAgo(), t = getToday();
-          setSelBranch(ov[0].branchId);
-          setBranchName(ov[0].name);
-          doLoad(ov[0].branchId, f, t);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
 
   function onSearch() {
     if (selBranch) doLoad(selBranch, fromDate, toDate);
@@ -1545,14 +1211,7 @@ function HistoryView({ branchId: initBranchId, branchName: initBranchName, branc
 
         {/* Branch selector */}
         <div style={{ marginBottom:10 }}>
-          <div style={{ fontSize:11, color:"#9ca3af", fontWeight:700, marginBottom:4 }}>สาขา</div>
-          <select value={selBranch || ""} onChange={onBranchChange}
-            style={{ width:"100%", padding:"8px 10px", borderRadius:8, border:"none",
-              fontSize:13, fontWeight:700, fontFamily:"'Noto Sans Thai',sans-serif",
-              background:"#2a2a2a", color:"#fff", cursor:"pointer", outline:"none" }}>
-            {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=>(<option key={b.branchId} value={b.branchId}>{b.name}</option>))}
-          </select>
-        </div>
+          
 
         {/* Date inputs */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
@@ -1741,22 +1400,14 @@ function HistoryView({ branchId: initBranchId, branchName: initBranchName, branc
 
 // ─── Admin View (TV horizontal rows) ─────────────────────────────────────────
 function AdminView({ branchId: initBranchId, branchName: initBranchName, branches: initBranches }) {
-  const [overview, setOverview]   = useState([]);
-  const [selBranch, setSelBranch] = useState(null);
+  const [selBranch, setSelBranch] = useState(initBranchId||null);
   const [detail, setDetail]       = useState(null);
   const [loading, setLoading]     = useState(true);
   const [detLoad, setDetLoad]     = useState(false);
   const [lastUpdate, setLastUpdate] = useState("");
 
-  const fetchOv = async () => {
-    try {
-      const r = await fetch(`${API}/api/admin/overview`);
-      const d = await r.json();
-      setOverview(d.overview || []);
-      if (d.overview?.length && !selBranch) selectBranch(d.overview[0].branchId);
-    } catch {}
-    setLoading(false);
-  };
+  // sync สาขาจาก App header
+  useEffect(() => { if (initBranchId) { setSelBranch(initBranchId); selectBranch(initBranchId); } }, [initBranchId]);
 
   const selectBranch = async (id) => {
     setSelBranch(id); setDetLoad(true);
@@ -1769,7 +1420,7 @@ function AdminView({ branchId: initBranchId, branchName: initBranchName, branche
   };
 
   const refresh = () => selBranch && selectBranch(selBranch);
-  useEffect(() => { fetchOv(); }, []);
+
   useEffect(() => {
     if (!selBranch) return;
     const t = setInterval(() => selectBranch(selBranch), 20000);
@@ -1794,21 +1445,7 @@ function AdminView({ branchId: initBranchId, branchName: initBranchName, branche
           <div style={{fontSize:10,fontWeight:800,color:"#FFE000",letterSpacing:"1.5px",textTransform:"uppercase"}}>
             ข้อมูลการใช้บริการ
           </div>
-          <div style={{fontSize:14,fontWeight:900,color:"#fff"}}>{detail?.name||"..."}</div>
-        </div>
-        {/* Branch dropdown */}
-        <select value={selBranch||""} onChange={e=>selectBranch(e.target.value)}
-          style={{padding:"4px 10px",borderRadius:8,border:"1px solid #444",background:"#2a2a2a",
-            color:"#fff",fontSize:12,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",cursor:"pointer",outline:"none"}}>
-          {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
-        </select>
-        {/* Stats */}
-        <div style={{display:"flex",alignItems:"center",gap:6}}>
-          {[{v:total,l:"ทั้งหมด",bg:"#FFE000",c:"#1A1A1A"},{v:inSrv,l:"ซ่อมอยู่",bg:"#059669",c:"#fff"},
-            {v:wait,l:"รอคิว",bg:"#d97706",c:"#fff"},{v:done,l:"เสร็จ",bg:"#374151",c:"#fff"}
-          ].map(s=>(
-            <div key={s.l} style={{background:s.bg,borderRadius:6,padding:"3px 10px",textAlign:"center",minWidth:44}}>
-              <div style={{fontSize:16,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
+          
               <div style={{fontSize:9,fontWeight:700,color:s.c,opacity:.85}}>{s.l}</div>
             </div>
           ))}
