@@ -1057,46 +1057,19 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
 }
 
 // ─── Staff View ───────────────────────────────────────────────────────────────
-function StaffView() {
-  const [branches, setBranches]     = useState([]);
-  const [branchId, setBranchId]     = useState(() => localStorage.getItem("lockedBranch") || null);
+function StaffView({ branchId: initBranchId, branchName: initBranchName, branches: initBranches, locked }) {
+  const [branchId, setBranchId]     = useState(initBranchId||null);
+  const [branchName, setBranchName] = useState(initBranchName||"Cockpit Pro");
   const [queues, setQueues]         = useState({});
-  const [branchName, setBranchName] = useState("Cockpit Pro");
   const [loading, setLoading]       = useState(true);
   const [openModal, setOpenModal]   = useState(false);
   const [addTarget, setAddTarget]   = useState(null);
   const [completion, setCompletion] = useState(null);
   const [todayHistory, setTodayHistory] = useState([]);
-  const [locked, setLocked]         = useState(() => !!localStorage.getItem("lockedBranch"));
 
-  const handleLock = () => {
-    if (locked) {
-      if (!window.confirm("ปลดล็อคสาขา?\nพนักงานจะสามารถเปลี่ยนสาขาได้")) return;
-      localStorage.removeItem("lockedBranch");
-      setLocked(false);
-    } else {
-      if (!branchId) return;
-      localStorage.setItem("lockedBranch", branchId);
-      setLocked(true);
-    }
-  };
-
-  // โหลดรายชื่อสาขาจาก API
-  useEffect(() => {
-    fetch(`${API}/api/admin/overview`)
-      .then(r => r.json())
-      .then(d => {
-        const list = d.overview || [];
-        setBranches(list);
-        const saved = localStorage.getItem("lockedBranch");
-        if (saved && list.some(b => b.branchId === saved)) {
-          setBranchId(saved); // ใช้สาขาที่ lock ไว้
-        } else if (!branchId && list.length) {
-          setBranchId(list[0].branchId);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  // sync branchId/Name จาก App (เมื่อผู้ใช้เปลี่ยนสาขาจาก header)
+  useEffect(() => { if(initBranchId) setBranchId(initBranchId); }, [initBranchId]);
+  useEffect(() => { if(initBranchName) setBranchName(initBranchName); }, [initBranchName]);
 
   const fetch_ = useCallback(async () => {
     if (!branchId) return;
@@ -1146,48 +1119,7 @@ function StaffView() {
   return (
     <div style={{paddingBottom:80}}>
 
-      {/* Branch selector + Lock button */}
-      {branches.length > 0 && (
-        <div style={{padding:"6px 12px 2px",display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:12,fontWeight:700,color:"#6b7280",flexShrink:0}}>📍 สาขา:</span>
-          {locked ? (
-            <div style={{flex:1,padding:"5px 10px",borderRadius:8,
-              border:"2px solid #059669",background:"#f0fdf4",
-              fontSize:13,fontWeight:900,color:"#065f46",
-              display:"flex",alignItems:"center",gap:6}}>
-              🔒 {branchName}
-            </div>
-          ) : (
-            <select
-              value={branchId||""}
-              onChange={e => setBranchId(e.target.value)}
-              style={{flex:1,padding:"5px 10px",borderRadius:8,border:"1.5px solid #e5e7eb",
-                fontSize:13,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",
-                background:"#fff",cursor:"pointer",outline:"none"}}>
-              {[...branches].sort((a,b)=>{
-                  const at=a.name.toLowerCase().includes("test")?1:0;
-                  const bt=b.name.toLowerCase().includes("test")?1:0;
-                  if(at!==bt) return at-bt;
-                  const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999;
-                  const bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;
-                  return ai-bi;
-                }).map(b => (
-                <option key={b.branchId} value={b.branchId}>{b.name}</option>
-              ))}
-            </select>
-          )}
-          <button onClick={handleLock}
-            title={locked ? "ปลดล็อคสาขา" : "ล็อคสาขานี้"}
-            style={{flexShrink:0,width:34,height:34,borderRadius:8,
-              border:`2px solid ${locked?"#059669":"#d1d5db"}`,
-              background: locked?"#059669":"#fff",
-              color: locked?"#fff":"#6b7280",
-              fontSize:16,cursor:"pointer",
-              display:"flex",alignItems:"center",justifyContent:"center"}}>
-            {locked ? "🔒" : "🔓"}
-          </button>
-        </div>
-      )}
+
 
       <div style={{padding:"4px 12px 2px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{fontSize:13,fontWeight:800,color:"#374151"}}>📍 {branchName}</div>
@@ -1284,7 +1216,7 @@ function StaffView() {
 
 // ─── Admin View (TV-optimized) ────────────────────────────────────────────────
 // ─── Video View ───────────────────────────────────────────────────────────────
-function VideoView() {
+function VideoView({ branchId: initBranchId, branchName: initBranchName, branches: initBranches }) {
   const [overview, setOverview] = useState([]);
   const [selBranch, setSelBranch] = useState(null);
   const [videos, setVideos] = useState([]);
@@ -1458,7 +1390,7 @@ function VideoView() {
 }
 
 // ─── History View ─────────────────────────────────────────────────────────────
-function HistoryView() {
+function HistoryView({ branchId: initBranchId, branchName: initBranchName, branches: initBranches }) {
   const getToday   = () => new Date().toISOString().split('T')[0];
   const getWeekAgo = () => new Date(Date.now()-7*24*60*60*1000).toISOString().split('T')[0];
 
@@ -1808,7 +1740,7 @@ function HistoryView() {
 
 
 // ─── Admin View (TV horizontal rows) ─────────────────────────────────────────
-function AdminView() {
+function AdminView({ branchId: initBranchId, branchName: initBranchName, branches: initBranches }) {
   const [overview, setOverview]   = useState([]);
   const [selBranch, setSelBranch] = useState(null);
   const [detail, setDetail]       = useState(null);
@@ -1986,6 +1918,50 @@ function AdminView() {
 
 export default function App() {
   const [tab, setTab] = useState("staff");
+  const [branches, setBranches]   = useState([]);
+  const [branchId, setBranchId]   = useState(() => localStorage.getItem("lockedBranch") || null);
+  const [branchName, setBranchName] = useState("");
+  const [locked, setLocked]       = useState(() => !!localStorage.getItem("lockedBranch"));
+
+  // โหลดรายชื่อสาขาครั้งเดียว
+  useEffect(() => {
+    fetch(`${API}/api/admin/overview`)
+      .then(r => r.json())
+      .then(d => {
+        const list = (d.overview||[]).sort((a,b) => {
+          const at=a.name.toLowerCase().includes("test")?1:0;
+          const bt=b.name.toLowerCase().includes("test")?1:0;
+          if (at!==bt) return at-bt;
+          return (parseInt(a.branchId)||999)-(parseInt(b.branchId)||999);
+        });
+        setBranches(list);
+        const saved = localStorage.getItem("lockedBranch");
+        const first = saved && list.some(b=>b.branchId===saved) ? saved : list[0]?.branchId;
+        if (first) {
+          setBranchId(first);
+          setBranchName(list.find(b=>b.branchId===first)?.name || "");
+        }
+      }).catch(()=>{});
+  }, []);
+
+  // sync branchName when branchId changes
+  useEffect(() => {
+    const found = branches.find(b=>b.branchId===branchId);
+    if (found) setBranchName(found.name);
+  }, [branchId, branches]);
+
+  const handleLock = () => {
+    if (locked) {
+      if (!window.confirm("ปลดล็อคสาขา?\nพนักงานจะสามารถเปลี่ยนสาขาได้")) return;
+      localStorage.removeItem("lockedBranch");
+      setLocked(false);
+    } else {
+      if (!branchId) return;
+      localStorage.setItem("lockedBranch", branchId);
+      setLocked(true);
+    }
+  };
+
   return (
     <div style={{fontFamily:"'Noto Sans Thai',sans-serif",background:"#F2F2EE",minHeight:"100vh"}}>
       <style>{`
@@ -1998,16 +1974,55 @@ export default function App() {
       `}</style>
 
       {/* Sticky header */}
-      <div style={{background:"#1A1A1A",padding:"14px 16px 0",position:"sticky",top:0,zIndex:40,
+      <div style={{background:"#1A1A1A",padding:"12px 16px 0",position:"sticky",top:0,zIndex:40,
         boxShadow:"0 2px 16px rgba(0,0,0,.5)"}}>
-        <div style={{marginBottom:14}}><CockpitLogo height={44}/></div>
+
+        {/* Row 1: Logo + Branch selector */}
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+          <CockpitLogo height={38}/>
+
+          {/* Branch selector — central & prominent */}
+          <div style={{flex:1,display:"flex",alignItems:"center",gap:6,
+            background: locked?"#059669":"#2a2a2a",
+            borderRadius:10,padding:"6px 10px",
+            border:`2px solid ${locked?"#6ee7b7":"#3a3a3a"}`}}>
+            {locked ? (
+              <span style={{flex:1,fontSize:14,fontWeight:900,color:"#fff",
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                🔒 {branchName}
+              </span>
+            ) : (
+              <select value={branchId||""} onChange={e=>setBranchId(e.target.value)}
+                style={{flex:1,background:"transparent",border:"none",color:"#FFE000",
+                  fontSize:14,fontWeight:800,outline:"none",cursor:"pointer",
+                  fontFamily:"'Noto Sans Thai',sans-serif",
+                  minWidth:0,textOverflow:"ellipsis"}}>
+                {branches.map(b=>(
+                  <option key={b.branchId} value={b.branchId}
+                    style={{background:"#1A1A1A",color:"#fff"}}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button onClick={handleLock} title={locked?"ปลดล็อค":"ล็อคสาขา"}
+              style={{flexShrink:0,background:"none",border:"none",
+                color: locked?"#6ee7b7":"rgba(255,255,255,.5)",
+                fontSize:18,cursor:"pointer",padding:"0 2px",lineHeight:1}}>
+              {locked?"🔒":"🔓"}
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: Tab bar */}
         <div style={{display:"flex"}}>
-          {[{key:"staff",label:"👨‍🔧 พนักงาน"},{key:"admin",label:"📺 ข้อมูล"},{key:"history",label:"📊 สถิติ"},{key:"videos",label:"🎥 วีดีโอ"}].map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)} style={{
+          {[{key:"staff",label:"👨‍🔧 พนักงาน"},{key:"admin",label:"📺 ข้อมูล"},
+            {key:"history",label:"📊 สถิติ"},{key:"videos",label:"🎥 วีดีโอ"}].map(t=>(
+            <button key={t.key} onClick={()=>setTab(t.key)} style={{
               flex:1,padding:"10px 2px",border:"none",background:"transparent",
-              color: tab===t.key ? "#FFE000" : "rgba(255,255,255,.4)",
+              color: tab===t.key?"#FFE000":"rgba(255,255,255,.4)",
               fontSize:13,fontWeight:800,cursor:"pointer",
-              borderBottom: tab===t.key ? "3px solid #FFE000" : "3px solid transparent",
+              borderBottom: tab===t.key?"3px solid #FFE000":"3px solid transparent",
               transition:"all .2s",fontFamily:"'Noto Sans Thai',sans-serif",
               whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
               {t.label}
@@ -2016,7 +2031,12 @@ export default function App() {
         </div>
       </div>
 
-      <div>{tab === "staff" ? <StaffView/> : tab === "admin" ? <AdminView/> : tab === "videos" ? <VideoView/> : <HistoryView/>}</div>
+      <div>
+        {tab==="staff"   ? <StaffView   branchId={branchId} branchName={branchName} branches={branches} locked={locked}/> :
+         tab==="admin"   ? <AdminView   branchId={branchId} branchName={branchName} branches={branches}/> :
+         tab==="videos"  ? <VideoView   branchId={branchId} branchName={branchName} branches={branches}/> :
+                           <HistoryView branchId={branchId} branchName={branchName} branches={branches}/>}
+      </div>
     </div>
   );
 }
