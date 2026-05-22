@@ -1000,15 +1000,15 @@ function StaffView({ branchId: propBranchId, branchName: propBranchName, locked 
   const [branches, setBranches]     = useState([]);
   const [branchId, setBranchId]     = useState(null);
   const [queues, setQueues]         = useState({});
-  const [branchName, setBranchName] = useState(propBranchName||"Cockpit Pro");
+  const [branchName, setBranchName] = useState("Cockpit Pro");
   const [loading, setLoading]       = useState(true);
   const [openModal, setOpenModal]   = useState(false);
   const [addTarget, setAddTarget]   = useState(null);
   const [completion, setCompletion] = useState(null);
   const [todayHistory, setTodayHistory] = useState([]);
 
-  // sync สาขาจาก App header
-  useEffect(() => { if(propBranchId && propBranchId!==branchId) setBranchId(propBranchId); }, [propBranchId]);
+  // sync สาขาจาก App
+  useEffect(() => { if(propBranchId) setBranchId(propBranchId); }, [propBranchId]);
   useEffect(() => { if(propBranchName) setBranchName(propBranchName); }, [propBranchName]);
 
   // โหลดรายชื่อสาขาจาก API
@@ -1071,6 +1071,29 @@ function StaffView({ branchId: propBranchId, branchName: propBranchName, locked 
   return (
     <div style={{paddingBottom:80}}>
 
+      {/* Branch selector dropdown */}
+      {branches.length > 0 && (
+        <div style={{padding:"6px 12px 2px",display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:12,fontWeight:700,color:"#6b7280",flexShrink:0}}>📍 สาขา:</span>
+          <select
+            value={branchId||""}
+            onChange={e => setBranchId(e.target.value)}
+            style={{flex:1,padding:"5px 10px",borderRadius:8,border:"1.5px solid #e5e7eb",
+              fontSize:13,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",
+              background:"#fff",cursor:"pointer",outline:"none"}}>
+            {[...branches].sort((a,b)=>{
+                const at=a.name.toLowerCase().includes("test")?1:0;
+                const bt=b.name.toLowerCase().includes("test")?1:0;
+                if(at!==bt) return at-bt;
+                const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999;
+                const bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;
+                return ai-bi;
+              }).map(b => (
+              <option key={b.branchId} value={b.branchId}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div style={{padding:"4px 12px 2px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{fontSize:13,fontWeight:800,color:"#374151"}}>📍 {branchName}</div>
@@ -1169,22 +1192,21 @@ function StaffView({ branchId: propBranchId, branchName: propBranchName, locked 
 // ─── Video View ───────────────────────────────────────────────────────────────
 function VideoView({ branchId: propBranchId, branchName: propBranchName }) {
   const [overview, setOverview] = useState([]);
-  const [selBranch, setSelBranch] = useState(propBranchId||null);
+  const [selBranch, setSelBranch] = useState(null);
   const [videos, setVideos] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [detLoad, setDetLoad] = useState(false);
   const [playingId, setPlayingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
-    if(propBranchId) {
-      setSelBranch(propBranchId);
-      loadVideos(propBranchId);
-    }
-  }, [propBranchId]);
+    fetch(`${API}/api/admin/overview`).then(r=>r.json()).then(d=>{
+      setOverview(d.overview||[]);
+      if (d.overview?.length) loadVideos(d.overview[0].branchId);
+    }).catch(()=>{}).finally(()=>setLoading(false));
+  },[]);
 
   const loadVideos = async (id) => {
-    if(!id) return;
     setSelBranch(id); setDetLoad(true); setPlayingId(null);
     try {
       const r = await fetch(`${API}/api/branch/${id}/videos?limit=60`);
@@ -1215,6 +1237,24 @@ function VideoView({ branchId: propBranchId, branchName: propBranchName }) {
 
   return (
     <div style={{padding:"8px 12px",paddingBottom:40}}>
+      {/* Branch selector + stats */}
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+        <span style={{fontSize:12,fontWeight:700,color:"#6b7280"}}>📍 สาขา:</span>
+        <select value={selBranch||""} onChange={e=>loadVideos(e.target.value)}
+          style={{flex:1,minWidth:0,padding:"5px 10px",borderRadius:8,
+            border:"1.5px solid #e5e7eb",fontSize:13,fontWeight:700,
+            fontFamily:"'Noto Sans Thai',sans-serif",background:"#fff",
+            cursor:"pointer",outline:"none"}}>
+          {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+        </select>
+        <button onClick={()=>selBranch&&loadVideos(selBranch)}
+          style={{padding:"5px 12px",borderRadius:8,border:"1px solid #d1d5db",
+            background:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",
+            color:"#6b7280",fontFamily:"'Noto Sans Thai',sans-serif"}}>🔄</button>
+        {!detLoad && (
+          <span style={{fontSize:12,color:"#9ca3af"}}>{videos.length} คลิป</span>
+        )}
+      </div>
 
       {detLoad && <div style={{textAlign:"center",padding:30,color:"#9ca3af"}}>⏳</div>}
 
@@ -1330,7 +1370,10 @@ function HistoryView({ branchId: propBranchId, branchName: propBranchName }) {
 
   const [overview,    setOverview]    = useState([]);
   const [selBranch,   setSelBranch]   = useState(propBranchId||null);
-  const [branchName,  setBranchName]  = useState("");
+  const [branchName,  setBranchName]  = useState(propBranchName||"");
+
+  // sync สาขาจาก App
+  useEffect(() => { if(propBranchId) setSelBranch(propBranchId); }, [propBranchId]);
   const [history,     setHistory]     = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [detLoad,     setDetLoad]     = useState(false);
@@ -1472,6 +1515,21 @@ function HistoryView({ branchId: propBranchId, branchName: propBranchName }) {
     <div style={{ padding:"10px 12px", paddingBottom:40 }}>
 
       {/* ── Filter Panel ── */}
+      <div style={{ background:"#1A1A1A", borderRadius:12, padding:"14px 16px", marginBottom:12 }}>
+        <div style={{ fontSize:11, fontWeight:800, color:"#FFE000", letterSpacing:"1px", marginBottom:10 }}>
+          📊 ค้นหาข้อมูล
+        </div>
+
+        {/* Branch selector */}
+        <div style={{ marginBottom:10 }}>
+          <div style={{ fontSize:11, color:"#9ca3af", fontWeight:700, marginBottom:4 }}>สาขา</div>
+          <select value={selBranch || ""} onChange={onBranchChange}
+            style={{ width:"100%", padding:"8px 10px", borderRadius:8, border:"none",
+              fontSize:13, fontWeight:700, fontFamily:"'Noto Sans Thai',sans-serif",
+              background:"#2a2a2a", color:"#fff", cursor:"pointer", outline:"none" }}>
+            {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=>(<option key={b.branchId} value={b.branchId}>{b.name}</option>))}
+          </select>
+        </div>
 
         {/* Date inputs */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
@@ -1667,7 +1725,7 @@ function AdminView({ branchId: propBranchId, branchName: propBranchName }) {
   const [detLoad, setDetLoad]     = useState(false);
   const [lastUpdate, setLastUpdate] = useState("");
 
-  useEffect(() => { if(propBranchId) { setSelBranch(propBranchId); selectBranch(propBranchId); } }, [propBranchId]);
+  useEffect(() => { if(propBranchId) setSelBranch(propBranchId); }, [propBranchId]);
 
   const fetchOv = async () => {
     try {
@@ -1709,6 +1767,27 @@ function AdminView({ branchId: propBranchId, branchName: propBranchName }) {
   return (
     <div style={{background:"#0f1117",minHeight:"calc(100vh - 110px)",display:"flex",flexDirection:"column"}}>
       {/* Top bar */}
+      <div style={{background:"#1A1A1A",borderBottom:"2px solid #FFE000",padding:"6px 14px",
+        display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{fontSize:10,fontWeight:800,color:"#FFE000",letterSpacing:"1.5px",textTransform:"uppercase"}}>
+            ข้อมูลการใช้บริการ
+          </div>
+          <div style={{fontSize:14,fontWeight:900,color:"#fff"}}>{detail?.name||"..."}</div>
+        </div>
+        {/* Branch dropdown */}
+        <select value={selBranch||""} onChange={e=>selectBranch(e.target.value)}
+          style={{padding:"4px 10px",borderRadius:8,border:"1px solid #444",background:"#2a2a2a",
+            color:"#fff",fontSize:12,fontWeight:700,fontFamily:"'Noto Sans Thai',sans-serif",cursor:"pointer",outline:"none"}}>
+          {[...overview].sort((a,b)=>{const at=a.name.toLowerCase().includes("test")?1:0,bt=b.name.toLowerCase().includes("test")?1:0;if(at!==bt)return at-bt;const ai=parseInt((a.branchId||"").replace(/\D/g,""))||999,bi=parseInt((b.branchId||"").replace(/\D/g,""))||999;return ai-bi;}).map(b=><option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+        </select>
+        {/* Stats */}
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          {[{v:total,l:"ทั้งหมด",bg:"#FFE000",c:"#1A1A1A"},{v:inSrv,l:"ซ่อมอยู่",bg:"#059669",c:"#fff"},
+            {v:wait,l:"รอคิว",bg:"#d97706",c:"#fff"},{v:done,l:"เสร็จ",bg:"#374151",c:"#fff"}
+          ].map(s=>(
+            <div key={s.l} style={{background:s.bg,borderRadius:6,padding:"3px 10px",textAlign:"center",minWidth:44}}>
+              <div style={{fontSize:16,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
               <div style={{fontSize:9,fontWeight:700,color:s.c,opacity:.85}}>{s.l}</div>
             </div>
           ))}
