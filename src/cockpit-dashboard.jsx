@@ -1194,7 +1194,7 @@ function VideoView({ branchId: propBranchId, branchName: propBranchName }) {
   const [overview, setOverview] = useState([]);
   const [selBranch, setSelBranch] = useState(propBranchId||null);
   const [videos, setVideos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [detLoad, setDetLoad] = useState(false);
   const [playingId, setPlayingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
@@ -1207,6 +1207,7 @@ function VideoView({ branchId: propBranchId, branchName: propBranchName }) {
   }, [propBranchId]);
 
   const loadVideos = async (id) => {
+    if(!id) return;
     setSelBranch(id); setDetLoad(true); setPlayingId(null);
     try {
       const r = await fetch(`${API}/api/branch/${id}/videos?limit=60`);
