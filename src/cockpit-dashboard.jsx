@@ -1882,10 +1882,16 @@ export default function App() {
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
         @keyframes slideRight{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}
+        body { padding-bottom: env(safe-area-inset-bottom, 0px); }
       `}</style>
 
       {/* ── HEADER ── */}
-      <div style={{background:"#1A1A1A",padding:"12px 16px 0",position:"sticky",top:0,zIndex:40,boxShadow:"0 2px 16px rgba(0,0,0,.5)"}}>
+      <div style={{background:"#1A1A1A",
+        paddingTop:"calc(12px + env(safe-area-inset-top, 0px))",
+        paddingLeft:"max(16px, env(safe-area-inset-left, 0px))",
+        paddingRight:"max(16px, env(safe-area-inset-right, 0px))",
+        paddingBottom:0,
+        position:"sticky",top:0,zIndex:40,boxShadow:"0 2px 16px rgba(0,0,0,.5)"}}>
         {/* Row 1: Logo + Branch */}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
           <CockpitLogo height={38}/>
