@@ -1722,7 +1722,7 @@ function AdminView({ branchId: propBranchId, branchName: propBranchName }) {
   const [detLoad, setDetLoad]     = useState(false);
   const [lastUpdate, setLastUpdate] = useState("");
 
-  useEffect(() => { if(propBranchId) { setSelBranch(propBranchId); loadDetail(propBranchId); } }, [propBranchId]);
+  useEffect(() => { if(propBranchId) { setSelBranch(propBranchId); selectBranch(propBranchId); } }, [propBranchId]);
 
   const fetchOv = async () => {
     try {
