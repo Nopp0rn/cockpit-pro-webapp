@@ -1012,6 +1012,7 @@ function StaffView({ branchId: propBranchId, branchName: propBranchName, locked 
   useEffect(() => { if(propBranchName) setBranchName(propBranchName); }, [propBranchName]);
 
   // โหลดรายชื่อสาขาจาก API
+  useEffect(() => {
     fetch(`${API}/api/admin/overview`)
       .then(r => r.json())
       .then(d => {
