@@ -1014,9 +1014,10 @@ function StaffView() {
   const [completion, setCompletion] = useState(null);
   const [todayHistory, setTodayHistory] = useState([]);
   useEffect(()=>{
-    const h=(e)=>{ if(e.detail?.id) setBranchId(e.detail.id); };
+    let debounce;
+    const h=(e)=>{ if(e.detail?.id){ clearTimeout(debounce); debounce=setTimeout(()=>setBranchId(e.detail.id),100); } };
     window.addEventListener("cockpitBranch",h);
-    return ()=>window.removeEventListener("cockpitBranch",h);
+    return ()=>{ window.removeEventListener("cockpitBranch",h); clearTimeout(debounce); };
   },[]);
 
   // โหลดรายชื่อสาขาจาก API
@@ -1184,15 +1185,10 @@ function VideoView() {
   const [detLoad, setDetLoad] = useState(false);
   const [playingId, setPlayingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
-
-  useEffect(() => {
-    fetch(`${API}/api/admin/overview`).then(r=>r.json()).then(d=>{
-      setOverview(d.overview||[]);
-      const saved=getActiveBranch(); loadVideos(saved||d.overview?.[0]?.branchId);
-    }).catch(()=>{}).finally(()=>setLoading(false));
-  },[]);
+  const loadVideosRef = useRef(null);
 
   const loadVideos = async (id) => {
+    if(!id) return;
     setSelBranch(id); setDetLoad(true); setPlayingId(null);
     try {
       const r = await fetch(`${API}/api/branch/${id}/videos?limit=60`);
@@ -1201,6 +1197,24 @@ function VideoView() {
     } catch {}
     setDetLoad(false);
   };
+  loadVideosRef.current = loadVideos;
+
+  // Initial load
+  useEffect(() => {
+    fetch(`${API}/api/admin/overview`).then(r=>r.json()).then(d=>{
+      setOverview(d.overview||[]);
+      const saved=getActiveBranch();
+      const target=saved||d.overview?.[0]?.branchId;
+      if(target) loadVideosRef.current?.(target);
+    }).catch(()=>{}).finally(()=>setLoading(false));
+  },[]);
+
+  // Branch change listener
+  useEffect(()=>{
+    const h=(e)=>{ if(e.detail?.id) loadVideosRef.current?.(e.detail.id); };
+    window.addEventListener("cockpitBranch",h);
+    return ()=>window.removeEventListener("cockpitBranch",h);
+  },[]);
 
   // Cloudinary thumbnail URL (replace extension with .jpg)
   const thumbUrl = (url) => {
@@ -1339,7 +1353,7 @@ function HistoryView() {
   const [selBranch,   setSelBranch]   = useState(getActiveBranch);
   const [branchName,  setBranchName]  = useState(getActiveBranchName);
   const [history,     setHistory]     = useState([]);
-  const [loading,     setLoading]     = useState(true);
+  const [loading,     setLoading]     = useState(false);
   const [detLoad,     setDetLoad]     = useState(false);
   const [fromDate,    setFromDate]    = useState(getWeekAgo());
   const [toDate,      setToDate]      = useState(getToday());
@@ -1347,6 +1361,11 @@ function HistoryView() {
     const h=(e)=>{ if(e.detail?.id){setSelBranch(e.detail.id);setBranchName(e.detail.name||"");} };
     window.addEventListener("cockpitBranch",h);
     return ()=>window.removeEventListener("cockpitBranch",h);
+  },[]);
+  // auto-load on mount if branch already set
+  useEffect(()=>{
+    const id=getActiveBranch();
+    if(id) doLoad(id, getWeekAgo(), getToday());
   },[]);
   const [selJobs,     setSelJobs]     = useState([]); // job name filter
 
