@@ -1027,9 +1027,15 @@ function StaffView() {
       .then(d => {
         const list = d.overview || [];
         setBranches(list);
-        if (list.length) setBranchId(list[0].branchId);
+        // ใช้สาขาที่ active อยู่ก่อน ถ้าไม่มีค่อยใช้สาขาแรก
+        const saved = getActiveBranch();
+        if (saved && list.some(b => b.branchId === saved)) {
+          setBranchId(saved);
+        } else if (list.length) {
+          setBranchId(list[0].branchId);
+        }
       })
-      .catch(() => setBranchId("BR107"));
+      .catch(() => {});
   }, []);
 
   const fetch_ = useCallback(async () => {
