@@ -90,7 +90,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
   const videoRef   = useRef(null);
   const previewRef = useRef(null);
-  const canvasRef  = useRef(null);
+  // canvasRef removed — recording direct from stream, no canvas needed
   const timerRef   = useRef(null);
   const chunksRef  = useRef([]);
   const animRef    = useRef(null);
@@ -190,78 +190,75 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     }
   };
 
-  // ── Start recording with canvas compositing (logo baked in) ─────────────────
+  // ── Start recording directly from camera stream (no canvas = no freeze) ─────
   function startRec() {
     chunksRef.current = [];
-    const canvas = canvasRef.current;
-    const ctx    = canvas.getContext("2d");
-    const video  = videoRef.current;
-    canvas.width = 720; canvas.height = 1280;
+    const stream = streamRef.current;
+    if (!stream) { setError("ไม่พบ stream กล้อง"); setPhase("error"); return; }
 
-    const logoImg = new Image();
-    logoImg.src = COCKPITSURE_LOGO;
+    // ตรวจ mime type ที่รองรับ
+    const mimeType =
+      MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac") ? "video/mp4;codecs=h264,aac" :
+      MediaRecorder.isTypeSupported("video/mp4")                  ? "video/mp4" :
+      MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" :
+      MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus") ? "video/webm;codecs=vp8,opus" :
+      "video/webm";
 
-    // Draw loop: video → canvas (hidden) → MediaRecorder records canvas
-    // Video element stays visible for user to see live feed
-    function drawLoop() {
-      if (video && video.readyState >= 2 && video.videoWidth > 0) {
-        const vW=video.videoWidth, vH=video.videoHeight;
-        const cW=canvas.width, cH=canvas.height;
-        const vA=vW/vH, cA=cW/cH;
-        let sx=0,sy=0,sw=vW,sh=vH;
-        if (vA>cA){ sw=vH*cA; sx=(vW-sw)/2; }
-        else      { sh=vW/cA; sy=(vH-sh)/2; }
-        ctx.clearRect(0,0,cW,cH);
-        ctx.globalCompositeOperation = "source-over";
-        ctx.drawImage(video, sx,sy,sw,sh, 0,0,cW,cH);
-        if (logoImg.complete && logoImg.naturalWidth>0) {
-          const lw = Math.round(cW*0.55);
-          const lh = Math.round(lw*logoImg.naturalHeight/logoImg.naturalWidth);
-          ctx.drawImage(logoImg, 10, 10, lw, lh);
-        }
+    const isMobile = /Android|iPhone|iPad/.test(navigator.userAgent);
+    const mrOptions = {
+      mimeType,
+      videoBitsPerSecond: isMobile ? 1_500_000 : 4_000_000,
+    };
+
+    let mr;
+    try {
+      mr = new MediaRecorder(stream, mrOptions);
+    } catch {
+      mr = new MediaRecorder(stream); // fallback ไม่ระบุ options
+    }
+
+    mr.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+    };
+
+    mr.onerror = (e) => {
+      console.error("MediaRecorder error:", e);
+      setError("เกิดข้อผิดพลาดระหว่างบันทึก กรุณาลองใหม่");
+      setPhase("error");
+    };
+
+    mr.onstop = () => {
+      cancelAnimationFrame(animRef.current);
+      animRef.current = null;
+      const chunks = chunksRef.current;
+      if (!chunks.length) {
+        setError("ไม่มีข้อมูลวีดีโอ กรุณาลองบันทึกใหม่");
+        setPhase("error");
+        return;
       }
-      animRef.current = requestAnimationFrame(drawLoop);
-    }
+      const finalType = mr.mimeType || mimeType;
+      const blob = new Blob(chunks, { type: finalType });
+      chunksRef.current = []; // คืน RAM
+      console.log(`[CockpitSure] blob: ${(blob.size/1024/1024).toFixed(1)}MB type:${finalType}`);
+      setVideoBlob(blob);
+      setPreviewUrl(URL.createObjectURL(blob));
+      setPhase("preview");
+    };
 
-    function beginRecord() {
-      // Keep video element playing (visible to user)
-      if (video) video.play().catch(()=>{});
-      drawLoop();
+    // timeslice 2 วินาที — ลด memory pressure
+    mr.start(2000);
+    setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
 
-      // Record from canvas stream (has logo)
-      const canvasStream = canvas.captureStream(30);
-      streamRef.current?.getAudioTracks().forEach(t => canvasStream.addTrack(t));
-      const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
-        ? "video/mp4;codecs=h264,aac"
-        : MediaRecorder.isTypeSupported("video/mp4")
-        ? "video/mp4"
-        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : "video/webm";
-      const mr = new MediaRecorder(canvasStream, mimeType ? {mimeType} : {});
-      mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
-      mr.onstop = () => {
-        cancelAnimationFrame(animRef.current);
-        if (chunksRef.current.length===0) return;
-        const finalType = mr.mimeType || mimeType;
-        const blob = new Blob(chunksRef.current, {type: finalType});
-        setVideoBlob(blob);
-        setPreviewUrl(URL.createObjectURL(blob));
-        streamRef.current?.getTracks().forEach(t=>t.stop());
-        setPhase("preview");
-      };
-      mr.start(500);
-      setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
-      timerRef.current = setInterval(() => {
-        setTimer(t => {
-          if(t>=MAX_SEC-1){mr.stop();clearInterval(timerRef.current);return MAX_SEC;}
-          return t+1;
-        });
-      }, 1000);
-    }
-
-    if (logoImg.complete) beginRecord();
-    else { logoImg.onload = beginRecord; logoImg.onerror = beginRecord; }
+    timerRef.current = setInterval(() => {
+      setTimer(t => {
+        if (t >= MAX_SEC - 1) {
+          mr.state !== "inactive" && mr.stop();
+          clearInterval(timerRef.current);
+          return MAX_SEC;
+        }
+        return t + 1;
+      });
+    }, 1000);
   }
 
 
@@ -288,44 +285,66 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     clearInterval(timerRef.current);
   };
 
-  // ── Upload & send via LINE ────────────────────────────────────
+  // ── Upload & send via LINE (with retry) ──────────────────────
   const uploadAndSend = async () => {
     setPhase("uploading");
-    try {
-      const fd = new FormData();
-      const ext = videoBlob.type.includes("mp4") ? "mp4"
-        : videoBlob.type.includes("quicktime") ? "mov" : "webm";
-      fd.append("file", videoBlob, `cs_${data.plate}_${Date.now()}.${ext}`);
-      fd.append("upload_preset", CLOUDINARY_PRESET);
-      fd.append("resource_type", "video");
-      const upRes  = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,
-        {method:"POST", body:fd}
-      );
-      const upData = await upRes.json();
-      // เพิ่มโลโก้ CockpitSure ผ่าน Cloudinary transformation (ไม่ต้องใช้ canvas)
-      // Upload โลโก้แยกต่างหากที่ Cloudinary แล้วตั้งชื่อ public_id ว่า "cockpitsure_logo"
-      // ตัวอย่าง URL: .../upload/l_cockpitsure_logo,w_0.5,g_north_west,x_20,y_20/v.../file.webm
-      // แปลง URL ให้เป็น MP4 เสมอ (Cloudinary auto-transcode)
-      const videoUrl = upData.secure_url
-        ? upData.secure_url.replace(/\.webm$/, '.mp4').replace(/\.mov$/, '.mp4')
-        : null;
-      if (!videoUrl) {
-        const msg = upData.error?.message || "Upload ไม่สำเร็จ";
-        if (msg.includes("Unknown API key")||msg.includes("api_key"))
-          throw new Error("Upload Preset ยังไม่ถูกต้อง\ncloudinary.com → Settings\n→ Upload Presets → cockpit_unsigned\n→ Signing Mode: Unsigned → Save");
-        throw new Error(msg);
+    const MAX_RETRY = 3;
+    let lastErr = "";
+
+    for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+      try {
+        const fd  = new FormData();
+        const ext = videoBlob.type.includes("mp4") ? "mp4"
+          : videoBlob.type.includes("quicktime") ? "mov" : "webm";
+        fd.append("file", videoBlob, `cs_${data.plate}_${Date.now()}.${ext}`);
+        fd.append("upload_preset", CLOUDINARY_PRESET);
+        fd.append("resource_type", "video");
+
+        const upRes  = await fetch(
+          `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,
+          { method: "POST", body: fd }
+        );
+        const upData = await upRes.json();
+        const videoUrl = upData.secure_url
+          ? upData.secure_url.replace(/\.(webm|mov)$/, ".mp4")
+          : null;
+
+        if (!videoUrl) {
+          const msg = upData.error?.message || "Upload ไม่สำเร็จ";
+          if (msg.includes("Unknown API key") || msg.includes("api_key"))
+            throw new Error("Upload Preset ยังไม่ถูกต้อง\ncloudinary.com → Settings\n→ Upload Presets → cockpit_unsigned\n→ Signing Mode: Unsigned → Save");
+          throw new Error(msg);
+        }
+
+        // PATCH job status → LINE notification
+        await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`,
+          { status: "done" });
+
+        // Save video record
+        await callAPI("POST", `/api/branch/${branchId}/videos`, {
+          plate: data.plate, province: data.province,
+          video_url: videoUrl, bay: qNo,
+        });
+
+        // Cleanup
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setVideoBlob(null);
+        setPhase("done");
+        setTimeout(() => { onSuccess?.(); }, 1500);
+        return; // สำเร็จ
+
+      } catch (e) {
+        lastErr = e.message;
+        console.warn(`[CockpitSure] Upload attempt ${attempt} failed:`, e.message);
+        if (attempt < MAX_RETRY) {
+          await new Promise(r => setTimeout(r, 1500 * attempt)); // wait before retry
+        }
       }
-      // PATCH ก่อน → LINE ส่ง status update (CockpitSure ✅) ก่อน
-      await callAPI("PATCH",`/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`,
-        {status:"done"});
-      // รอ 500ms ให้ LINE ส่ง status ไปก่อน แล้วค่อยส่ง video link ตาม
-      await new Promise(r => setTimeout(r, 500));
-      await callAPI("POST",`/api/branch/${branchId}/bay/${qNo}/send-video`,
-        {videoUrl: videoUrl, plate: data.plate});
-      setPhase("done");
-      setTimeout(()=>{ onSuccess(); onClose(); }, 2000);
-    } catch(e) { setError(e.message); setPhase("error"); }
+    }
+
+    // ล้มเหลวทุก attempt
+    setError(lastErr || "Upload ไม่สำเร็จ กรุณาลองใหม่");
+    setPhase("error");
   };
 
   const pct = Math.round((timer/MAX_SEC)*100);
@@ -333,7 +352,6 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
   return (
     <>
-      <canvas ref={canvasRef} style={{display:"none"}}/>
       <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.95)",
         display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
         padding:"12px 16px"}}>
@@ -362,39 +380,90 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
           {/* ── CAMERA VIEW (ready + recording) ── */}
           {isCameraActive && (
             <div>
+              {/* ── กรอบ CockpitSure (9:16) ── */}
               <div style={{position:"relative",borderRadius:14,overflow:"hidden",
                 background:"#111",aspectRatio:"9/16",maxHeight:"54vh",marginBottom:8}}>
 
-                {/* Live video */}
+                {/* กล้องสด */}
                 <video ref={videoRef} autoPlay muted playsInline
                   style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
 
-                {/* CockpitSure logo — มุมซ้ายบน พื้นโปร่งใส */}
-                <img src={COCKPITSURE_LOGO} alt="" style={{
-                  position:"absolute",top:8,left:8,
-                  width:"60%",height:"auto",
-                  pointerEvents:"none",zIndex:10
+                {/* ═══ FRAME OVERLAY (ตาม SVG กรอบcockpit_sure) ═══ */}
+
+                {/* แถบเหลืองขอบขวา — เต็มความสูง */}
+                <div style={{
+                  position:"absolute",top:0,right:0,bottom:0,
+                  width:"1.7%",background:"#FFE000",
+                  pointerEvents:"none",zIndex:15
                 }}/>
 
-                {/* Camera switch — เฉพาะก่อนเริ่มบันทึก */}
+                {/* แถบเหลืองแนวนอน — บนขวา 60% */}
+                <div style={{
+                  position:"absolute",top:0,right:0,
+                  width:"60%",height:"1.7%",minHeight:7,
+                  background:"#FFE000",
+                  pointerEvents:"none",zIndex:15
+                }}/>
+
+                {/* โลโก้ CockpitSure — มุมซ้ายบน */}
+                <img src={COCKPITSURE_LOGO} alt="" style={{
+                  position:"absolute",top:8,left:8,
+                  width:"55%",height:"auto",
+                  pointerEvents:"none",zIndex:14
+                }}/>
+
+                {/* ข้อมูลรถ — ล่าง ไม่มีพื้นหลัง */}
+                <div style={{
+                  position:"absolute",bottom:0,left:0,right:0,
+                  padding:"10px 14px 12px",
+                  zIndex:14,pointerEvents:"none",
+                  display:"flex",justifyContent:"space-between",alignItems:"flex-end"
+                }}>
+                  <div>
+                    <div style={{
+                      fontSize:18,fontWeight:900,color:"#FFE000",
+                      textShadow:"0 1px 4px rgba(0,0,0,0.8)"
+                    }}>{data.plate}</div>
+                    <div style={{
+                      fontSize:11,color:"rgba(255,255,255,0.85)",
+                      textShadow:"0 1px 3px rgba(0,0,0,0.9)",fontWeight:600
+                    }}>{data.province}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{
+                      fontSize:10,color:"rgba(255,255,255,0.7)",
+                      textShadow:"0 1px 3px rgba(0,0,0,0.9)"
+                    }}>
+                      {new Date().toLocaleDateString("th-TH",{day:"numeric",month:"short",year:"2-digit"})}
+                    </div>
+                    <div style={{
+                      fontSize:9,color:"rgba(255,255,255,0.55)",
+                      textShadow:"0 1px 3px rgba(0,0,0,0.9)"
+                    }}>CockpitSure</div>
+                  </div>
+                </div>
+
+                {/* ═══ ปุ่มควบคุม (ไม่เป็นส่วนของเฟรม) ═══ */}
+
+                {/* สลับกล้อง — มุมซ้ายล่าง (เหนือข้อมูลรถ) */}
                 {phase==="ready" && (
                   <button onClick={switchCamera} style={{
-                    position:"absolute",top:8,left:8,zIndex:20,
-                    background:"rgba(0,0,0,0.75)",border:"1px solid rgba(255,255,255,0.3)",
-                    borderRadius:20,padding:"6px 12px",color:"#fff",
-                    fontSize:12,fontWeight:700,cursor:"pointer",
-                    display:"flex",alignItems:"center",gap:5}}>
+                    position:"absolute",bottom:56,left:10,zIndex:20,
+                    background:"rgba(0,0,0,0.65)",border:"1px solid rgba(255,255,255,0.25)",
+                    borderRadius:20,padding:"5px 11px",color:"#fff",
+                    fontSize:11,fontWeight:700,cursor:"pointer",
+                    display:"flex",alignItems:"center",gap:4}}>
                     🔄 {facingMode==="environment" ? "กล้องหน้า" : "กล้องหลัง"}
                   </button>
                 )}
 
-                {/* REC badge */}
+                {/* REC badge — มุมซ้ายบน (เลี่ยงโลโก้) */}
                 {phase==="recording" && (
-                  <div style={{position:"absolute",top:8,right:8,zIndex:20,
+                  <div style={{position:"absolute",top:10,left:"60%",zIndex:20,
                     background:paused?"#d97706":"#dc2626",color:"#fff",
-                    borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:800,
-                    display:"flex",alignItems:"center",gap:5}}>
-                    <span style={{width:7,height:7,borderRadius:"50%",background:"#fff",
+                    borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:800,
+                    display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{width:6,height:6,borderRadius:"50%",background:"#fff",
                       display:"inline-block",
                       animation:paused?"none":"blink 1s infinite"}}/>
                     {paused ? `⏸ ${timer}s` : `⏺ ${timer}s`}
@@ -404,7 +473,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                 {/* Pause overlay */}
                 {phase==="recording" && paused && (
                   <div style={{position:"absolute",inset:0,zIndex:10,
-                    background:"rgba(0,0,0,0.35)",display:"flex",
+                    background:"rgba(0,0,0,0.3)",display:"flex",
                     alignItems:"center",justifyContent:"center",fontSize:52}}>⏸</div>
                 )}
               </div>
@@ -788,9 +857,360 @@ function AddJobsModal({ qNo, branchId, existingJobs, onClose, onSuccess }) {
 }
 
 // ─── Queue Card ───────────────────────────────────────────────────────────────
+// ─── Quotation Modal (ถ่ายรูปใบเสนอราคาแล้วส่ง) ───────────────────────────────
+function QuotationModal({ qNo, branchId, data, onClose }) {
+  const [photos,    setPhotos]    = useState([]);
+  const [note,      setNote]      = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [sending,   setSending]   = useState(false);
+  const [error,     setError]     = useState("");
+  const fileRef = useRef(null);
+
+  const handlePhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (photos.length >= 5) { setError("อัปโหลดได้สูงสุด 5 รูป"); return; }
+    setUploading(true); setError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("upload_preset", CLOUDINARY_PRESET);
+      fd.append("folder", "cockpit_quotes");
+      const r = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
+        { method:"POST", body:fd }
+      );
+      const d = await r.json();
+      if (d.secure_url) setPhotos(prev => [...prev, { url: d.secure_url, id: d.public_id }]);
+      else setError("อัปโหลดไม่สำเร็จ");
+    } catch { setError("อัปโหลดไม่สำเร็จ"); }
+    setUploading(false);
+    e.target.value = "";
+  };
+
+  const send = async () => {
+    if (!data.line_user_id) { setError("ลูกค้ายังไม่ได้ลงทะเบียน LINE"); return; }
+    if (photos.length === 0) { setError("กรุณาถ่ายรูปใบเสนอราคาก่อน"); return; }
+    setSending(true); setError("");
+    const r = await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/quote`, {
+      plate: data.plate, items: [], note, photoUrls: photos.map(p => p.url), total: 0
+    });
+    if (r.success) onClose();
+    else setError(r.error || "ส่งไม่สำเร็จ");
+    setSending(false);
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,.75)",
+      display:"flex",alignItems:"flex-end"}}
+      onClick={e => e.target===e.currentTarget && onClose()}>
+      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",
+        maxHeight:"88dvh",display:"flex",flexDirection:"column"}}>
+
+        {/* Header */}
+        <div style={{padding:"18px 18px 14px",flexShrink:0,
+          display:"flex",justifyContent:"space-between",alignItems:"center",
+          borderBottom:"1px solid #f3f4f6"}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:900,color:"#1A1A1A"}}>
+              📋 ส่งใบเสนอราคา
+            </div>
+            <div style={{fontSize:13,color:"#6b7280",marginTop:2}}>
+              {data.plate} · ช่องที่ {qNo}
+            </div>
+          </div>
+          <button onClick={onClose}
+            style={{background:"#f3f4f6",border:"none",borderRadius:10,
+              width:36,height:36,fontSize:20,cursor:"pointer"}}>✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{flex:1,overflowY:"auto",padding:"18px",minHeight:0}}>
+          {error && (
+            <div style={{background:"#fee2e2",color:"#dc2626",padding:"10px 14px",
+              borderRadius:10,marginBottom:14,fontSize:13,fontWeight:700}}>
+              ⚠️ {error}
+            </div>
+          )}
+
+          {/* Photo area */}
+          <div style={{marginBottom:20}}>
+            <div style={{fontSize:12,fontWeight:800,color:"#6b7280",marginBottom:10}}>
+              📷 รูปถ่ายใบเสนอราคา ({photos.length}/5)
+            </div>
+
+            {/* Photo grid */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+              {photos.map((p,i) => (
+                <div key={i} style={{position:"relative",aspectRatio:"1",
+                  borderRadius:12,overflow:"hidden",border:"1.5px solid #e5e7eb"}}>
+                  <img src={p.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                  <button onClick={() => setPhotos(prev => prev.filter((_,j)=>j!==i))}
+                    style={{position:"absolute",top:4,right:4,background:"rgba(0,0,0,.6)",
+                      border:"none",borderRadius:"50%",width:24,height:24,
+                      color:"#fff",fontSize:12,cursor:"pointer",fontWeight:900}}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+
+              {/* Add photo button */}
+              {photos.length < 5 && (
+                <button onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  style={{aspectRatio:"1",borderRadius:12,
+                    border:"2px dashed #d1d5db",background:"#f9fafb",
+                    cursor:"pointer",display:"flex",flexDirection:"column",
+                    alignItems:"center",justifyContent:"center",gap:6,
+                    color:"#9ca3af"}}>
+                  {uploading
+                    ? <div style={{fontSize:28}}>⏳</div>
+                    : <>
+                        <div style={{fontSize:32}}>📷</div>
+                        <div style={{fontSize:11,fontWeight:700}}>ถ่ายรูป</div>
+                      </>
+                  }
+                </button>
+              )}
+            </div>
+
+            <input ref={fileRef} type="file" accept="image/*" capture="environment"
+              style={{display:"none"}} onChange={handlePhoto}/>
+
+            {photos.length === 0 && !uploading && (
+              <div style={{textAlign:"center",padding:"30px 0",color:"#9ca3af"}}>
+                <div style={{fontSize:48,marginBottom:8}}>📄</div>
+                <div style={{fontSize:13,fontWeight:700}}>
+                  ถ่ายรูปใบเสนอราคาที่เขียนไว้
+                </div>
+                <div style={{fontSize:12,marginTop:4}}>แล้วส่งให้ลูกค้าทาง LINE</div>
+              </div>
+            )}
+          </div>
+
+          {/* Optional note */}
+          <div>
+            <div style={{fontSize:12,fontWeight:800,color:"#6b7280",marginBottom:8}}>
+              ข้อความเพิ่มเติม (ถ้ามี)
+            </div>
+            <textarea value={note} onChange={e=>setNote(e.target.value)}
+              placeholder="เช่น กรุณาตอบกลับเพื่อยืนยัน..."
+              rows={2}
+              style={{width:"100%",padding:"10px 12px",borderRadius:10,
+                border:"1.5px solid #e5e7eb",fontSize:14,resize:"none",outline:"none",
+                fontFamily:"'Noto Sans Thai',sans-serif",
+                boxSizing:"border-box"}}/>
+          </div>
+        </div>
+
+        {/* Send button */}
+        <div style={{padding:"12px 18px 36px",flexShrink:0,borderTop:"1px solid #f3f4f6"}}>
+          {!data.line_user_id && (
+            <div style={{fontSize:12,color:"#f97316",fontWeight:700,
+              marginBottom:8,textAlign:"center"}}>
+              ⚠️ ลูกค้ายังไม่ได้ลงทะเบียน LINE
+            </div>
+          )}
+          <button onClick={send}
+            disabled={sending || !data.line_user_id || photos.length === 0}
+            style={{width:"100%",padding:"17px",borderRadius:14,border:"none",
+              background: (sending||!data.line_user_id||photos.length===0)
+                ? "#e5e7eb" : "#1A1A1A",
+              color: (sending||!data.line_user_id||photos.length===0)
+                ? "#9ca3af" : "#FFE000",
+              fontSize:17,fontWeight:900,cursor:"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}>
+            {sending ? "⏳ กำลังส่ง..." : `📤 ส่งรูปใบเสนอราคาให้ลูกค้า`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+  const total = jobs.reduce((s, j) => s + (parseInt(prices[j.name]) || 0), 0);
+  const fmt   = (n) => n.toLocaleString("th-TH");
+
+  const handlePhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (photos.length >= 5) { setError("อัปโหลดได้สูงสุด 5 รูป"); return; }
+    setUploading(true); setError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("upload_preset", CLOUDINARY_PRESET);
+      fd.append("folder", "cockpit_quotes");
+      const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method:"POST", body:fd });
+      const d = await r.json();
+      if (d.secure_url) setPhotos(prev => [...prev, { url: d.secure_url, id: d.public_id }]);
+      else setError("อัปโหลดไม่สำเร็จ");
+    } catch { setError("อัปโหลดไม่สำเร็จ"); }
+    setUploading(false);
+    e.target.value = "";
+  };
+
+  const removePhoto = async (photo) => {
+    setPhotos(prev => prev.filter(p => p.id !== photo.id));
+  };
+
+  const send = async () => {
+    if (!data.line_user_id) { setError("ลูกค้ายังไม่ได้ลงทะเบียน LINE"); return; }
+    if (jobs.length === 0) { setError("ยังไม่มีรายการงาน"); return; }
+    setSending(true); setError("");
+    const items = jobs.map(j => ({ name: j.name, price: parseInt(prices[j.name]) || 0 }));
+    const r = await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/quote`, {
+      plate: data.plate, items, note, photoUrls: photos.map(p => p.url), total
+    });
+    if (r.success) { onClose(); }
+    else { setError(r.error || "ส่งไม่สำเร็จ"); }
+    setSending(false);
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,.75)",
+      display:"flex",alignItems:"flex-end"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",
+        maxHeight:"92dvh",display:"flex",flexDirection:"column"}}>
+
+        {/* Header */}
+        <div style={{padding:"18px 18px 12px",flexShrink:0,
+          borderBottom:"1px solid #f3f4f6",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:900,color:"#1A1A1A"}}>📋 ใบเสนอราคา</div>
+            <div style={{fontSize:13,color:"#6b7280",marginTop:2}}>
+              {data.plate} · ช่องที่ {qNo}
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:"#f3f4f6",border:"none",
+            borderRadius:10,width:36,height:36,fontSize:20,cursor:"pointer"}}>✕</button>
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{flex:1,overflowY:"auto",padding:"14px 18px",minHeight:0}}>
+          {error && (
+            <div style={{background:"#fee2e2",color:"#dc2626",padding:"10px 14px",
+              borderRadius:10,marginBottom:12,fontSize:13,fontWeight:700}}>
+              ⚠️ {error}
+            </div>
+          )}
+
+          {/* Job price list */}
+          <div style={{fontSize:11,fontWeight:800,color:"#6b7280",marginBottom:8,
+            textTransform:"uppercase",letterSpacing:"0.5px"}}>
+            รายการงาน + ราคา (บาท)
+          </div>
+          {jobs.length === 0 ? (
+            <div style={{color:"#9ca3af",fontSize:14,padding:"20px 0",textAlign:"center"}}>
+              ยังไม่มีรายการงาน
+            </div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+              {jobs.map((j,i) => (
+                <div key={i} style={{display:"flex",alignItems:"center",gap:10,
+                  background:"#f9fafb",borderRadius:10,padding:"10px 12px"}}>
+                  <div style={{flex:1,fontSize:14,fontWeight:700,color:"#1A1A1A"}}>{j.name}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <input
+                      type="number" inputMode="numeric" placeholder="0"
+                      value={prices[j.name] || ""}
+                      onChange={e => setPrices(p => ({...p, [j.name]: e.target.value}))}
+                      style={{width:90,padding:"6px 10px",borderRadius:8,
+                        border:"1.5px solid #e5e7eb",fontSize:15,fontWeight:700,
+                        textAlign:"right",outline:"none",fontFamily:"'Noto Sans Thai',sans-serif"}}
+                    />
+                    <span style={{fontSize:12,color:"#9ca3af",fontWeight:600}}>฿</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Total */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+            background:"#1A1A1A",borderRadius:12,padding:"12px 16px",marginBottom:16}}>
+            <span style={{fontSize:15,fontWeight:800,color:"#fff"}}>รวมทั้งสิ้น</span>
+            <span style={{fontSize:22,fontWeight:900,color:"#FFE000"}}>{fmt(total)} ฿</span>
+          </div>
+
+          {/* Note */}
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:800,color:"#6b7280",marginBottom:6}}>
+              หมายเหตุ (ถ้ามี)
+            </div>
+            <textarea
+              value={note} onChange={e=>setNote(e.target.value)}
+              placeholder="เช่น ราคานี้ยังไม่รวม VAT / อะไหล่ต้องสั่งเพิ่ม..."
+              rows={2}
+              style={{width:"100%",padding:"10px 12px",borderRadius:10,
+                border:"1.5px solid #e5e7eb",fontSize:14,resize:"none",outline:"none",
+                fontFamily:"'Noto Sans Thai',sans-serif"}}
+            />
+          </div>
+
+          {/* Photos */}
+          <div style={{marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:800,color:"#6b7280",marginBottom:8}}>
+              รูปถ่ายประกอบ ({photos.length}/5)
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {photos.map((p,i) => (
+                <div key={i} style={{position:"relative",width:80,height:80}}>
+                  <img src={p.url} alt="" style={{width:80,height:80,borderRadius:10,
+                    objectFit:"cover",border:"1.5px solid #e5e7eb"}}/>
+                  <button onClick={()=>removePhoto(p)}
+                    style={{position:"absolute",top:-6,right:-6,background:"#dc2626",
+                      border:"2px solid #fff",borderRadius:"50%",width:22,height:22,
+                      fontSize:11,color:"#fff",cursor:"pointer",fontWeight:900,
+                      display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {photos.length < 5 && (
+                <button onClick={()=>fileRef.current?.click()}
+                  disabled={uploading}
+                  style={{width:80,height:80,borderRadius:10,border:"2px dashed #d1d5db",
+                    background:"#f9fafb",cursor:"pointer",display:"flex",
+                    flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
+                  {uploading
+                    ? <div style={{fontSize:20}}>⏳</div>
+                    : <><div style={{fontSize:24}}>📷</div>
+                       <div style={{fontSize:10,color:"#9ca3af",fontWeight:700}}>ถ่ายรูป</div></>
+                  }
+                </button>
+              )}
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment"
+              style={{display:"none"}} onChange={handlePhoto}/>
+          </div>
+        </div>
+
+        {/* Send button */}
+        <div style={{padding:"12px 18px 32px",flexShrink:0,borderTop:"1px solid #f3f4f6"}}>
+          {!data.line_user_id && (
+            <div style={{fontSize:12,color:"#f97316",fontWeight:700,marginBottom:8,textAlign:"center"}}>
+              ⚠️ ลูกค้ายังไม่ได้ลงทะเบียน LINE — จะไม่สามารถส่งได้
+            </div>
+          )}
+          <button onClick={send} disabled={sending || !data.line_user_id || jobs.length===0}
+            style={{width:"100%",padding:"17px",borderRadius:14,border:"none",
+              background: (!data.line_user_id||jobs.length===0||sending) ? "#e5e7eb" : "#1A1A1A",
+              color: (!data.line_user_id||jobs.length===0||sending) ? "#9ca3af" : "#FFE000",
+              fontSize:17,fontWeight:900,cursor:sending?"not-allowed":"pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}>
+            {sending ? "⏳ กำลังส่ง..." : `📤 ส่งใบเสนอราคาให้ลูกค้า (${fmt(total)} ฿)`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
-  const [busy, setBusy]       = useState(false);
-  const [csModal, setCsModal] = useState(null); // { jobIdx } when open
+  const [busy, setBusy]         = useState(false);
+  const [csModal, setCsModal]   = useState(null);
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const jobs = data.jobs || [];
   const jobsIdx = jobs.map((j, i) => ({...j, idx: i}));
   const real = jobsIdx.filter(j => j.name !== "รับรถเข้า");
@@ -922,6 +1342,16 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
             ➕
           </button>
 
+          {/* Quote button */}
+          <button onClick={() => setQuoteOpen(true)}
+            title="ส่งใบเสนอราคา"
+            style={{width:30,height:30,borderRadius:8,
+              border:"1.5px solid rgba(255,255,255,.35)",
+              background:"transparent",color:"#FFE000",fontSize:15,cursor:"pointer",
+              display:"flex",alignItems:"center",justifyContent:"center"}}>
+            📋
+          </button>
+
           {isWait && real.length > 0 && (
             <button onClick={handleStart} disabled={busy}
               style={{height:30,padding:"0 10px",borderRadius:8,border:"none",
@@ -996,6 +1426,11 @@ function QueueCard({ qNo, data, branchId, onRefresh, onAddJobs, onComplete }) {
         jobIdx={csModal.jobIdx}
         onClose={() => setCsModal(null)}
         onSuccess={() => { setCsModal(null); onRefresh(); }}
+      />
+    )}
+    {quoteOpen && (
+      <QuotationModal qNo={qNo} branchId={branchId} data={data}
+        onClose={() => setQuoteOpen(false)}
       />
     )}
     </>
