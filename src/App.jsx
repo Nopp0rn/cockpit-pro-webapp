@@ -1,2 +1,5 @@
-import App from "./cockpit-dashboard";
-export default App;
+import Dashboard from './cockpit-dashboard';
+
+export default function App() {
+  return <Dashboard />;
+}
