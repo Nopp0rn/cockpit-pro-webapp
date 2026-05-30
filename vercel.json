@@ -2,9 +2,17 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/tv", "destination": "/display.html" },
-    { "source": "/tv/:branch", "destination": "/display.html?branch=:branch" },
-    { "source": "/pdpa", "destination": "/pdpa-consent-form.html" },
-    { "source": "/((?!.*\\.).*)", "destination": "/index.html" }
+    {
+      "source": "/tv",
+      "destination": "/display.html"
+    },
+    {
+      "source": "/tv/:branch",
+      "destination": "/display.html?branch=:branch"
+    },
+    {
+      "source": "/((?!.*\\.).*)",
+      "destination": "/index.html"
+    }
   ]
 }
