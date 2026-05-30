@@ -1,8 +1,6 @@
 {
-  "name": "cockpit-pro-webapp",
-  "private": true,
-  "version": "2.0.0",
-  "type": "module",
+  "name": "cockpit-pro-queue",
+  "version": "1.0.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -13,10 +11,7 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.0",
+    "@vitejs/plugin-react": "^4.2.1",
     "vite": "^5.0.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
   }
 }
