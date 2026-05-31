@@ -1054,7 +1054,7 @@ function StaffView({ branchId, branchName: branchNameProp }) {
   const sorted = Object.entries(queues).sort((a,b) => parseInt(a[0])-parseInt(b[0]));
 
   return (
-    <div style={{paddingBottom:80}}>
+    <div style={{paddingBottom:"calc(80px + env(safe-area-inset-bottom, 0px))"}}>
 
       <div style={{padding:"4px 12px 2px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{fontSize:13,fontWeight:800,color:"#374151"}}>📍 {branchName}</div>
@@ -1861,7 +1861,7 @@ export default function App() {
     <div style={{fontFamily:"'Noto Sans Thai',sans-serif",background:"#F2F2EE",minHeight:"100vh"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700;800;900&display=swap');
-        *{box-sizing:border-box;} body{margin:0;padding:0;}
+        *{box-sizing:border-box;} body{margin:0;padding:0;padding-bottom:env(safe-area-inset-bottom,0px);}
         button,input{font-family:'Noto Sans Thai',sans-serif;}
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
@@ -1872,8 +1872,14 @@ export default function App() {
       <div style={{background:"#1A1A1A",position:"sticky",top:0,zIndex:40,
         boxShadow:"0 2px 16px rgba(0,0,0,.5)"}}>
 
-        {/* Logo row + Branch selector */}
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px 6px"}}>
+        {/* Logo row + Branch selector — paddingTop รองรับ Dynamic Island / notch */}
+        <div style={{
+          display:"flex", alignItems:"center", gap:10,
+          paddingTop:"calc(10px + env(safe-area-inset-top, 0px))",
+          paddingBottom:"6px",
+          paddingLeft:"14px",
+          paddingRight:"14px",
+        }}>
           {/* Logo */}
           <div style={{flexShrink:0}}>
             <CockpitLogo height={38}/>
