@@ -202,13 +202,21 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     bsImg.src = BRIDGESTONE_LOGO;
 
     function drawV8Frame(ctx, cW, cH) {
-      const stripeW = Math.round(cW * 0.017);
+      // Shared constants — must match CSS overlay & compositeFrameOnPhoto exactly
+      const stripeW   = Math.round(cW * 0.017);        // 1.7% left/right stripes
+      const logoAreaW = Math.round(cW * 0.20) - stripeW; // 20% wide (50% of old 40%)
+      const logoAreaH = Math.round(cH * 0.06);           // 6% tall  (50% of old 12%)
+      const panelH    = Math.round(cH * 0.0867);         // 8.67% (2/3 of old 13%)
+      const accentH   = Math.round(cH * 0.017);          // 1.7% top accent
+
+      // ① Left stripe
       ctx.fillStyle = "#FFE000";
       ctx.fillRect(0, 0, stripeW, cH);
+      // ② Right stripe
       ctx.fillRect(cW - stripeW, 0, stripeW, cH);
-      const logoAreaW = Math.round(cW * 0.40) - stripeW;
-      const logoAreaH = Math.round(cH * 0.12);
-      const radius = Math.round(logoAreaW * 0.12);
+
+      // ③ CS logo area (top-left yellow, rounded bottom-right)
+      const radius = Math.round(logoAreaW * 0.20);
       ctx.fillStyle = "#FFE000";
       ctx.beginPath();
       ctx.moveTo(stripeW, 0);
@@ -220,25 +228,29 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       ctx.fill();
       if (logoImg.complete && logoImg.naturalWidth > 0) {
         const pad = Math.round(logoAreaW * 0.06);
-        const lW = logoAreaW - pad * 2;
-        const lH = Math.round(lW * logoImg.naturalHeight / logoImg.naturalWidth);
-        const lY = Math.round((logoAreaH - lH) / 2);
+        const lW  = logoAreaW - pad * 2;
+        const lH  = Math.round(lW * logoImg.naturalHeight / logoImg.naturalWidth);
+        const lY  = Math.round((logoAreaH - lH) / 2);
         ctx.drawImage(logoImg, stripeW + pad, lY, lW, lH);
       }
-      const accentH = stripeW;
+      // ④ Top-right accent line
       ctx.fillStyle = "#FFE000";
       ctx.fillRect(stripeW + logoAreaW, 0, cW - stripeW - (stripeW + logoAreaW), accentH);
-      const panelH = Math.round(cH * 0.13);
+
+      // ⑤ Bottom yellow panel
       ctx.fillStyle = "#FFE000";
       ctx.fillRect(0, cH - panelH, cW, panelH);
+
+      // ⑥ Bridgestone logo — 3× panelH, centered in panel
       if (bsImg.complete && bsImg.naturalWidth > 0) {
-        const bsH = panelH;
+        const bsH = panelH * 3;
         const bsW = Math.round(bsH * bsImg.naturalWidth / bsImg.naturalHeight);
-        const bsWfinal = Math.min(bsW, Math.round(cW * 0.65));
-        const bsHfinal = Math.round(bsWfinal * bsImg.naturalHeight / bsImg.naturalWidth);
-        const bsX = Math.round((cW - bsWfinal) / 2);
-        const bsY = cH - panelH + Math.round((panelH - bsHfinal) / 2);
-        ctx.drawImage(bsImg, bsX, bsY, bsWfinal, bsHfinal);
+        const maxW = cW - stripeW * 2;
+        const bsWf = Math.min(bsW, maxW);
+        const bsHf = Math.round(bsWf * bsImg.naturalHeight / bsImg.naturalWidth);
+        const bsX = Math.round((cW - bsWf) / 2);
+        const bsY = cH - panelH + Math.round((panelH - bsHf) / 2);
+        ctx.drawImage(bsImg, bsX, bsY, bsWf, bsHf);
       }
     }
 
@@ -405,51 +417,66 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                 <video ref={videoRef} autoPlay muted playsInline
                   style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
 
-                {/* ═══ กรอบ Cockpit Sure (CSS overlay จาก SVG) ═══ */}
+                {/* ═══ กรอบ Cockpit Sure v8 (CSS preview overlay) ═══ */}
 
-                {/* แถบเหลืองซ้าย — แนวตั้งเต็มความสูง กว้าง ~1.7% */}
+                {/* ① Left stripe */}
                 <div style={{position:"absolute",top:0,left:0,bottom:0,
-                  width:"1.7%",background:"#FFE000",pointerEvents:"none",zIndex:12}}/>
+                  width:"1.7%",background:"#FFE000",pointerEvents:"none",zIndex:40}}/>
+                {/* ② Right stripe */}
+                <div style={{position:"absolute",top:0,right:0,bottom:0,
+                  width:"1.7%",background:"#FFE000",pointerEvents:"none",zIndex:40}}/>
 
-                {/* แถบเหลืองบนขวา — แนวนอน กว้าง 60% จากขวา สูง ~1% */}
-                <div style={{position:"absolute",top:0,right:0,
-                  width:"60%",height:"1.7%",background:"#FFE000",
-                  pointerEvents:"none",zIndex:12}}/>
-
-                {/* แถบเหลืองล่าง — เต็มความกว้าง */}
-                <div style={{position:"absolute",bottom:0,left:0,right:0,
-                  height:"13%",background:"#FFE000",
-                  pointerEvents:"none",zIndex:12,
-                  display:"flex",alignItems:"center",paddingLeft:"3%",gap:"3%"}}>
-
-                  {/* โลโก้ Cockpit Sure ในแถบล่าง */}
+                {/* ③ CS logo area — top-left, 20% wide, 6% tall, yellow bg, rounded BR */}
+                <div style={{
+                  position:"absolute",top:0,left:"1.7%",
+                  width:"calc(20% - 1.7%)",height:"6%",
+                  background:"#FFE000",
+                  borderBottomRightRadius:"20%",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  padding:"0.5% 1%",
+                  zIndex:45,pointerEvents:"none"
+                }}>
                   <img src={COCKPITSURE_LOGO} alt="" style={{
-                    height:"55%",width:"auto",objectFit:"contain",
+                    width:"100%",height:"100%",objectFit:"contain",
                     pointerEvents:"none"
                   }}/>
-
-                  {/* ข้อมูลรถ + วันที่ */}
-                  <div style={{display:"flex",flexDirection:"column",justifyContent:"center"}}>
-                    <div style={{fontSize:"clamp(7px,1.6vw,12px)",fontWeight:900,
-                      color:"#1A1A1A",lineHeight:1.2}}>
-                      {data?.plate} · {data?.province}
-                    </div>
-                    <div style={{fontSize:"clamp(6px,1.3vw,10px)",color:"#1A1A1A",
-                      fontWeight:600,opacity:0.75}}>
-                      {new Date().toLocaleDateString("th-TH",
-                        {day:"numeric",month:"short",year:"numeric"})}
-                    </div>
-                  </div>
                 </div>
 
-                {/* Camera switch — เฉพาะก่อนเริ่มบันทึก (bottom-left เหนือแถบล่าง) */}
+                {/* ④ Top-right accent — from logo right edge to right stripe */}
+                <div style={{
+                  position:"absolute",top:0,left:"20%",right:"1.7%",
+                  height:"1.7%",background:"#FFE000",
+                  pointerEvents:"none",zIndex:45
+                }}/>
+
+                {/* ⑤ Bottom yellow panel — 8.67% height (2/3 of 13%) */}
+                <div style={{
+                  position:"absolute",bottom:0,left:0,right:0,
+                  height:"8.67%",background:"#FFE000",
+                  pointerEvents:"none",zIndex:15
+                }}/>
+
+                {/* ⑥ Bridgestone logo — 3× panelH, centered in bottom panel */}
+                <div style={{
+                  position:"absolute",bottom:0,left:"1.7%",right:"1.7%",
+                  height:"8.67%",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  pointerEvents:"none",zIndex:20
+                }}>
+                  <img src={BRIDGESTONE_LOGO} alt="" style={{
+                    height:"300%",width:"auto",
+                    objectFit:"contain",pointerEvents:"none"
+                  }}/>
+                </div>
+
+                {/* Camera switch — top-right, z-index above stripes */}
                 {phase==="ready" && (
                   <button onClick={switchCamera} style={{
-                    position:"absolute",bottom:"15%",left:"3%",zIndex:20,
+                    position:"absolute",top:"2%",right:"4%",zIndex:50,
                     background:"rgba(0,0,0,0.75)",border:"1px solid rgba(255,255,255,0.3)",
-                    borderRadius:20,padding:"6px 12px",color:"#fff",
-                    fontSize:12,fontWeight:700,cursor:"pointer",
-                    display:"flex",alignItems:"center",gap:5}}>
+                    borderRadius:20,padding:"4px 10px",color:"#fff",
+                    fontSize:11,fontWeight:700,cursor:"pointer",
+                    display:"flex",alignItems:"center",gap:4}}>
                     🔄 {facingMode==="environment" ? "กล้องหน้า" : "กล้องหลัง"}
                   </button>
                 )}
@@ -699,13 +726,21 @@ function QuotationModal({ qNo, branchId, data, onClose }) {
       let lCount = 0;
       const draw = () => {
         if (++lCount < 2) return;
-        const stripeW = Math.round(W * 0.017);
+        // Shared constants — identical to CSS overlay & drawV8Frame
+        const stripeW   = Math.round(W * 0.017);
+        const logoAreaW = Math.round(W * 0.20) - stripeW;
+        const logoAreaH = Math.round(H * 0.06);
+        const panelH    = Math.round(H * 0.0867);
+        const accentH   = Math.round(H * 0.017);
+
+        // ① Left stripe
         ctx.fillStyle = "#FFE000";
         ctx.fillRect(0, 0, stripeW, H);
+        // ② Right stripe
         ctx.fillRect(W - stripeW, 0, stripeW, H);
-        const logoAreaW = Math.round(W * 0.40) - stripeW;
-        const logoAreaH = Math.round(H * 0.12);
-        const radius = Math.round(logoAreaW * 0.12);
+
+        // ③ CS logo area (top-left, yellow bg, rounded bottom-right)
+        const radius = Math.round(logoAreaW * 0.20);
         ctx.fillStyle = "#FFE000";
         ctx.beginPath();
         ctx.moveTo(stripeW, 0);
@@ -717,20 +752,25 @@ function QuotationModal({ qNo, branchId, data, onClose }) {
         ctx.fill();
         if (csImg.naturalWidth > 0) {
           const pad = Math.round(logoAreaW * 0.06);
-          const lW = logoAreaW - pad * 2;
-          const lH = Math.round(lW * csImg.naturalHeight / csImg.naturalWidth);
-          const lY = Math.round((logoAreaH - lH) / 2);
+          const lW  = logoAreaW - pad * 2;
+          const lH  = Math.round(lW * csImg.naturalHeight / csImg.naturalWidth);
+          const lY  = Math.round((logoAreaH - lH) / 2);
           ctx.drawImage(csImg, stripeW + pad, lY, lW, lH);
         }
+        // ④ Top-right accent line
         ctx.fillStyle = "#FFE000";
-        ctx.fillRect(stripeW + logoAreaW, 0, W - stripeW - (stripeW + logoAreaW), stripeW);
-        const panelH = Math.round(H * 0.13);
+        ctx.fillRect(stripeW + logoAreaW, 0, W - stripeW - (stripeW + logoAreaW), accentH);
+
+        // ⑤ Bottom yellow panel
         ctx.fillStyle = "#FFE000";
         ctx.fillRect(0, H - panelH, W, panelH);
+
+        // ⑥ Bridgestone logo — 3× panelH, centered in panel
         if (bsImg2.naturalWidth > 0) {
-          const bsH = panelH;
+          const bsH = panelH * 3;
           const bsW = Math.round(bsH * bsImg2.naturalWidth / bsImg2.naturalHeight);
-          const bsWf = Math.min(bsW, Math.round(W * 0.65));
+          const maxW = W - stripeW * 2;
+          const bsWf = Math.min(bsW, maxW);
           const bsHf = Math.round(bsWf * bsImg2.naturalHeight / bsImg2.naturalWidth);
           const bsX = Math.round((W - bsWf) / 2);
           const bsY = H - panelH + Math.round((panelH - bsHf) / 2);
