@@ -90,6 +90,25 @@ input::placeholder{color:#c4c4bc;font-weight:400}
 .info-banner{display:flex;align-items:center;gap:12px;background:#f0fdf4;border-radius:12px;padding:14px 16px;margin-bottom:20px;border:1.5px solid #86efac}
 .info-banner-icon{font-size:24px;flex-shrink:0}
 .info-banner-text{font-size:15px;color:#166534;font-weight:700;line-height:1.5}
+
+/* ── PDPA Step ── */
+.pdpa-box{background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:16px 18px;margin-bottom:18px;max-height:320px;overflow-y:auto;font-size:14px;line-height:1.75;color:#374151}
+.pdpa-box h3{font-size:15px;font-weight:900;color:#1A1A1A;margin:14px 0 6px}
+.pdpa-box h3:first-child{margin-top:0}
+.pdpa-box p{margin-bottom:8px;font-size:13.5px}
+.pdpa-box ul{margin:4px 0 10px 18px}
+.pdpa-box ul li{margin-bottom:4px;font-size:13.5px}
+.pdpa-box .highlight{background:#fffbeb;border-left:3px solid #FFE000;padding:8px 12px;border-radius:0 8px 8px 0;margin:8px 0;font-size:13px;font-weight:700}
+.pdpa-company{display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.pdpa-company img{width:60px;height:60px;object-fit:contain;border-radius:8px;flex-shrink:0}
+.pdpa-company-info{font-size:12px;color:#374151;line-height:1.65}
+.pdpa-company-info strong{display:block;font-size:13px;font-weight:900;color:#1A1A1A;margin-bottom:2px}
+.consent-row{display:flex;align-items:flex-start;gap:12px;background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:14px;margin-top:14px;cursor:pointer}
+.consent-row input[type=checkbox]{width:22px;height:22px;margin-top:2px;flex-shrink:0;cursor:pointer;accent-color:#16a34a}
+.consent-label{font-size:14px;font-weight:700;color:#166534;line-height:1.6;cursor:pointer;user-select:none}
+.pdpa-scroll-hint{text-align:center;font-size:12px;color:#9ca3af;margin-top:6px}
+.pdpa-err{background:#fee2e2;color:#dc2626;padding:10px 14px;border-radius:10px;font-size:14px;font-weight:700;margin-top:8px;display:none;border-left:4px solid #dc2626}
+
 </style>
 </head>
 <body>
@@ -125,8 +144,102 @@ input::placeholder{color:#c4c4bc;font-weight:400}
       </div>
     </div>
 
+
+    <!-- Step 0: PDPA Consent -->
+    <div id="step0">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+        <div style="width:44px;height:44px;background:#dbeafe;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🔒</div>
+        <div>
+          <div style="font-size:17px;font-weight:900;color:#1A1A1A">นโยบายคุ้มครองข้อมูลส่วนบุคคล</div>
+          <div style="font-size:13px;color:#6b7280;margin-top:2px">กรุณาอ่านและยอมรับก่อนดำเนินการ</div>
+        </div>
+      </div>
+
+      <!-- Company Info -->
+      <div class="pdpa-company">
+        <img src="data:image/jpeg;base64,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" alt="Bridgestone A.C.T"/>
+        <div class="pdpa-company-info">
+          <strong>บริษัท บริดจสโตน เอ.ซี.ที (ประเทศไทย) จำกัด</strong>
+          BRIDGESTONE A.C.T (THAILAND) CO., LTD.<br>
+          14/3 หมู่ 1 ถนนพหลโยธิน ตำบลคลองหนึ่ง<br>
+          อำเภอคลองหลวง จังหวัดปทุมธานี 12120
+        </div>
+      </div>
+
+      <!-- PDPA Content (Scrollable) -->
+      <div class="pdpa-box" id="pdpa-scroll-box">
+
+        <h3>📋 วัตถุประสงค์การเก็บรวบรวมข้อมูล</h3>
+        <p>บริษัทฯ เก็บรวบรวมข้อมูลส่วนบุคคลของท่านเพื่อวัตถุประสงค์ดังต่อไปนี้</p>
+        <ul>
+          <li>แจ้งเตือนสถานะการซ่อมและบริการรถยนต์ของท่านผ่านทาง LINE</li>
+          <li>จัดการระบบคิวและติดตามงานซ่อมภายในสาขา</li>
+          <li>ติดต่อสื่อสารกับท่านเกี่ยวกับการให้บริการ</li>
+          <li>จัดทำประวัติการใช้บริการเพื่อพัฒนาคุณภาพการให้บริการ</li>
+        </ul>
+
+        <h3>📁 ข้อมูลที่บริษัทฯ เก็บรวบรวม</h3>
+        <ul>
+          <li><strong>เลขทะเบียนรถ</strong> — เพื่อระบุรถของท่านในระบบ</li>
+          <li><strong>จังหวัดของทะเบียนรถ</strong> — เพื่อประกอบการระบุตัวรถ</li>
+          <li><strong>เบอร์โทรศัพท์</strong> — เพื่อการติดต่อกรณีจำเป็น</li>
+          <li><strong>LINE User ID</strong> — เพื่อส่งการแจ้งเตือนสถานะผ่าน LINE</li>
+          <li><strong>ข้อมูลการใช้บริการ</strong> — ประเภทงานซ่อม วันเวลา สาขาที่ใช้บริการ</li>
+        </ul>
+
+        <h3>🏢 การเปิดเผยข้อมูลแก่บุคคลที่สาม</h3>
+        <p>บริษัทฯ อาจเปิดเผยข้อมูลของท่านแก่</p>
+        <ul>
+          <li>สาขาในเครือ Bridgestone A.C.T ที่ท่านใช้บริการ</li>
+          <li>ผู้ให้บริการระบบ (LINE Corporation, Cloudinary, Supabase) ภายใต้มาตรฐานความปลอดภัยที่เข้มงวด</li>
+          <li>หน่วยงานราชการเมื่อมีคำสั่งตามกฎหมาย</li>
+        </ul>
+        <div class="highlight">บริษัทฯ ไม่มีนโยบายขายหรือเปิดเผยข้อมูลส่วนบุคคลของท่านแก่บุคคลภายนอกเพื่อวัตถุประสงค์ทางการค้า</div>
+
+        <h3>⏱ ระยะเวลาการเก็บรักษาข้อมูล</h3>
+        <p>บริษัทฯ จะเก็บรักษาข้อมูลส่วนบุคคลของท่านตราบเท่าที่จำเป็นสำหรับวัตถุประสงค์ที่ระบุไว้ข้างต้น โดยทั่วไปไม่เกิน <strong>3 ปี</strong> นับจากวันที่ใช้บริการครั้งสุดท้าย หรือตามที่กฎหมายกำหนด</p>
+
+        <h3>✅ สิทธิ์ของท่านในฐานะเจ้าของข้อมูล</h3>
+        <p>ภายใต้พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA) ท่านมีสิทธิ์ดังต่อไปนี้</p>
+        <ul>
+          <li><strong>สิทธิ์ในการเข้าถึงข้อมูล</strong> — ขอดูข้อมูลที่บริษัทฯ เก็บไว้เกี่ยวกับท่าน</li>
+          <li><strong>สิทธิ์ในการแก้ไขข้อมูล</strong> — ขอแก้ไขข้อมูลที่ไม่ถูกต้อง</li>
+          <li><strong>สิทธิ์ในการลบข้อมูล</strong> — ขอให้ลบข้อมูลของท่านออกจากระบบ</li>
+          <li><strong>สิทธิ์ในการถอนความยินยอม</strong> — ถอนความยินยอมได้ตลอดเวลา โดยไม่กระทบต่อการประมวลผลที่ผ่านมา</li>
+          <li><strong>สิทธิ์ในการโอนย้ายข้อมูล</strong> — ขอรับข้อมูลในรูปแบบที่สามารถนำไปใช้ต่อได้</li>
+          <li><strong>สิทธิ์ในการคัดค้านการประมวลผล</strong> — คัดค้านการใช้ข้อมูลในกรณีที่กฎหมายกำหนด</li>
+        </ul>
+
+        <h3>📞 ช่องทางติดต่อเจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคล</h3>
+        <p>หากท่านมีคำถามหรือต้องการใช้สิทธิ์ใดๆ กรุณาติดต่อ</p>
+        <ul>
+          <li><strong>บริษัท บริดจสโตน เอ.ซี.ที (ประเทศไทย) จำกัด</strong></li>
+          <li>14/3 หมู่ 1 ถนนพหลโยธิน ตำบลคลองหนึ่ง อำเภอคลองหลวง จังหวัดปทุมธานี 12120</li>
+          <li>ผ่านสาขาที่ท่านใช้บริการ หรือผ่าน LINE OA ของสาขา</li>
+        </ul>
+
+        <h3>🔐 ความปลอดภัยของข้อมูล</h3>
+        <p>บริษัทฯ ใช้มาตรการรักษาความปลอดภัยทางเทคนิคและองค์กรที่เหมาะสมเพื่อปกป้องข้อมูลส่วนบุคคลของท่านจากการเข้าถึง การใช้ การเปิดเผย การแก้ไข หรือการทำลายโดยมิชอบ</p>
+
+      </div>
+      <div class="pdpa-scroll-hint" id="scroll-hint">↕ เลื่อนอ่านข้อมูลด้านบนให้ครบก่อนยอมรับ</div>
+
+      <!-- Consent Checkbox -->
+      <label class="consent-row" for="pdpa-checkbox">
+        <input type="checkbox" id="pdpa-checkbox" onchange="onConsentChange()"/>
+        <div class="consent-label">
+          ข้าพเจ้าได้อ่านและเข้าใจนโยบายคุ้มครองข้อมูลส่วนบุคคลข้างต้นแล้ว และ<strong>ยินยอมให้บริษัทฯ เก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคล</strong>ของข้าพเจ้าตามวัตถุประสงค์ที่ระบุไว้
+        </div>
+      </label>
+      <div class="pdpa-err" id="err-consent">⚠️ กรุณายอมรับนโยบายคุ้มครองข้อมูลส่วนบุคคลก่อนดำเนินการต่อ</div>
+
+      <button class="submit-btn" style="margin-top:16px" onclick="goStep1FromPdpa()">
+        ดำเนินการต่อ →
+      </button>
+    </div>
+
     <!-- Step 1 -->
-    <div id="step1">
+    <div id="step1" style="display:none">
       <div class="info-banner">
         <div class="info-banner-icon">📱</div>
         <div class="info-banner-text">กรอกข้อมูลรถของท่านเพื่อรับแจ้งเตือนสถานะการซ่อมผ่าน LINE โดยอัตโนมัติ</div>
@@ -272,6 +385,37 @@ async function submitForm() {
     alert("เกิดข้อผิดพลาด กรุณาลองใหม่\n"+e.message);
   }
 }
+
+// ── PDPA Logic ────────────────────────────────────────────────
+let consentGiven = false;
+
+function onConsentChange() {
+  consentGiven = document.getElementById('pdpa-checkbox').checked;
+  document.getElementById('err-consent').style.display = 'none';
+}
+
+function goStep1FromPdpa() {
+  if (!consentGiven) {
+    document.getElementById('err-consent').style.display = 'block';
+    document.getElementById('pdpa-checkbox').scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+  hide('step0');
+  show('step1');
+}
+
+// Hide scroll hint once user scrolls the PDPA box
+document.addEventListener('DOMContentLoaded', function() {
+  var box = document.getElementById('pdpa-scroll-box');
+  if (box) {
+    box.addEventListener('scroll', function() {
+      if (box.scrollTop > 40) {
+        document.getElementById('scroll-hint').style.opacity = '0';
+      }
+    });
+  }
+});
+
 </script>
 </body>
 </html>
