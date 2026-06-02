@@ -204,7 +204,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     function drawV8Frame(ctx, cW, cH) {
       // Shared constants — must match CSS overlay & compositeFrameOnPhoto exactly
       const stripeW   = Math.round(cW * 0.017);        // 1.7% left/right stripes
-      const logoAreaW = Math.round(cW * 0.20) - stripeW; // 20% wide (50% of old 40%)
+      const logoAreaW = Math.round(cW * 0.35) - stripeW; // 35% wide (3× logo size)
       const logoAreaH = Math.round(cH * 0.06);           // 6% tall  (50% of old 12%)
       const panelH    = Math.round(cH * 0.0867);         // 8.67% (2/3 of old 13%)
       const accentH   = Math.round(cH * 0.017);          // 1.7% top accent
@@ -426,10 +426,10 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                 <div style={{position:"absolute",top:0,right:0,bottom:0,
                   width:"1.7%",background:"#FFE000",pointerEvents:"none",zIndex:40}}/>
 
-                {/* ③ CS logo area — top-left, 20% wide, 6% tall, yellow bg, rounded BR */}
+                {/* ③ CS logo area — top-left, 35% wide, 6% tall, yellow bg, rounded BR */}
                 <div style={{
                   position:"absolute",top:0,left:"1.7%",
-                  width:"calc(20% - 1.7%)",height:"6%",
+                  width:"calc(35% - 1.7%)",height:"6%",
                   background:"#FFE000",
                   borderBottomRightRadius:"20%",
                   display:"flex",alignItems:"center",justifyContent:"center",
@@ -444,7 +444,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
                 {/* ④ Top-right accent — from logo right edge to right stripe */}
                 <div style={{
-                  position:"absolute",top:0,left:"20%",right:"1.7%",
+                  position:"absolute",top:0,left:"35%",right:"1.7%",
                   height:"1.7%",background:"#FFE000",
                   pointerEvents:"none",zIndex:45
                 }}/>
@@ -728,7 +728,7 @@ function QuotationModal({ qNo, branchId, data, onClose }) {
         if (++lCount < 2) return;
         // Shared constants — identical to CSS overlay & drawV8Frame
         const stripeW   = Math.round(W * 0.017);
-        const logoAreaW = Math.round(W * 0.20) - stripeW;
+        const logoAreaW = Math.round(W * 0.35) - stripeW;
         const logoAreaH = Math.round(H * 0.06);
         const panelH    = Math.round(H * 0.0867);
         const accentH   = Math.round(H * 0.017);
