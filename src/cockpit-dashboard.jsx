@@ -96,7 +96,10 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     clearInterval(timerRef.current);
-    cancelAnimationFrame(animRef.current);
+    if (animRef.current) {
+      if (typeof animRef.current === "number") cancelAnimationFrame(animRef.current);
+      else if (animRef.current.stop) animRef.current.stop();
+    }
   }, []);
 
   // ── Open camera (initial) ────────────────────────────────────
@@ -126,7 +129,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
     try {
       const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: f, width:{ideal:1280}, height:{ideal:720} },
+        video: { facingMode: f, width:{ideal:854}, height:{ideal:480} }, // ลด resolution เพื่อลดขนาดไฟล์
         audio: true
       });
       streamRef.current = s;
@@ -161,7 +164,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       } else {
         // ระหว่างบันทึก: เปลี่ยนแค่ video track, recorder ยังทำงานต่อ
         const newVidStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: next, width:{ideal:1280}, height:{ideal:720} },
+          video: { facingMode: next, width:{ideal:854}, height:{ideal:480} },
           audio: false
         });
         // หยุด video track เดิม
@@ -186,47 +189,153 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     }
   };
 
-  // ── Start recording DIRECTLY from stream (no canvas — prevents Android freeze) ─
+  // ── Start recording: canvas compositing (logo baked in) ─────────────────────
+  // ใช้ canvas เพื่อ burn logo ลงวิดีโอโดยตรง
+  // ป้องกัน Android freeze ด้วย resolution ต่ำ + bitrate limit + timeslice ยาว
   function startRec() {
     chunksRef.current = [];
     const stream = streamRef.current;
     if (!stream) return;
 
-    // ไม่ใช้ canvas เพื่อป้องกัน freeze บน Android
-    // โลโก้แสดงผ่าน CSS overlay เท่านั้น (ไม่ burn ลงวิดีโอ)
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const video = videoRef.current;
+
+    // ลด resolution เพื่อลดขนาดไฟล์และป้องกัน Android freeze
     const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
-    const bitsPerSecond = isMobile ? 1500000 : 4000000; // 1.5Mbps mobile, 4Mbps desktop
+    canvas.width  = 480;   // ลดจาก 720 → 480 (portrait width)
+    canvas.height = 854;   // ลดจาก 1280 → 854 (portrait height, 9:16)
 
-    const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
-      ? "video/mp4;codecs=h264,aac"
-      : MediaRecorder.isTypeSupported("video/mp4")
-      ? "video/mp4"
-      : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-      ? "video/webm;codecs=vp9"
-      : "video/webm";
+    const logoImg = new Image();
+    logoImg.src = COCKPITSURE_LOGO;
+    const bsImg = new Image();
+    bsImg.src = BRIDGESTONE_LOGO;
 
-    const options = { bitsPerSecond };
-    if (mimeType) options.mimeType = mimeType;
+    // วาด frame v8 ที่ตรงกับ CSS overlay
+    function drawV8Frame(ctx, cW, cH) {
+      const stripeW   = Math.round(cW * 0.017);
+      const logoAreaW = Math.round(cW * 0.20) - stripeW;
+      const logoAreaH = Math.round(cH * 0.06);
+      const panelH    = Math.round(cH * 0.0867);
+      const accentH   = Math.round(cH * 0.017);
+      // ① Left stripe
+      ctx.fillStyle = "#FFE000";
+      ctx.fillRect(0, 0, stripeW, cH);
+      // ② Right stripe
+      ctx.fillRect(cW - stripeW, 0, stripeW, cH);
+      // ③ CS logo area
+      const radius = Math.round(logoAreaW * 0.20);
+      ctx.fillStyle = "#FFE000";
+      ctx.beginPath();
+      ctx.moveTo(stripeW, 0);
+      ctx.lineTo(stripeW + logoAreaW, 0);
+      ctx.lineTo(stripeW + logoAreaW, logoAreaH - radius);
+      ctx.quadraticCurveTo(stripeW + logoAreaW, logoAreaH, stripeW + logoAreaW - radius, logoAreaH);
+      ctx.lineTo(stripeW, logoAreaH);
+      ctx.closePath();
+      ctx.fill();
+      if (logoImg.complete && logoImg.naturalWidth > 0) {
+        const pad = Math.round(logoAreaW * 0.06);
+        const lW  = logoAreaW - pad * 2;
+        const lH  = Math.round(lW * logoImg.naturalHeight / logoImg.naturalWidth);
+        const lY  = Math.round((logoAreaH - lH) / 2);
+        ctx.drawImage(logoImg, stripeW + pad, lY, lW, lH);
+      }
+      // ④ Top-right accent
+      ctx.fillStyle = "#FFE000";
+      ctx.fillRect(stripeW + logoAreaW, 0, cW - stripeW - (stripeW + logoAreaW), accentH);
+      // ⑤ Bottom panel
+      ctx.fillStyle = "#FFE000";
+      ctx.fillRect(0, cH - panelH, cW, panelH);
+      // ⑥ Bridgestone logo
+      if (bsImg.complete && bsImg.naturalWidth > 0) {
+        const bsH  = panelH * 3;
+        const bsW  = Math.round(bsH * bsImg.naturalWidth / bsImg.naturalHeight);
+        const maxW = cW - stripeW * 2;
+        const bsWf = Math.min(bsW, maxW);
+        const bsHf = Math.round(bsWf * bsImg.naturalHeight / bsImg.naturalWidth);
+        const bsX  = Math.round((cW - bsWf) / 2);
+        const bsY  = cH - panelH + Math.round((panelH - bsHf) / 2);
+        ctx.drawImage(bsImg, bsX, bsY, bsWf, bsHf);
+      }
+    }
 
-    const mr = new MediaRecorder(stream, options);
-    mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-    mr.onstop = () => {
-      if (chunksRef.current.length === 0) return;
-      const finalType = mr.mimeType || mimeType || "video/webm";
-      const blob = new Blob(chunksRef.current, { type: finalType });
-      setVideoBlob(blob);
-      setPreviewUrl(URL.createObjectURL(blob));
-      streamRef.current?.getTracks().forEach(t => t.stop());
-      setPhase("preview");
-    };
-    mr.start(2000); // 2s timeslice — ลด memory pressure บน mobile
-    setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
-    timerRef.current = setInterval(() => {
-      setTimer(t => {
-        if (t >= MAX_SEC - 1) { mr.stop(); clearInterval(timerRef.current); return MAX_SEC; }
-        return t + 1;
-      });
-    }, 1000);
+    function beginRecord() {
+      // drawLoop: ทำงานตลอด — วาด video frame + logo ลง canvas ทุก rAF
+      let firstFrameDrawn = false;
+      let animFrameId = null;
+
+      function drawLoop() {
+        if (video && video.readyState >= 2 && video.videoWidth > 0) {
+          const vW=video.videoWidth, vH=video.videoHeight;
+          const cW=canvas.width, cH=canvas.height;
+          const vA=vW/vH, cA=cW/cH;
+          let sx=0,sy=0,sw=vW,sh=vH;
+          if (vA>cA){ sw=vH*cA; sx=(vW-sw)/2; }
+          else      { sh=vW/cA; sy=(vH-sh)/2; }
+          ctx.clearRect(0,0,cW,cH);
+          ctx.drawImage(video, sx,sy,sw,sh, 0,0,cW,cH);
+          drawV8Frame(ctx, cW, cH);
+          firstFrameDrawn = true;
+        }
+        animFrameId = requestAnimationFrame(drawLoop);
+      }
+      animRef.current = { stop: () => { if (animFrameId) cancelAnimationFrame(animFrameId); } };
+      drawLoop(); // เริ่ม draw loop ก่อน
+
+      // รอจนกว่าจะวาดเฟรมแรกสำเร็จ แล้วค่อย captureStream + เริ่ม MediaRecorder
+      function startAfterFirstFrame() {
+        if (!firstFrameDrawn) {
+          setTimeout(startAfterFirstFrame, 80); // ยังไม่ ready — รออีก 80ms
+          return;
+        }
+        // canvas มีภาพแล้ว — safe to captureStream
+        const canvasStream = canvas.captureStream(24); // 24fps
+        stream.getAudioTracks().forEach(t => canvasStream.addTrack(t));
+
+        const bitsPerSecond = isMobile ? 800000 : 2000000;
+        const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
+          ? "video/mp4;codecs=h264,aac"
+          : MediaRecorder.isTypeSupported("video/mp4")
+          ? "video/mp4"
+          : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+          ? "video/webm;codecs=vp9"
+          : "video/webm";
+
+        const options = { bitsPerSecond };
+        if (mimeType) options.mimeType = mimeType;
+
+        const mr = new MediaRecorder(canvasStream, options);
+        mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+        mr.onstop = () => {
+          if (animRef.current) animRef.current.stop();
+          if (chunksRef.current.length === 0) return;
+          const finalType = mr.mimeType || mimeType || "video/webm";
+          const blob = new Blob(chunksRef.current, { type: finalType });
+          setVideoBlob(blob);
+          setPreviewUrl(URL.createObjectURL(blob));
+          streamRef.current?.getTracks().forEach(t => t.stop());
+          setPhase("preview");
+        };
+        mr.start(2000); // 2s timeslice
+        setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
+        timerRef.current = setInterval(() => {
+          setTimer(t => {
+            if (t >= MAX_SEC - 1) { mr.stop(); clearInterval(timerRef.current); return MAX_SEC; }
+            return t + 1;
+          });
+        }, 1000);
+      }
+
+      startAfterFirstFrame();
+    }
+
+    // รอโหลด logo ก่อนเริ่ม record
+    let loaded = 0;
+    function onLoaded() { loaded++; if (loaded >= 2) beginRecord(); }
+    if (logoImg.complete) onLoaded(); else { logoImg.onload = onLoaded; logoImg.onerror = onLoaded; }
+    if (bsImg.complete)   onLoaded(); else { bsImg.onload  = onLoaded; bsImg.onerror  = onLoaded; }
   }
 
 
@@ -318,7 +427,6 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
   return (
     <>
-      <canvas ref={canvasRef} style={{display:"none"}}/>
       <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.95)",
         display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
         padding:"12px 16px"}}>
@@ -353,6 +461,14 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                 {/* Live video */}
                 <video ref={videoRef} autoPlay muted playsInline
                   style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+
+                {/* Canvas for recording — MUST be visible to browser (not display:none)
+                    so canvas.captureStream() works on Android/iOS.
+                    We position it far offscreen so user cannot see it. */}
+                <canvas ref={canvasRef} style={{
+                  position:"absolute", left:"-9999px", top:0,
+                  width:"1px", height:"1px", pointerEvents:"none"
+                }}/>
 
                 {/* ═══ กรอบ Cockpit Sure v8 (CSS preview overlay) ═══ */}
 
