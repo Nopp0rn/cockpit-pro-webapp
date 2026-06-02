@@ -186,130 +186,47 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     }
   };
 
-  // ── Start recording with canvas compositing (logo baked in) ─────────────────
+  // ── Start recording DIRECTLY from stream (no canvas — prevents Android freeze) ─
   function startRec() {
     chunksRef.current = [];
-    const canvas = canvasRef.current;
-    const ctx    = canvas.getContext("2d");
-    const video  = videoRef.current;
-    canvas.width = 720; canvas.height = 1280;
+    const stream = streamRef.current;
+    if (!stream) return;
 
-    const logoImg = new Image();
-    logoImg.src = COCKPITSURE_LOGO;
+    // ไม่ใช้ canvas เพื่อป้องกัน freeze บน Android
+    // โลโก้แสดงผ่าน CSS overlay เท่านั้น (ไม่ burn ลงวิดีโอ)
+    const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+    const bitsPerSecond = isMobile ? 1500000 : 4000000; // 1.5Mbps mobile, 4Mbps desktop
 
-    // Draw v8 frame onto canvas for recording (Bridgestone + CockpitSure baked in)
-    const bsImg = new Image();
-    bsImg.src = BRIDGESTONE_LOGO;
+    const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
+      ? "video/mp4;codecs=h264,aac"
+      : MediaRecorder.isTypeSupported("video/mp4")
+      ? "video/mp4"
+      : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      ? "video/webm;codecs=vp9"
+      : "video/webm";
 
-    function drawV8Frame(ctx, cW, cH) {
-      // Shared constants — must match CSS overlay & compositeFrameOnPhoto exactly
-      const stripeW   = Math.round(cW * 0.017);        // 1.7% left/right stripes
-      const logoAreaW = Math.round(cW * 0.35) - stripeW; // 35% wide (3× logo size)
-      const logoAreaH = Math.round(cH * 0.06);           // 6% tall  (50% of old 12%)
-      const panelH    = Math.round(cH * 0.0867);         // 8.67% (2/3 of old 13%)
-      const accentH   = Math.round(cH * 0.017);          // 1.7% top accent
+    const options = { bitsPerSecond };
+    if (mimeType) options.mimeType = mimeType;
 
-      // ① Left stripe
-      ctx.fillStyle = "#FFE000";
-      ctx.fillRect(0, 0, stripeW, cH);
-      // ② Right stripe
-      ctx.fillRect(cW - stripeW, 0, stripeW, cH);
-
-      // ③ CS logo area (top-left yellow, rounded bottom-right)
-      const radius = Math.round(logoAreaW * 0.20);
-      ctx.fillStyle = "#FFE000";
-      ctx.beginPath();
-      ctx.moveTo(stripeW, 0);
-      ctx.lineTo(stripeW + logoAreaW, 0);
-      ctx.lineTo(stripeW + logoAreaW, logoAreaH - radius);
-      ctx.quadraticCurveTo(stripeW + logoAreaW, logoAreaH, stripeW + logoAreaW - radius, logoAreaH);
-      ctx.lineTo(stripeW, logoAreaH);
-      ctx.closePath();
-      ctx.fill();
-      if (logoImg.complete && logoImg.naturalWidth > 0) {
-        const pad = Math.round(logoAreaW * 0.06);
-        const lW  = logoAreaW - pad * 2;
-        const lH  = Math.round(lW * logoImg.naturalHeight / logoImg.naturalWidth);
-        const lY  = Math.round((logoAreaH - lH) / 2);
-        ctx.drawImage(logoImg, stripeW + pad, lY, lW, lH);
-      }
-      // ④ Top-right accent line
-      ctx.fillStyle = "#FFE000";
-      ctx.fillRect(stripeW + logoAreaW, 0, cW - stripeW - (stripeW + logoAreaW), accentH);
-
-      // ⑤ Bottom yellow panel
-      ctx.fillStyle = "#FFE000";
-      ctx.fillRect(0, cH - panelH, cW, panelH);
-
-      // ⑥ Bridgestone logo — 3× panelH, centered in panel
-      if (bsImg.complete && bsImg.naturalWidth > 0) {
-        const bsH = panelH * 3;
-        const bsW = Math.round(bsH * bsImg.naturalWidth / bsImg.naturalHeight);
-        const maxW = cW - stripeW * 2;
-        const bsWf = Math.min(bsW, maxW);
-        const bsHf = Math.round(bsWf * bsImg.naturalHeight / bsImg.naturalWidth);
-        const bsX = Math.round((cW - bsWf) / 2);
-        const bsY = cH - panelH + Math.round((panelH - bsHf) / 2);
-        ctx.drawImage(bsImg, bsX, bsY, bsWf, bsHf);
-      }
-    }
-
-    function drawLoop() {
-      if (video && video.readyState >= 2 && video.videoWidth > 0) {
-        const vW=video.videoWidth, vH=video.videoHeight;
-        const cW=canvas.width, cH=canvas.height;
-        const vA=vW/vH, cA=cW/cH;
-        let sx=0,sy=0,sw=vW,sh=vH;
-        if (vA>cA){ sw=vH*cA; sx=(vW-sw)/2; }
-        else      { sh=vW/cA; sy=(vH-sh)/2; }
-        ctx.clearRect(0,0,cW,cH);
-        ctx.globalCompositeOperation = "source-over";
-        ctx.drawImage(video, sx,sy,sw,sh, 0,0,cW,cH);
-        drawV8Frame(ctx, cW, cH);
-      }
-      animRef.current = requestAnimationFrame(drawLoop);
-    }
-
-    function beginRecord() {
-      if (video) video.play().catch(()=>{});
-      drawLoop();
-
-      // Record from canvas stream (has logo)
-      const canvasStream = canvas.captureStream(30);
-      streamRef.current?.getAudioTracks().forEach(t => canvasStream.addTrack(t));
-      const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
-        ? "video/mp4;codecs=h264,aac"
-        : MediaRecorder.isTypeSupported("video/mp4")
-        ? "video/mp4"
-        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : "video/webm";
-      const mr = new MediaRecorder(canvasStream, mimeType ? {mimeType} : {});
-      mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
-      mr.onstop = () => {
-        cancelAnimationFrame(animRef.current);
-        if (chunksRef.current.length===0) return;
-        const finalType = mr.mimeType || mimeType;
-        const blob = new Blob(chunksRef.current, {type: finalType});
-        setVideoBlob(blob);
-        setPreviewUrl(URL.createObjectURL(blob));
-        streamRef.current?.getTracks().forEach(t=>t.stop());
-        setPhase("preview");
-      };
-      mr.start(500);
-      setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
-      timerRef.current = setInterval(() => {
-        setTimer(t => {
-          if(t>=MAX_SEC-1){mr.stop();clearInterval(timerRef.current);return MAX_SEC;}
-          return t+1;
-        });
-      }, 1000);
-    }
-
-    let loaded = 0;
-    function onLoaded() { loaded++; if (loaded >= 2) beginRecord(); }
-    if (logoImg.complete) onLoaded(); else { logoImg.onload = onLoaded; logoImg.onerror = onLoaded; }
-    if (bsImg.complete) onLoaded(); else { bsImg.onload = onLoaded; bsImg.onerror = onLoaded; }
+    const mr = new MediaRecorder(stream, options);
+    mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+    mr.onstop = () => {
+      if (chunksRef.current.length === 0) return;
+      const finalType = mr.mimeType || mimeType || "video/webm";
+      const blob = new Blob(chunksRef.current, { type: finalType });
+      setVideoBlob(blob);
+      setPreviewUrl(URL.createObjectURL(blob));
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      setPhase("preview");
+    };
+    mr.start(2000); // 2s timeslice — ลด memory pressure บน mobile
+    setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
+    timerRef.current = setInterval(() => {
+      setTimer(t => {
+        if (t >= MAX_SEC - 1) { mr.stop(); clearInterval(timerRef.current); return MAX_SEC; }
+        return t + 1;
+      });
+    }, 1000);
   }
 
 
@@ -340,39 +257,59 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const uploadAndSend = async () => {
     setPhase("uploading");
     try {
-      const fd = new FormData();
+      // ตรวจ blob ว่ามีข้อมูลจริง
+      if (!videoBlob || videoBlob.size < 1000) {
+        throw new Error("ไฟล์วีดีโอไม่สมบูรณ์ กรุณาบันทึกใหม่");
+      }
+      // แจ้ง size ถ้าใหญ่เกิน 200MB (Cloudinary free limit)
+      if (videoBlob.size > 200 * 1024 * 1024) {
+        throw new Error(`วีดีโอใหญ่เกินไป (${Math.round(videoBlob.size/1024/1024)}MB)\nกรุณาบันทึกให้สั้นลง`);
+      }
+
       const ext = videoBlob.type.includes("mp4") ? "mp4"
         : videoBlob.type.includes("quicktime") ? "mov" : "webm";
-      fd.append("file", videoBlob, `cs_${data.plate}_${Date.now()}.${ext}`);
-      fd.append("upload_preset", CLOUDINARY_PRESET);
-      fd.append("resource_type", "video");
-      const upRes  = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,
-        {method:"POST", body:fd}
-      );
-      const upData = await upRes.json();
-      // เพิ่มโลโก้ CockpitSure ผ่าน Cloudinary transformation (ไม่ต้องใช้ canvas)
-      // Upload โลโก้แยกต่างหากที่ Cloudinary แล้วตั้งชื่อ public_id ว่า "cockpitsure_logo"
-      // ตัวอย่าง URL: .../upload/l_cockpitsure_logo,w_0.5,g_north_west,x_20,y_20/v.../file.webm
-      // แปลง URL ให้เป็น MP4 เสมอ (Cloudinary auto-transcode)
-      const videoUrl = upData.secure_url
-        ? upData.secure_url.replace(/\.webm$/, '.mp4').replace(/\.mov$/, '.mp4')
+      const filename = `cs_${data.plate}_${Date.now()}.${ext}`;
+
+      // Upload พร้อม retry 3 ครั้ง
+      let upData = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const fd = new FormData();
+          fd.append("file", videoBlob, filename);
+          fd.append("upload_preset", CLOUDINARY_PRESET);
+          fd.append("resource_type", "video");
+          fd.append("folder", "cockpit_sure");
+          const upRes = await fetch(
+            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,
+            { method: "POST", body: fd }
+          );
+          upData = await upRes.json();
+          if (upData.secure_url) break; // success
+          if (attempt < 3) await new Promise(r => setTimeout(r, 1500 * attempt));
+        } catch (fetchErr) {
+          if (attempt === 3) throw fetchErr;
+          await new Promise(r => setTimeout(r, 1500 * attempt));
+        }
+      }
+
+      const videoUrl = upData?.secure_url
+        ? upData.secure_url.replace(/\.webm$/, ".mp4").replace(/\.mov$/, ".mp4")
         : null;
       if (!videoUrl) {
-        const msg = upData.error?.message || "Upload ไม่สำเร็จ";
-        if (msg.includes("Unknown API key")||msg.includes("api_key"))
+        const msg = upData?.error?.message || "Upload ไม่สำเร็จ";
+        if (msg.includes("Unknown API key") || msg.includes("api_key") || msg.includes("preset"))
           throw new Error("Upload Preset ยังไม่ถูกต้อง\ncloudinary.com → Settings\n→ Upload Presets → cockpit_unsigned\n→ Signing Mode: Unsigned → Save");
         throw new Error(msg);
       }
-      // PATCH ก่อน → LINE ส่ง status update (CockpitSure ✅) ก่อน
-      await callAPI("PATCH",`/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`,
-        {status:"done"});
-      // รอ 500ms ให้ LINE ส่ง status ไปก่อน แล้วค่อยส่ง video link ตาม
+
+      // PATCH job เป็น done ก่อน → LINE ได้รับ status update
+      await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`, { status: "done" });
       await new Promise(r => setTimeout(r, 500));
-      await callAPI("POST",`/api/branch/${branchId}/bay/${qNo}/send-video`,
-        {videoUrl: videoUrl, plate: data.plate});
+      // ส่ง video link ทาง LINE
+      await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/send-video`,
+        { videoUrl, plate: data.plate });
       setPhase("done");
-      setTimeout(()=>{ onSuccess(); onClose(); }, 2000);
+      setTimeout(() => { onSuccess(); onClose(); }, 2000);
     } catch(e) { setError(e.message); setPhase("error"); }
   };
 
@@ -426,10 +363,10 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                 <div style={{position:"absolute",top:0,right:0,bottom:0,
                   width:"1.7%",background:"#FFE000",pointerEvents:"none",zIndex:40}}/>
 
-                {/* ③ CS logo area — top-left, 35% wide, 6% tall, yellow bg, rounded BR */}
+                {/* ③ CS logo area — top-left, 20% wide, 6% tall, yellow bg, rounded BR */}
                 <div style={{
                   position:"absolute",top:0,left:"1.7%",
-                  width:"calc(35% - 1.7%)",height:"6%",
+                  width:"calc(20% - 1.7%)",height:"6%",
                   background:"#FFE000",
                   borderBottomRightRadius:"20%",
                   display:"flex",alignItems:"center",justifyContent:"center",
@@ -444,7 +381,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
                 {/* ④ Top-right accent — from logo right edge to right stripe */}
                 <div style={{
-                  position:"absolute",top:0,left:"35%",right:"1.7%",
+                  position:"absolute",top:0,left:"20%",right:"1.7%",
                   height:"1.7%",background:"#FFE000",
                   pointerEvents:"none",zIndex:45
                 }}/>
@@ -728,7 +665,7 @@ function QuotationModal({ qNo, branchId, data, onClose }) {
         if (++lCount < 2) return;
         // Shared constants — identical to CSS overlay & drawV8Frame
         const stripeW   = Math.round(W * 0.017);
-        const logoAreaW = Math.round(W * 0.35) - stripeW;
+        const logoAreaW = Math.round(W * 0.20) - stripeW;
         const logoAreaH = Math.round(H * 0.06);
         const panelH    = Math.round(H * 0.0867);
         const accentH   = Math.round(H * 0.017);
