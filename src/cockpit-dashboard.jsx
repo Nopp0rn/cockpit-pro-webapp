@@ -376,8 +376,8 @@ firstFrameDrawn = true;
           fd.append("upload_preset", CLOUDINARY_PRESET);
           fd.append("resource_type", "video");
           fd.append("folder", "cockpit_sure");
-          fd.append("quality", "auto");       // บีบอัดอัตโนมัติ: ไฟล์เล็กลง เปิดใน LINE เร็ว
-          fd.append("fetch_format", "mp4");   // แปลงเป็น mp4 ทันทีหลัง upload
+          fd.append("quality", "auto");  // บีบอัดอัตโนมัติ: ไฟล์เล็กลง เปิดใน LINE เร็ว
+          fd.append("format", "mp4");    // video API ใช้ format ไม่ใช่ fetch_format
           const upRes = await fetch(
             `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,
             { method: "POST", body: fd }
@@ -404,11 +404,15 @@ firstFrameDrawn = true;
         throw new Error(msg);
       }
 
-      // PATCH job เป็น done + ส่ง LINE พร้อมกัน (ลบ delay 500ms)
-      await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`, { status: "done" });
-      // ส่ง video link ทาง LINE (ไม่รอ delay — เร็วขึ้นทันที)
-      await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/send-video`,
+      // PATCH job เป็น done
+      const patchRes = await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`, { status: "done" });
+      if (patchRes?.error) throw new Error("อัปเดตสถานะงานไม่สำเร็จ: " + patchRes.error);
+
+      // ส่ง video link ทาง LINE
+      const sendRes = await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/send-video`,
         { videoUrl, plate: data.plate });
+      if (sendRes?.error) throw new Error("ส่ง LINE ไม่สำเร็จ: " + sendRes.error);
+
       setPhase("done");
       setTimeout(() => { onSuccess(); onClose(); }, 2000);
     } catch(e) { setError(e.message); setPhase("error"); }
