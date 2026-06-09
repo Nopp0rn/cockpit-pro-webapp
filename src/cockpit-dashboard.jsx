@@ -220,8 +220,6 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
           if (vA>cA){ sw=vH*cA; sx=(vW-sw)/2; }
           else      { sh=vW/cA; sy=(vH-sh)/2; }
           ctx.clearRect(0,0,cW,cH);
-          ctx.drawImage(video, sx,sy,sw,sh, 0,0,cW,cH);
-          ctx.clearRect(0,0,cW,cH);
 
 ctx.drawImage(
   video,
