@@ -214,53 +214,53 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
     // วาด frame v8 ที่ตรงกับ CSS overlay
     function drawV8Frame(ctx, cW, cH) {
-      const stripeW   = Math.round(cW * 0.017);
-      const logoAreaW = Math.round(cW * 0.20) - stripeW;
-      const logoAreaH = Math.round(cH * 0.06);
-      const panelH    = Math.round(cH * 0.0867);
-      const accentH   = Math.round(cH * 0.017);
-      // ① Left stripe
-      ctx.fillStyle = "#FFE000";
-      ctx.fillRect(0, 0, stripeW, cH);
-      // ② Right stripe
-      ctx.fillRect(cW - stripeW, 0, stripeW, cH);
-      // ③ CS logo area
-      const radius = Math.round(logoAreaW * 0.20);
-      ctx.fillStyle = "#FFE000";
-      ctx.beginPath();
-      ctx.moveTo(stripeW, 0);
-      ctx.lineTo(stripeW + logoAreaW, 0);
-      ctx.lineTo(stripeW + logoAreaW, logoAreaH - radius);
-      ctx.quadraticCurveTo(stripeW + logoAreaW, logoAreaH, stripeW + logoAreaW - radius, logoAreaH);
-      ctx.lineTo(stripeW, logoAreaH);
-      ctx.closePath();
-      ctx.fill();
-      if (logoImg.complete && logoImg.naturalWidth > 0) {
-        const pad = Math.round(logoAreaW * 0.06);
-        const lW  = logoAreaW - pad * 2;
-        const lH  = Math.round(lW * logoImg.naturalHeight / logoImg.naturalWidth);
-        const lY  = Math.round((logoAreaH - lH) / 2);
-        ctx.drawImage(logoImg, stripeW + pad, lY, lW, lH);
-      }
-      // ④ Top-right accent
-      ctx.fillStyle = "#FFE000";
-      ctx.fillRect(stripeW + logoAreaW, 0, cW - stripeW - (stripeW + logoAreaW), accentH);
-      // ⑤ Bottom panel
-      ctx.fillStyle = "#FFE000";
-      ctx.fillRect(0, cH - panelH, cW, panelH);
-      // ⑥ Bridgestone logo
-      if (bsImg.complete && bsImg.naturalWidth > 0) {
-        const bsH  = panelH * 3;
-        const bsW  = Math.round(bsH * bsImg.naturalWidth / bsImg.naturalHeight);
-        const maxW = cW - stripeW * 2;
-        const bsWf = Math.min(bsW, maxW);
-        const bsHf = Math.round(bsWf * bsImg.naturalHeight / bsImg.naturalWidth);
-        const bsX  = Math.round((cW - bsWf) / 2);
-        const bsY  = cH - panelH + Math.round((panelH - bsHf) / 2);
-        ctx.drawImage(bsImg, bsX, bsY, bsWf, bsHf);
-      }
-    }
 
+  const stripeW = Math.round(cW * 0.017);
+
+  // แถบเหลืองซ้าย
+  ctx.fillStyle = "#FFE000";
+  ctx.fillRect(0, 0, stripeW, cH);
+
+  // แถบเหลืองขวา
+  ctx.fillRect(cW - stripeW, 0, stripeW, cH);
+
+  // Cockpit มุมซ้ายบน
+  if (logoImg.complete && logoImg.naturalWidth > 0) {
+
+    const logoW = cW * 0.23;
+    const logoH =
+      logoW *
+      (logoImg.naturalHeight / logoImg.naturalWidth);
+
+    ctx.drawImage(
+      logoImg,
+      25,
+      25,
+      logoW,
+      logoH
+    );
+  }
+
+  // Bridgestone มุมขวาล่าง
+  if (bsImg.complete && bsImg.naturalWidth > 0) {
+
+    const bsW = cW * 0.22;
+
+    const bsH =
+      bsW *
+      (bsImg.naturalHeight / bsImg.naturalWidth);
+
+    const margin = 25;
+
+    ctx.drawImage(
+      bsImg,
+      cW - bsW - margin,
+      cH - bsH - margin,
+      bsW,
+      bsH
+    );
+  }
+}
     function beginRecord() {
       // drawLoop: ทำงานตลอด — วาด video frame + logo ลง canvas ทุก rAF
       let firstFrameDrawn = false;
@@ -474,58 +474,6 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                   position:"absolute", left:"-9999px", top:0,
                   width:"1px", height:"1px", pointerEvents:"none"
                 }}/>
-
-                {/* ═══ กรอบ Cockpit Sure v8 (CSS preview overlay) ═══ */}
-
-                {/* ① Left stripe */}
-                <div style={{position:"absolute",top:0,left:0,bottom:0,
-                  width:"1.7%",background:"#FFE000",pointerEvents:"none",zIndex:40}}/>
-                {/* ② Right stripe */}
-                <div style={{position:"absolute",top:0,right:0,bottom:0,
-                  width:"1.7%",background:"#FFE000",pointerEvents:"none",zIndex:40}}/>
-
-                {/* ③ CS logo area — top-left, 20% wide, 6% tall, yellow bg, rounded BR */}
-                <div style={{
-                  position:"absolute",top:0,left:"1.7%",
-                  width:"calc(20% - 1.7%)",height:"6%",
-                  background:"#FFE000",
-                  borderBottomRightRadius:"20%",
-                  display:"flex",alignItems:"center",justifyContent:"center",
-                  padding:"0.5% 1%",
-                  zIndex:45,pointerEvents:"none"
-                }}>
-                  <img src={COCKPITSURE_LOGO} alt="" style={{
-                    width:"100%",height:"100%",objectFit:"contain",
-                    pointerEvents:"none"
-                  }}/>
-                </div>
-
-                {/* ④ Top-right accent — from logo right edge to right stripe */}
-                <div style={{
-                  position:"absolute",top:0,left:"20%",right:"1.7%",
-                  height:"1.7%",background:"#FFE000",
-                  pointerEvents:"none",zIndex:45
-                }}/>
-
-                {/* ⑤ Bottom yellow panel — 8.67% height (2/3 of 13%) */}
-                <div style={{
-                  position:"absolute",bottom:0,left:0,right:0,
-                  height:"8.67%",background:"#FFE000",
-                  pointerEvents:"none",zIndex:15
-                }}/>
-
-                {/* ⑥ Bridgestone logo — 3× panelH, centered in bottom panel */}
-                <div style={{
-                  position:"absolute",bottom:0,left:"1.7%",right:"1.7%",
-                  height:"8.67%",
-                  display:"flex",alignItems:"center",justifyContent:"center",
-                  pointerEvents:"none",zIndex:20
-                }}>
-                  <img src={BRIDGESTONE_LOGO} alt="" style={{
-                    height:"300%",width:"auto",
-                    objectFit:"contain",pointerEvents:"none"
-                  }}/>
-                </div>
 
                 {/* Camera switch — top-right, z-index above stripes */}
                 {phase==="ready" && (
