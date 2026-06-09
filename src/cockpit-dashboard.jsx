@@ -217,7 +217,7 @@ function drawV8Frame(ctx, cW, cH) {
 
   if (logoImg.complete && logoImg.naturalWidth > 0) {
 
-    const cockpitWidth = cW * 0.40;
+    const cockpitWidth = cW * 0.36;
 
     const cockpitHeight =
       cockpitWidth *
@@ -231,6 +231,24 @@ function drawV8Frame(ctx, cW, cH) {
       cockpitHeight
     );
   }
+
+  if (bsImg.complete && bsImg.naturalWidth > 0) {
+
+    const bridgeWidth = cW * 0.30;
+
+    const bridgeHeight =
+      bridgeWidth *
+      (bsImg.naturalHeight / bsImg.naturalWidth);
+
+    ctx.drawImage(
+      bsImg,
+      cW - bridgeWidth,
+      cH - bridgeHeight,
+      bridgeWidth,
+      bridgeHeight
+    );
+  }
+}
 
   if (bsImg.complete && bsImg.naturalWidth > 0) {
 
