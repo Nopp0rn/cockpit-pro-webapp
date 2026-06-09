@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
 const CLOUDINARY_CLOUD  = "dd7fg1swh";
 const CLOUDINARY_PRESET = "cockpit_unsigned_v2";
-const frameOverlay = new Image();
-frameOverlay.src = "/frame-overlay.png";
 
 const API = "https://cockpit-pro-backend.onrender.com";
 const JOB_TYPES = [
@@ -234,22 +232,21 @@ ctx.drawImage(
 );
 
 try {
+const overlay = frameOverlayRef.current;
 
-  if (
-    frameOverlay &&
-    frameOverlay.complete &&
-    frameOverlay.naturalWidth > 0
-  ) {
+if (
+  overlay &&
+  overlay.complete &&
+  overlay.naturalWidth > 0
+)
 
-    ctx.drawImage(
-      frameOverlay,
-      0,
-      0,
-      cW,
-      cH
-    );
-
-  }
+  ctx.drawImage(
+  overlay,
+  0,
+  0,
+  cW,
+  cH
+);
 
 } catch(e) {
   console.error(e);
@@ -2236,6 +2233,19 @@ export default function App() {
     localStorage.getItem("cp_locked") === "1"
   );
 
+  const frameOverlayRef = useRef(null);
+
+useEffect(() => {
+  const img = new window.Image();
+  img.src = "/frame-overlay.png";
+
+  img.onload = () => {
+    console.log("Overlay loaded");
+  };
+
+  frameOverlayRef.current = img;
+}, []);
+  
   // โหลด overview ครั้งเดียวที่ root
   useEffect(() => {
     fetch(`${API}/api/admin/overview`)
