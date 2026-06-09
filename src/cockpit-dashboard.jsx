@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 const CLOUDINARY_CLOUD  = "dd7fg1swh";
 const CLOUDINARY_PRESET = "cockpit_unsigned_v2";
 const frameOverlay = new Image();
-
 frameOverlay.src = "/frame-overlay.png";
 
 // CockpitSure logo — clean transparent
@@ -210,27 +209,9 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     canvas.width  = 720;   // 720p portrait width (9:16)
     canvas.height = 1280;  // 720p portrait height (9:16)
 
-    const logoImg = new Image();
-    logoImg.src = COCKPITSURE_LOGO;
-    const bsImg = new Image();
-    bsImg.src = BRIDGESTONE_LOGO;
 
     // วาด Frame Cockpit Sure + Bridgestone
-function drawV8Frame(ctx, cW, cH) {
 
-  if (
-    frameOverlay.complete &&
-    frameOverlay.naturalWidth > 0
-  ) {
-    ctx.drawImage(
-      frameOverlay,
-      0,
-      0,
-      cW,
-      cH
-    );
-  }
-}
     function beginRecord() {
       // drawLoop: ทำงานตลอด — วาด video frame + logo ลง canvas ทุก rAF
       let firstFrameDrawn = false;
@@ -246,9 +227,36 @@ function drawV8Frame(ctx, cW, cH) {
           else      { sh=vW/cA; sy=(vH-sh)/2; }
           ctx.clearRect(0,0,cW,cH);
           ctx.drawImage(video, sx,sy,sw,sh, 0,0,cW,cH);
-          drawV8Frame(ctx, cW, cH);
-          firstFrameDrawn = true;
-        }
+          ctx.clearRect(0,0,cW,cH);
+
+ctx.drawImage(
+  video,
+  sx,
+  sy,
+  sw,
+  sh,
+  0,
+  0,
+  cW,
+  cH
+);
+
+if (
+  frameOverlay.complete &&
+  frameOverlay.naturalWidth > 0
+) {
+  ctx.drawImage(
+    frameOverlay,
+    0,
+    0,
+    cW,
+    cH
+  );
+}
+
+firstFrameDrawn = true;
+       }
+        
         animFrameId = requestAnimationFrame(drawLoop);
       }
       animRef.current = { stop: () => { if (animFrameId) cancelAnimationFrame(animFrameId); } };
@@ -437,6 +445,20 @@ function drawV8Frame(ctx, cW, cH) {
                   webkit-playsinline="true"
                   style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
 
+                <img
+  src="/frame-overlay.png"
+  alt=""
+  style={{
+    position:"absolute",
+    inset:0,
+    width:"100%",
+    height:"100%",
+    objectFit:"cover",
+    pointerEvents:"none",
+    zIndex:5
+  }}
+/>
+                
                 {/* Canvas for recording — MUST be visible to browser (not display:none)
                     so canvas.captureStream() works on Android/iOS.
                     We position it far offscreen so user cannot see it. */}
