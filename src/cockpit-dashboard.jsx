@@ -215,59 +215,33 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     // วาด Frame Cockpit Sure + Bridgestone
 function drawV8Frame(ctx, cW, cH) {
 
-  // ==========================
-  // COCKPIT (มุมซ้ายบน)
-  // ==========================
-  const cockpitW = cW * 0.42;
-  const cockpitH = cH * 0.085;
+  // COCKPIT-SURE
+  if (cockpitFrame.complete) {
 
-  ctx.fillStyle = "#FFE600";
+    const w = cW * 0.42;
+    const h = w * (cockpitFrame.naturalHeight / cockpitFrame.naturalWidth);
 
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(cockpitW * 0.88, 0);
-  ctx.lineTo(cockpitW, cockpitH / 2);
-  ctx.lineTo(cockpitW * 0.88, cockpitH);
-  ctx.lineTo(0, cockpitH);
-  ctx.closePath();
-  ctx.fill();
-
-  if (logoImg.complete && logoImg.naturalWidth > 0) {
     ctx.drawImage(
-      logoImg,
-      cockpitW * 0.08,
-      cockpitH * 0.16,
-      cockpitW * 0.60,
-      cockpitH * 0.68
+      cockpitFrame,
+      0,
+      0,
+      w,
+      h
     );
   }
 
-  // ==========================
-  // BRIDGESTONE (มุมขวาล่าง)
-  // ==========================
-  const bridgeW = cW * 0.52;
-  const bridgeH = cH * 0.095;
+  // BRIDGESTONE
+  if (bridgeFrame.complete) {
 
-  const bx = cW - bridgeW;
-  const by = cH - bridgeH;
+    const w = cW * 0.50;
+    const h = w * (bridgeFrame.naturalHeight / bridgeFrame.naturalWidth);
 
-  ctx.fillStyle = "#FFFFFF";
-
-  ctx.beginPath();
-  ctx.moveTo(bx + bridgeW * 0.18, by);
-  ctx.lineTo(bx + bridgeW, by);
-  ctx.lineTo(bx + bridgeW, by + bridgeH);
-  ctx.lineTo(bx, by + bridgeH);
-  ctx.closePath();
-  ctx.fill();
-
-  if (bsImg.complete && bsImg.naturalWidth > 0) {
     ctx.drawImage(
-      bsImg,
-      bx + bridgeW * 0.14,
-      by + bridgeH * 0.18,
-      bridgeW * 0.72,
-      bridgeH * 0.56
+      bridgeFrame,
+      cW - w,
+      cH - h,
+      w,
+      h
     );
   }
 }
