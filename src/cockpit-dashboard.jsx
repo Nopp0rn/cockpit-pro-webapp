@@ -5,6 +5,14 @@ import { useState, useEffect, useCallback, useRef } from "react";
 const CLOUDINARY_CLOUD  = "dd7fg1swh";
 const CLOUDINARY_PRESET = "cockpit_unsigned_v2";
 
+const frameOverlay = typeof window !== "undefined"
+  ? new window.Image()
+  : null;
+
+if (frameOverlay) {
+  frameOverlay.src = "/frame-overlay.png";
+}
+
 const API = "https://cockpit-pro-backend.onrender.com";
 const JOB_TYPES = [
   {name:"เปลี่ยนยาง 4 เส้น", duration:52, timeLabel:"45-60 นาที"},
@@ -235,18 +243,18 @@ try {
 const overlay = frameOverlayRef.current;
 
 if (
-  overlay &&
-  overlay.complete &&
-  overlay.naturalWidth > 0
-)
-
+  frameOverlay &&
+  frameOverlay.complete &&
+  frameOverlay.naturalWidth > 0
+) {
   ctx.drawImage(
-  overlay,
-  0,
-  0,
-  cW,
-  cH
-);
+    frameOverlay,
+    0,
+    0,
+    cW,
+    cH
+  );
+}
 
 } catch(e) {
   console.error(e);
@@ -2232,20 +2240,7 @@ export default function App() {
   const [locked, setLocked] = useState(() =>
     localStorage.getItem("cp_locked") === "1"
   );
-
-  const frameOverlayRef = useRef(null);
-
-useEffect(() => {
-  const img = new window.Image();
-  img.src = "/frame-overlay.png";
-
-  img.onload = () => {
-    console.log("Overlay loaded");
-  };
-
-  frameOverlayRef.current = img;
-}, []);
-  
+ 
   // โหลด overview ครั้งเดียวที่ root
   useEffect(() => {
     fetch(`${API}/api/admin/overview`)
