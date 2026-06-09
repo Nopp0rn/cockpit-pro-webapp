@@ -202,10 +202,10 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     const ctx = canvas.getContext("2d");
     const video = videoRef.current;
 
-    // ป้องกัน Android freeze ด้วย resolution 720p + bitrate 500kbps + timeslice 500ms
-    const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
-    canvas.width  = 1280;  // 720p landscape width
-    canvas.height = 720;   // 720p landscape height
+    // 720p portrait canvas (9:16) — getUserMedia ขอ landscape 1280×720 (iOS compatible)
+    // drawLoop crop logic จะตัดกลางให้เป็น portrait โดยอัตโนมัติ
+    canvas.width  = 720;   // 720p portrait width (9:16)
+    canvas.height = 1280;  // 720p portrait height (9:16)
 
     const logoImg = new Image();
     logoImg.src = COCKPITSURE_LOGO;
@@ -403,7 +403,12 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         }
       }
 
-      const videoUrl = upData?.secure_url ?? null;
+      // Inject f_mp4 transformation into Cloudinary URL for guaranteed MP4 delivery
+      // This works regardless of source format (.webm, .mov, etc.)
+      // and is served immediately (no waiting for async conversion like .webm→.mp4 rename)
+      const videoUrl = upData?.secure_url
+        ? upData.secure_url.replace('/upload/', '/upload/f_mp4/')
+        : null;
       if (!videoUrl) {
         const msg = upData?.error?.message || "Upload ไม่สำเร็จ";
         if (msg.includes("Unknown API key") || msg.includes("api_key") || msg.includes("preset"))
@@ -632,6 +637,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
               <div style={{borderRadius:14,overflow:"hidden",marginBottom:10,
                 background:"#000",aspectRatio:"9/16",maxHeight:"54vh"}}>
                 <video ref={previewRef} src={previewUrl} controls playsInline
+                  webkit-playsinline="true"
                   style={{width:"100%",height:"100%",objectFit:"contain"}}/>
               </div>
               <div style={{display:"flex",gap:8}}>
@@ -1680,6 +1686,7 @@ function VideoView({ branchId }) {
               {/* Thumbnail / Player */}
               {playingId === v.id ? (
                 <video src={v.video_url} controls autoPlay playsInline
+                  webkit-playsinline="true"
                   style={{width:"100%",aspectRatio:"9/16",objectFit:"cover",display:"block",background:"#000"}}/>
               ) : (
                 <div style={{position:"relative",cursor:"pointer",aspectRatio:"9/16",
