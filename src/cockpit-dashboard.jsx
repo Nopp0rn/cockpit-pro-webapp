@@ -218,8 +218,8 @@ function drawV8Frame(ctx, cW, cH) {
   // ==========================
   // COCKPIT (มุมซ้ายบน)
   // ==========================
-  const cockpitW = cW * 0.40;
-  const cockpitH = cH * 0.075;
+  const cockpitW = cW * 0.42;
+  const cockpitH = cH * 0.085;
 
   ctx.fillStyle = "#FFE600";
 
@@ -245,8 +245,8 @@ function drawV8Frame(ctx, cW, cH) {
   // ==========================
   // BRIDGESTONE (มุมขวาล่าง)
   // ==========================
-  const bridgeW = cW * 0.50;
-  const bridgeH = cH * 0.085;
+  const bridgeW = cW * 0.52;
+  const bridgeH = cH * 0.095;
 
   const bx = cW - bridgeW;
   const by = cH - bridgeH;
@@ -484,7 +484,43 @@ function drawV8Frame(ctx, cW, cH) {
                   position:"absolute", left:"-9999px", top:0,
                   width:"1px", height:"1px", pointerEvents:"none"
                 }}/>
+{/* Cockpit + Bridgestone Preview Overlay */}
+<div
+  style={{
+    position: "absolute",
+    inset: 0,
+    pointerEvents: "none",
+    zIndex: 15
+  }}
+>
 
+  {/* COCKPIT */}
+  <img
+    src={COCKPITSURE_LOGO}
+    alt=""
+    style={{
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: "40%",
+      height: "auto"
+    }}
+  />
+
+  {/* BRIDGESTONE */}
+  <img
+    src={BRIDGESTONE_LOGO}
+    alt=""
+    style={{
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: "50%",
+      height: "auto"
+    }}
+  />
+
+</div>
                 {/* Camera switch — top-right, z-index above stripes */}
                 {phase==="ready" && (
                   <button onClick={switchCamera} style={{
