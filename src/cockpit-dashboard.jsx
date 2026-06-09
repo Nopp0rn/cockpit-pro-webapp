@@ -5,14 +5,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 const CLOUDINARY_CLOUD  = "dd7fg1swh";
 const CLOUDINARY_PRESET = "cockpit_unsigned_v2";
 
-const frameOverlay = typeof window !== "undefined"
-  ? new window.Image()
-  : null;
-
-if (frameOverlay) {
-  frameOverlay.src = "/frame-overlay.png";
-}
-
 const API = "https://cockpit-pro-backend.onrender.com";
 const JOB_TYPES = [
   {name:"เปลี่ยนยาง 4 เส้น", duration:52, timeLabel:"45-60 นาที"},
@@ -95,6 +87,21 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const streamRef  = useRef(null); // track current stream for canvas draw
   const MAX_SEC    = 120;
 
+  const frameOverlayRef = useRef(null);
+
+useEffect(() => {
+
+  const img = new Image();
+
+  img.src = "/frame-overlay.png";
+
+  img.onload = () => {
+    console.log("overlay loaded");
+  };
+
+  frameOverlayRef.current = img;
+
+}, []);
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     clearInterval(timerRef.current);
@@ -243,12 +250,12 @@ try {
 const overlay = frameOverlayRef.current;
 
 if (
-  frameOverlay &&
-  frameOverlay.complete &&
-  frameOverlay.naturalWidth > 0
+  overlay &&
+  overlay.complete &&
+  overlay.naturalWidth > 0
 ) {
   ctx.drawImage(
-    frameOverlay,
+    overlay,
     0,
     0,
     cW,
@@ -472,45 +479,7 @@ firstFrameDrawn = true;
                   position:"absolute", left:"-9999px", top:0,
                   width:"1px", height:"1px", pointerEvents:"none"
                 }}/>
-{/* Cockpit + Bridgestone Preview Overlay */}
-<div
-  style={{
-    position: "absolute",
-    inset: 0,
-    pointerEvents: "none",
-    zIndex: 15
-  }}
->
-
-  {/* COCKPIT */}
-<img
-  src={COCKPITSURE_LOGO}
-  alt=""
-  style={{
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: "44%",
-    height: "auto",
-    zIndex: 20
-  }}
-/>
-
-{/* BRIDGESTONE */}
-<img
-  src={BRIDGESTONE_LOGO}
-  alt=""
-  style={{
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: "56%",
-    height: "auto",
-    zIndex: 20
-  }}
-/>
-  
-</div>
+{
                 {/* Camera switch — top-right, z-index above stripes */}
                 {phase==="ready" && (
                   <button onClick={switchCamera} style={{
