@@ -129,7 +129,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
     try {
       const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: f, width:{ideal:854}, height:{ideal:480} }, // ลด resolution เพื่อลดขนาดไฟล์
+        video: { facingMode: f, width:{ideal:1280}, height:{ideal:720} },
         audio: true
       });
       streamRef.current = s;
@@ -164,7 +164,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       } else {
         // ระหว่างบันทึก: เปลี่ยนแค่ video track, recorder ยังทำงานต่อ
         const newVidStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: next, width:{ideal:854}, height:{ideal:480} },
+          video: { facingMode: next, width:{ideal:1280}, height:{ideal:720} },
           audio: false
         });
         // หยุด video track เดิม
@@ -202,10 +202,10 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     const ctx = canvas.getContext("2d");
     const video = videoRef.current;
 
-    // ลด resolution เพื่อลดขนาดไฟล์และป้องกัน Android freeze
+    // ป้องกัน Android freeze ด้วย resolution 720p + bitrate 500kbps + timeslice 500ms
     const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
-    canvas.width  = 480;   // ลดจาก 720 → 480 (portrait width)
-    canvas.height = 854;   // ลดจาก 1280 → 854 (portrait height, 9:16)
+    canvas.width  = 1280;  // 720p landscape width
+    canvas.height = 720;   // 720p landscape height
 
     const logoImg = new Image();
     logoImg.src = COCKPITSURE_LOGO;
@@ -294,7 +294,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         const canvasStream = canvas.captureStream(24); // 24fps
         stream.getAudioTracks().forEach(t => canvasStream.addTrack(t));
 
-        const bitsPerSecond = isMobile ? 800000 : 2000000;
+        const bitsPerSecond = 500000; // 500kbps: ไฟล์เล็ก Upload เร็ว เสถียรทุกรุ่น
         const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
           ? "video/mp4;codecs=h264,aac"
           : MediaRecorder.isTypeSupported("video/mp4")
@@ -318,7 +318,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
           streamRef.current?.getTracks().forEach(t => t.stop());
           setPhase("preview");
         };
-        mr.start(2000); // 2s timeslice
+        mr.start(500); // 500ms timeslice: chunk เร็วขึ้น RAM น้อย Android รุ่นเก่าเสถียร
         setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
         timerRef.current = setInterval(() => {
           setTimer(t => {
@@ -388,6 +388,8 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
           fd.append("upload_preset", CLOUDINARY_PRESET);
           fd.append("resource_type", "video");
           fd.append("folder", "cockpit_sure");
+          fd.append("quality", "auto");       // บีบอัดอัตโนมัติ: ไฟล์เล็กลง เปิดใน LINE เร็ว
+          fd.append("fetch_format", "mp4");   // แปลงเป็น mp4 ทันทีหลัง upload
           const upRes = await fetch(
             `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,
             { method: "POST", body: fd }
@@ -401,9 +403,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         }
       }
 
-      const videoUrl = upData?.secure_url
-        ? upData.secure_url.replace(/\.webm$/, ".mp4").replace(/\.mov$/, ".mp4")
-        : null;
+      const videoUrl = upData?.secure_url ?? null;
       if (!videoUrl) {
         const msg = upData?.error?.message || "Upload ไม่สำเร็จ";
         if (msg.includes("Unknown API key") || msg.includes("api_key") || msg.includes("preset"))
@@ -411,10 +411,9 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         throw new Error(msg);
       }
 
-      // PATCH job เป็น done ก่อน → LINE ได้รับ status update
+      // PATCH job เป็น done + ส่ง LINE พร้อมกัน (ลบ delay 500ms)
       await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`, { status: "done" });
-      await new Promise(r => setTimeout(r, 500));
-      // ส่ง video link ทาง LINE
+      // ส่ง video link ทาง LINE (ไม่รอ delay — เร็วขึ้นทันที)
       await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/send-video`,
         { videoUrl, plate: data.plate });
       setPhase("done");
@@ -460,6 +459,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
                 {/* Live video */}
                 <video ref={videoRef} autoPlay muted playsInline
+                  webkit-playsinline="true"
                   style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
 
                 {/* Canvas for recording — MUST be visible to browser (not display:none)
