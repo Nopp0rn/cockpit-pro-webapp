@@ -495,31 +495,33 @@ function drawV8Frame(ctx, cW, cH) {
 >
 
   {/* COCKPIT */}
-  <img
-    src={COCKPITSURE_LOGO}
-    alt=""
-    style={{
-      position: "absolute",
-      top: 0,
-      left: 0,
-      width: "40%",
-      height: "auto"
-    }}
-  />
+<img
+  src={COCKPITSURE_LOGO}
+  alt=""
+  style={{
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "44%",
+    height: "auto",
+    zIndex: 20
+  }}
+/>
 
-  {/* BRIDGESTONE */}
-  <img
-    src={BRIDGESTONE_LOGO}
-    alt=""
-    style={{
-      position: "absolute",
-      bottom: 0,
-      right: 0,
-      width: "50%",
-      height: "auto"
-    }}
-  />
-
+{/* BRIDGESTONE */}
+<img
+  src={BRIDGESTONE_LOGO}
+  alt=""
+  style={{
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: "56%",
+    height: "auto",
+    zIndex: 20
+  }}
+/>
+  
 </div>
                 {/* Camera switch — top-right, z-index above stripes */}
                 {phase==="ready" && (
