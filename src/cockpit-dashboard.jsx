@@ -212,58 +212,62 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     const bsImg = new Image();
     bsImg.src = BRIDGESTONE_LOGO;
 
-    // วาด frame v8 ที่ตรงกับ CSS overlay
+    // วาด Frame Cockpit Sure + Bridgestone
 function drawV8Frame(ctx, cW, cH) {
 
+  // ==========================
+  // COCKPIT (มุมซ้ายบน)
+  // ==========================
+  const cockpitW = cW * 0.40;
+  const cockpitH = cH * 0.075;
+
+  ctx.fillStyle = "#FFE600";
+
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(cockpitW * 0.88, 0);
+  ctx.lineTo(cockpitW, cockpitH / 2);
+  ctx.lineTo(cockpitW * 0.88, cockpitH);
+  ctx.lineTo(0, cockpitH);
+  ctx.closePath();
+  ctx.fill();
+
   if (logoImg.complete && logoImg.naturalWidth > 0) {
-
-    const cockpitWidth = cW * 0.36;
-
-    const cockpitHeight =
-      cockpitWidth *
-      (logoImg.naturalHeight / logoImg.naturalWidth);
-
     ctx.drawImage(
       logoImg,
-      0,
-      0,
-      cockpitWidth,
-      cockpitHeight
+      cockpitW * 0.08,
+      cockpitH * 0.16,
+      cockpitW * 0.60,
+      cockpitH * 0.68
     );
   }
 
+  // ==========================
+  // BRIDGESTONE (มุมขวาล่าง)
+  // ==========================
+  const bridgeW = cW * 0.50;
+  const bridgeH = cH * 0.085;
+
+  const bx = cW - bridgeW;
+  const by = cH - bridgeH;
+
+  ctx.fillStyle = "#FFFFFF";
+
+  ctx.beginPath();
+  ctx.moveTo(bx + bridgeW * 0.18, by);
+  ctx.lineTo(bx + bridgeW, by);
+  ctx.lineTo(bx + bridgeW, by + bridgeH);
+  ctx.lineTo(bx, by + bridgeH);
+  ctx.closePath();
+  ctx.fill();
+
   if (bsImg.complete && bsImg.naturalWidth > 0) {
-
-    const bridgeWidth = cW * 0.30;
-
-    const bridgeHeight =
-      bridgeWidth *
-      (bsImg.naturalHeight / bsImg.naturalWidth);
-
     ctx.drawImage(
       bsImg,
-      cW - bridgeWidth,
-      cH - bridgeHeight,
-      bridgeWidth,
-      bridgeHeight
-    );
-  }
-}
-
-  if (bsImg.complete && bsImg.naturalWidth > 0) {
-
-    const bridgeWidth = cW * 0.34;
-
-    const bridgeHeight =
-      bridgeWidth *
-      (bsImg.naturalHeight / bsImg.naturalWidth);
-
-    ctx.drawImage(
-      bsImg,
-      cW - bridgeWidth,
-      cH - bridgeHeight,
-      bridgeWidth,
-      bridgeHeight
+      bx + bridgeW * 0.14,
+      by + bridgeH * 0.18,
+      bridgeW * 0.72,
+      bridgeH * 0.56
     );
   }
 }
