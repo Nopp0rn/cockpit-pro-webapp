@@ -235,17 +235,26 @@ ctx.drawImage(
   cH
 );
 
-if (
-  frameOverlay.complete &&
-  frameOverlay.naturalWidth > 0
-) {
-  ctx.drawImage(
-    frameOverlay,
-    0,
-    0,
-    cW,
-    cH
-  );
+try {
+
+  if (
+    frameOverlay &&
+    frameOverlay.complete &&
+    frameOverlay.naturalWidth > 0
+  ) {
+
+    ctx.drawImage(
+      frameOverlay,
+      0,
+      0,
+      cW,
+      cH
+    );
+
+  }
+
+} catch(e) {
+  console.error(e);
 }
 
 firstFrameDrawn = true;
