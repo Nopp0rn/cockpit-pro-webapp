@@ -213,51 +213,39 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     bsImg.src = BRIDGESTONE_LOGO;
 
     // วาด frame v8 ที่ตรงกับ CSS overlay
-    function drawV8Frame(ctx, cW, cH) {
+function drawV8Frame(ctx, cW, cH) {
 
-  const stripeW = Math.round(cW * 0.017);
-
-  // แถบเหลืองซ้าย
-  ctx.fillStyle = "#FFE000";
-  ctx.fillRect(0, 0, stripeW, cH);
-
-  // แถบเหลืองขวา
-  ctx.fillRect(cW - stripeW, 0, stripeW, cH);
-
-  // Cockpit มุมซ้ายบน
   if (logoImg.complete && logoImg.naturalWidth > 0) {
 
-    const logoW = cW * 0.23;
-    const logoH =
-      logoW *
+    const cockpitWidth = cW * 0.40;
+
+    const cockpitHeight =
+      cockpitWidth *
       (logoImg.naturalHeight / logoImg.naturalWidth);
 
     ctx.drawImage(
       logoImg,
-      25,
-      25,
-      logoW,
-      logoH
+      0,
+      0,
+      cockpitWidth,
+      cockpitHeight
     );
   }
 
-  // Bridgestone มุมขวาล่าง
   if (bsImg.complete && bsImg.naturalWidth > 0) {
 
-    const bsW = cW * 0.22;
+    const bridgeWidth = cW * 0.34;
 
-    const bsH =
-      bsW *
+    const bridgeHeight =
+      bridgeWidth *
       (bsImg.naturalHeight / bsImg.naturalWidth);
-
-    const margin = 25;
 
     ctx.drawImage(
       bsImg,
-      cW - bsW - margin,
-      cH - bsH - margin,
-      bsW,
-      bsH
+      cW - bridgeWidth,
+      cH - bridgeHeight,
+      bridgeWidth,
+      bridgeHeight
     );
   }
 }
@@ -733,56 +721,41 @@ function QuotationModal({ qNo, branchId, data, onClose }) {
       let lCount = 0;
       const draw = () => {
         if (++lCount < 2) return;
-        // Shared constants — identical to CSS overlay & drawV8Frame
-        const stripeW   = Math.round(W * 0.017);
-        const logoAreaW = Math.round(W * 0.20) - stripeW;
-        const logoAreaH = Math.round(H * 0.06);
-        const panelH    = Math.round(H * 0.0867);
-        const accentH   = Math.round(H * 0.017);
+        // Cockpit logo
+if (csImg.naturalWidth > 0) {
 
-        // ① Left stripe
-        ctx.fillStyle = "#FFE000";
-        ctx.fillRect(0, 0, stripeW, H);
-        // ② Right stripe
-        ctx.fillRect(W - stripeW, 0, stripeW, H);
+  const cockpitWidth = W * 0.40;
 
-        // ③ CS logo area (top-left, yellow bg, rounded bottom-right)
-        const radius = Math.round(logoAreaW * 0.20);
-        ctx.fillStyle = "#FFE000";
-        ctx.beginPath();
-        ctx.moveTo(stripeW, 0);
-        ctx.lineTo(stripeW + logoAreaW, 0);
-        ctx.lineTo(stripeW + logoAreaW, logoAreaH - radius);
-        ctx.quadraticCurveTo(stripeW + logoAreaW, logoAreaH, stripeW + logoAreaW - radius, logoAreaH);
-        ctx.lineTo(stripeW, logoAreaH);
-        ctx.closePath();
-        ctx.fill();
-        if (csImg.naturalWidth > 0) {
-          const pad = Math.round(logoAreaW * 0.06);
-          const lW  = logoAreaW - pad * 2;
-          const lH  = Math.round(lW * csImg.naturalHeight / csImg.naturalWidth);
-          const lY  = Math.round((logoAreaH - lH) / 2);
-          ctx.drawImage(csImg, stripeW + pad, lY, lW, lH);
-        }
-        // ④ Top-right accent line
-        ctx.fillStyle = "#FFE000";
-        ctx.fillRect(stripeW + logoAreaW, 0, W - stripeW - (stripeW + logoAreaW), accentH);
+  const cockpitHeight =
+    cockpitWidth *
+    (csImg.naturalHeight / csImg.naturalWidth);
 
-        // ⑤ Bottom yellow panel
-        ctx.fillStyle = "#FFE000";
-        ctx.fillRect(0, H - panelH, W, panelH);
+  ctx.drawImage(
+    csImg,
+    0,
+    0,
+    cockpitWidth,
+    cockpitHeight
+  );
+}
 
-        // ⑥ Bridgestone logo — 3× panelH, centered in panel
-        if (bsImg2.naturalWidth > 0) {
-          const bsH = panelH * 3;
-          const bsW = Math.round(bsH * bsImg2.naturalWidth / bsImg2.naturalHeight);
-          const maxW = W - stripeW * 2;
-          const bsWf = Math.min(bsW, maxW);
-          const bsHf = Math.round(bsWf * bsImg2.naturalHeight / bsImg2.naturalWidth);
-          const bsX = Math.round((W - bsWf) / 2);
-          const bsY = H - panelH + Math.round((panelH - bsHf) / 2);
-          ctx.drawImage(bsImg2, bsX, bsY, bsWf, bsHf);
-        }
+// Bridgestone logo
+if (bsImg2.naturalWidth > 0) {
+
+  const bridgeWidth = W * 0.34;
+
+  const bridgeHeight =
+    bridgeWidth *
+    (bsImg2.naturalHeight / bsImg2.naturalWidth);
+
+  ctx.drawImage(
+    bsImg2,
+    W - bridgeWidth,
+    H - bridgeHeight,
+    bridgeWidth,
+    bridgeHeight
+  );
+}
         canvas.toBlob(blob => {
           const compositeFile = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" });
           resolve({ file: compositeFile, url: URL.createObjectURL(compositeFile) });
