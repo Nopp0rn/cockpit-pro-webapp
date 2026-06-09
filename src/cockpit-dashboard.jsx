@@ -322,11 +322,8 @@ firstFrameDrawn = true;
       startAfterFirstFrame();
     }
 
-    // รอโหลด logo ก่อนเริ่ม record
-    let loaded = 0;
-    function onLoaded() { loaded++; if (loaded >= 2) beginRecord(); }
-    if (logoImg.complete) onLoaded(); else { logoImg.onload = onLoaded; logoImg.onerror = onLoaded; }
-    if (bsImg.complete)   onLoaded(); else { bsImg.onload  = onLoaded; bsImg.onerror  = onLoaded; }
+    // frameOverlayRef ถูก preload ใน useEffect แล้ว — เริ่ม record ได้เลย
+    beginRecord();
   }
 
 
