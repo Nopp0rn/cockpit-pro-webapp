@@ -757,56 +757,46 @@ function QuotationModal({ qNo, branchId, data, onClose }) {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(img, 0, 0, W, H);
 
-      // Load logos in parallel then draw frame
-      const csImg = new Image(), bsImg2 = new Image();
-      csImg.src = COCKPITSURE_LOGO; bsImg2.src = BRIDGESTONE_LOGO;
-      let lCount = 0;
-      const draw = () => {
-        if (++lCount < 2) return;
-        // Cockpit logo
-if (csImg.naturalWidth > 0) {
+     // Load Overlay Frame
+const overlay = new Image();
 
-  const cockpitWidth = W * 0.40;
-
-  const cockpitHeight =
-    cockpitWidth *
-    (csImg.naturalHeight / csImg.naturalWidth);
+overlay.onload = () => {
 
   ctx.drawImage(
-    csImg,
+    overlay,
     0,
     0,
-    cockpitWidth,
-    cockpitHeight
+    W,
+    H
   );
-}
 
-// Bridgestone logo
-if (bsImg2.naturalWidth > 0) {
+  canvas.toBlob(blob => {
 
-  const bridgeWidth = W * 0.34;
+    const compositeFile = new File(
+      [blob],
+      file.name.replace(/\.[^.]+$/, ".jpg"),
+      { type: "image/jpeg" }
+    );
 
-  const bridgeHeight =
-    bridgeWidth *
-    (bsImg2.naturalHeight / bsImg2.naturalWidth);
+    resolve({
+      file: compositeFile,
+      url: URL.createObjectURL(compositeFile)
+    });
 
-  ctx.drawImage(
-    bsImg2,
-    W - bridgeWidth,
-    H - bridgeHeight,
-    bridgeWidth,
-    bridgeHeight
-  );
-}
-        canvas.toBlob(blob => {
-          const compositeFile = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" });
-          resolve({ file: compositeFile, url: URL.createObjectURL(compositeFile) });
-        }, "image/jpeg", 0.92);
-      };
-      csImg.onload = draw; csImg.onerror = draw;
-      bsImg2.onload = draw; bsImg2.onerror = draw;
-      if (csImg.complete) { csImg.onload = null; draw(); }
-      if (bsImg2.complete) { bsImg2.onload = null; draw(); }
+  }, "image/jpeg", 0.92);
+
+};
+
+overlay.onerror = () => {
+
+  resolve({
+    file,
+    url: URL.createObjectURL(file)
+  });
+
+};
+
+overlay.src = "/frame-overlay.png"; 
     };
     img.onerror = () => { URL.revokeObjectURL(url); resolve({ file, url: URL.createObjectURL(file) }); };
     img.src = url;
