@@ -479,7 +479,7 @@ firstFrameDrawn = true;
                   position:"absolute", left:"-9999px", top:0,
                   width:"1px", height:"1px", pointerEvents:"none"
                 }}/>
-{
+                
                 {/* Camera switch — top-right, z-index above stripes */}
                 {phase==="ready" && (
                   <button onClick={switchCamera} style={{
