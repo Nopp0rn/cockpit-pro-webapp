@@ -85,7 +85,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const chunksRef  = useRef([]);
   const animRef    = useRef(null);
   const streamRef  = useRef(null); // track current stream for canvas draw
-  const MAX_SEC    = 120;
+  const MAX_SEC    = 90;
 
   const frameOverlayRef = useRef(null);
 
@@ -285,7 +285,7 @@ firstFrameDrawn = true;
         const canvasStream = canvas.captureStream(24); // 24fps
         stream.getAudioTracks().forEach(t => canvasStream.addTrack(t));
 
-        const bitsPerSecond = 500000; // 500kbps: ไฟล์เล็ก Upload เร็ว เสถียรทุกรุ่น
+        const bitsPerSecond = 300000; // 300kbps: RAM น้อยลง ป้องกัน Android crash
         const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
           ? "video/mp4;codecs=h264,aac"
           : MediaRecorder.isTypeSupported("video/mp4")
@@ -309,7 +309,7 @@ firstFrameDrawn = true;
           streamRef.current?.getTracks().forEach(t => t.stop());
           setPhase("preview");
         };
-        mr.start(500); // 500ms timeslice: chunk เร็วขึ้น RAM น้อย Android รุ่นเก่าเสถียร
+        mr.start(1000); // 1000ms timeslice: chunk น้อยลง RAM น้อยลง ป้องกัน crash
         setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
         timerRef.current = setInterval(() => {
           setTimer(t => {
@@ -391,12 +391,8 @@ firstFrameDrawn = true;
         }
       }
 
-      // Inject f_mp4 transformation into Cloudinary URL for guaranteed MP4 delivery
-      // This works regardless of source format (.webm, .mov, etc.)
-      // and is served immediately (no waiting for async conversion like .webm→.mp4 rename)
-      const videoUrl = upData?.secure_url
-        ? upData.secure_url.replace('/upload/', '/upload/f_mp4/')
-        : null;
+      // secure_url จาก Cloudinary เป็น mp4 อยู่แล้ว เพราะส่ง format=mp4 ตอน upload
+      const videoUrl = upData?.secure_url || null;
       if (!videoUrl) {
         const msg = upData?.error?.message || "Upload ไม่สำเร็จ";
         if (msg.includes("Unknown API key") || msg.includes("api_key") || msg.includes("preset"))
