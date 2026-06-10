@@ -376,8 +376,8 @@ firstFrameDrawn = true;
           fd.append("upload_preset", CLOUDINARY_PRESET);
           fd.append("resource_type", "video");
           fd.append("folder", "cockpit_sure");
-          fd.append("quality", "auto");  // บีบอัดอัตโนมัติ: ไฟล์เล็กลง เปิดใน LINE เร็ว
-          fd.append("format", "mp4");    // video API ใช้ format ไม่ใช่ fetch_format
+          // ไม่ส่ง format/quality ใน unsigned upload — Cloudinary ไม่อนุญาต
+          // ให้ตั้งใน Upload Preset ที่ cloudinary.com แทน
           const upRes = await fetch(
             `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,
             { method: "POST", body: fd }
@@ -394,10 +394,8 @@ firstFrameDrawn = true;
       // secure_url จาก Cloudinary เป็น mp4 อยู่แล้ว เพราะส่ง format=mp4 ตอน upload
       const videoUrl = upData?.secure_url || null;
       if (!videoUrl) {
-        const msg = upData?.error?.message || "Upload ไม่สำเร็จ";
-        if (msg.includes("Unknown API key") || msg.includes("api_key") || msg.includes("preset"))
-          throw new Error("Upload Preset ยังไม่ถูกต้อง\ncloudinary.com → Settings\n→ Upload Presets → cockpit_unsigned\n→ Signing Mode: Unsigned → Save");
-        throw new Error(msg);
+        const msg = upData?.error?.message || JSON.stringify(upData) || "Upload ไม่สำเร็จ";
+        throw new Error("Cloudinary error: " + msg);
       }
 
       // PATCH job เป็น done
