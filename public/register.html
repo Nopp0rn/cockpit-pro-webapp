@@ -182,7 +182,6 @@ input::placeholder{color:#c4c4bc;font-weight:400}
         <ul>
           <li><strong>เลขทะเบียนรถ</strong> — เพื่อระบุรถของท่านในระบบ</li>
           <li><strong>จังหวัดของทะเบียนรถ</strong> — เพื่อประกอบการระบุตัวรถ</li>
-          <li><strong>เบอร์โทรศัพท์</strong> — เพื่อการติดต่อกรณีจำเป็น</li>
           <li><strong>LINE User ID</strong> — เพื่อส่งการแจ้งเตือนสถานะผ่าน LINE</li>
           <li><strong>ข้อมูลการใช้บริการ</strong> — ประเภทงานซ่อม วันเวลา สาขาที่ใช้บริการ</li>
         </ul>
@@ -249,12 +248,6 @@ input::placeholder{color:#c4c4bc;font-weight:400}
       <input id="inp-plate" placeholder="เช่น กข 1234" inputmode="text" autocomplete="off" style="text-transform:uppercase"/>
       <div class="error-msg" id="err-plate">⚠️ กรุณากรอกเลขทะเบียนรถ</div>
 
-      <div style="margin-top:20px">
-        <label>📞 เบอร์โทรศัพท์</label>
-        <input id="inp-phone" placeholder="เช่น 081-234-5678" inputmode="tel" type="tel"/>
-        <div class="error-msg" id="err-phone">⚠️ กรุณากรอกเบอร์โทร</div>
-      </div>
-
       <button class="submit-btn" style="margin-top:24px" onclick="goStep2()">
         ถัดไป เลือกจังหวัด →
       </button>
@@ -276,6 +269,29 @@ input::placeholder{color:#c4c4bc;font-weight:400}
       <input class="pv-search" id="pv-search" placeholder="🔍 ค้นหาจังหวัด..." oninput="filterProvinces(this.value)"/>
       <div class="province-grid" id="province-grid"></div>
       <div class="error-msg" id="err-province">⚠️ กรุณาเลือกจังหวัด</div>
+
+      <button class="submit-btn" style="margin-top:20px" onclick="goStep3()" id="next-step3-btn">
+        ถัดไป ตรวจสอบข้อมูล →
+      </button>
+    </div>
+
+    <!-- Step 3: Confirm -->
+    <div id="step3" style="display:none">
+      <button class="back-btn" onclick="goStep2FromConfirm()">← กลับ</button>
+
+      <div class="info-banner">
+        <div class="info-banner-icon">📝</div>
+        <div class="info-banner-text">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนยืนยันลงทะเบียน</div>
+      </div>
+
+      <div class="preview-box">
+        <div class="preview-label">ทะเบียนรถ</div>
+        <div class="preview-value" id="confirm-plate"></div>
+      </div>
+      <div class="preview-box" style="margin-top:12px">
+        <div class="preview-label">จังหวัด</div>
+        <div class="preview-value" id="confirm-province"></div>
+      </div>
 
       <button class="submit-btn" style="margin-top:20px" onclick="submitForm()" id="submit-btn">
         <span id="submit-text">✅ ยืนยันลงทะเบียน</span>
@@ -339,18 +355,15 @@ function selectProvince(p) {
   document.getElementById("selected-pv-text").textContent = p;
   document.getElementById("selected-pv-badge").style.display = "block";
   document.getElementById("err-province").style.display = "none";
-  document.getElementById("submit-btn").scrollIntoView({behavior:"smooth", block:"nearest"});
+  document.getElementById("next-step3-btn").scrollIntoView({behavior:"smooth", block:"nearest"});
 }
 
-function goStep1() { hide("step2"); show("step1"); }
+function goStep1() { hide("step2"); hide("step3"); show("step1"); }
 
 function goStep2() {
   const plate = document.getElementById("inp-plate").value.trim();
-  const phone = document.getElementById("inp-phone").value.trim();
   if (!plate) { document.getElementById("err-plate").style.display="block"; return; }
-  if (!phone) { document.getElementById("err-phone").style.display="block"; return; }
   document.getElementById("err-plate").style.display="none";
-  document.getElementById("err-phone").style.display="none";
   document.getElementById("plate-preview").textContent = plate.toUpperCase();
   hide("step1"); show("step2");
   selectedProvince="";
@@ -358,20 +371,28 @@ function goStep2() {
   renderProvinces("");
 }
 
-async function submitForm() {
+function goStep2FromConfirm() { hide("step3"); show("step2"); }
+
+function goStep3() {
   if (!selectedProvince) {
     document.getElementById("err-province").style.display="block";
     return;
   }
   const plate = document.getElementById("inp-plate").value.trim();
-  const phone = document.getElementById("inp-phone").value.trim();
+  document.getElementById("confirm-plate").textContent = plate.toUpperCase();
+  document.getElementById("confirm-province").textContent = "จังหวัด" + selectedProvince;
+  hide("step2"); show("step3");
+}
+
+async function submitForm() {
+  const plate = document.getElementById("inp-plate").value.trim();
   const btn = document.getElementById("submit-btn");
   document.getElementById("submit-text").innerHTML = '<span style="display:inline-flex;align-items:center;gap:10px"><span style="width:22px;height:22px;border:3px solid rgba(255,224,0,.4);border-top:3px solid #FFE000;border-radius:50%;animation:spin .8s linear infinite;display:inline-block"></span> กำลังบันทึก...</span>';
   btn.disabled = true;
   try {
     const res = await fetch(`${API}/api/register/submit`,{
       method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({token,plate,province:selectedProvince,phone})
+      body:JSON.stringify({token,plate,province:selectedProvince})
     });
     const data = await res.json();
     if (data.success) {
