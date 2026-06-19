@@ -212,50 +212,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     const bsImg = new Image();
     bsImg.src = BRIDGESTONE_LOGO;
 
-    // วาด frame ตรง SVG reference — ทุกค่าวัดจาก SVG โดยตรง
-    // SVG canvas: 705.75 × 1254 → % แปลงเป็น pixel บน canvas 480×854
-    function drawV8Frame(ctx, cW, cH) {
-      const YELLOW = "#FDF10F";
-
-      // ① Left stripe: w=1.60%, h=86.9% (stops at bottom panel)
-      const stripeW = Math.round(cW * 0.0160);
-      const panelH  = Math.round(cH * 0.131);   // bottom panel: 13.1%
-      ctx.fillStyle = YELLOW;
-      ctx.fillRect(0, 0, stripeW, cH - panelH);  // stops at top of bottom panel
-
-      // ② Right stripe: w=1.60%, h=90.8%
-      ctx.fillRect(cW - stripeW, 0, stripeW, Math.round(cH * 0.908));
-
-      // ③ CockpitSure logo: x=0.8%, y=0, w=47.6%, h=5.2% — no yellow bg, logo has own bg
-      if (logoImg.complete && logoImg.naturalWidth > 0) {
-        const lX = Math.round(cW * 0.008);
-        const lY = 0;
-        const lW = Math.round(cW * 0.476);
-        const lH = Math.round(cH * 0.052);
-        ctx.drawImage(logoImg, lX, lY, lW, lH);
-      }
-
-      // ④ Top-right accent bar: left=39.9%, right=1.60%, h=0.84%
-      const accentX = Math.round(cW * 0.399);
-      const accentH = Math.round(cH * 0.0084);
-      ctx.fillStyle = YELLOW;
-      ctx.fillRect(accentX, 0, cW - accentX - stripeW, accentH);
-
-      // ⑤ Bottom panel: full width, h=13.1%
-      ctx.fillStyle = YELLOW;
-      ctx.fillRect(0, cH - panelH, cW, panelH);
-
-      // ⑥ Bridgestone banner: centered in bottom panel, overflows upward
-      if (bsImg.complete && bsImg.naturalWidth > 0) {
-        const bsH  = Math.round(panelH * 2.5);
-        const bsW  = Math.round(bsH * bsImg.naturalWidth / bsImg.naturalHeight);
-        const bsWf = Math.min(bsW, Math.round(cW * 0.96));
-        const bsHf = Math.round(bsWf * bsImg.naturalHeight / bsImg.naturalWidth);
-        const bsX  = Math.round((cW - bsWf) / 2);
-        const bsY  = cH - panelH + Math.round((panelH - bsHf) / 2);
-        ctx.drawImage(bsImg, bsX, bsY, bsWf, bsHf);
-      }
-    }
+  // วาด Frame Cockpit Sure + Bridgestone
 
     function beginRecord() {
       // drawLoop: ทำงานตลอด — วาด video frame + logo ลง canvas ทุก rAF
@@ -271,10 +228,43 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
           if (vA>cA){ sw=vH*cA; sx=(vW-sw)/2; }
           else      { sh=vW/cA; sy=(vH-sh)/2; }
           ctx.clearRect(0,0,cW,cH);
-          ctx.drawImage(video, sx,sy,sw,sh, 0,0,cW,cH);
-          drawV8Frame(ctx, cW, cH);
-          firstFrameDrawn = true;
-        }
+
+ctx.drawImage(
+  video,
+  sx,
+  sy,
+  sw,
+  sh,
+  0,
+  0,
+  cW,
+  cH
+);
+
+try {
+const overlay = frameOverlayRef.current;
+
+if (
+  overlay &&
+  overlay.complete &&
+  overlay.naturalWidth > 0
+) {
+  ctx.drawImage(
+    overlay,
+    0,
+    0,
+    cW,
+    cH
+  );
+}
+
+} catch(e) {
+  console.error(e);
+}
+
+firstFrameDrawn = true;
+       }
+        
         animFrameId = requestAnimationFrame(drawLoop);
       }
       animRef.current = { stop: () => { if (animFrameId) cancelAnimationFrame(animFrameId); } };
@@ -290,7 +280,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         const canvasStream = canvas.captureStream(24); // 24fps
         stream.getAudioTracks().forEach(t => canvasStream.addTrack(t));
 
-        const bitsPerSecond = isMobile ? 800000 : 2000000;
+        const bitsPerSecond = 300000; // 300kbps: RAM น้อยลง ป้องกัน Android crash
         const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
           ? "video/mp4;codecs=h264,aac"
           : MediaRecorder.isTypeSupported("video/mp4")
@@ -314,7 +304,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
           streamRef.current?.getTracks().forEach(t => t.stop());
           setPhase("preview");
         };
-        mr.start(2000); // 2s timeslice
+        mr.start(1000); // 1000ms timeslice: chunk น้อยลง RAM น้อยลง ป้องกัน crash
         setRecorder(mr); setTimer(0); setPhase("recording"); setPaused(false);
         timerRef.current = setInterval(() => {
           setTimer(t => {
@@ -326,6 +316,34 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
       startAfterFirstFrame();
     }
+
+    // frameOverlayRef ถูก preload ใน useEffect แล้ว — เริ่ม record ได้เลย
+    beginRecord();
+  }
+
+
+  const handlePause = () => {
+    if (!recorder || recorder.state!=="recording") return;
+    recorder.pause(); setPaused(true); clearInterval(timerRef.current);
+    // Android: ensure video preview stays alive
+    if (videoRef.current) videoRef.current.play().catch(()=>{});
+  };
+  const handleResume = () => {
+    if (!recorder || recorder.state!=="paused") return;
+    recorder.resume(); setPaused(false);
+    // Android: ensure video keeps playing
+    if (videoRef.current) videoRef.current.play().catch(()=>{});
+    timerRef.current = setInterval(() => {
+      setTimer(t => {
+        if(t>=MAX_SEC-1){ recorder.stop(); clearInterval(timerRef.current); return MAX_SEC; }
+        return t+1;
+      });
+    }, 1000);
+  };
+  const handleFinish = () => {
+    if (recorder && recorder.state!=="inactive") recorder.stop();
+    clearInterval(timerRef.current);
+  };
 
     // รอโหลด logo ก่อนเริ่ม record
     let loaded = 0;
