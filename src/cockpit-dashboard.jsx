@@ -1624,6 +1624,7 @@ function VideoView({ branchId }) {
   const [detLoad, setDetLoad] = useState(false);
   const [playingId, setPlayingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const loadVideos = useCallback(async (id) => {
     if (!id) return;
@@ -1660,7 +1661,7 @@ function VideoView({ branchId }) {
 
   return (
     <div style={{padding:"8px 12px",paddingBottom:40}}>
-      {/* Refresh + count */}
+      {/* Refresh + count + ลบทั้งหมด */}
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
         <button onClick={()=>loadVideos(branchId)}
           style={{padding:"5px 12px",borderRadius:8,border:"1px solid #d1d5db",
@@ -1668,6 +1669,26 @@ function VideoView({ branchId }) {
             color:"#6b7280",fontFamily:"'Noto Sans Thai',sans-serif"}}>🔄 รีเฟรช</button>
         {!detLoad && (
           <span style={{fontSize:12,color:"#9ca3af"}}>{videos.length} คลิป</span>
+        )}
+        {!detLoad && videos.length > 0 && (
+          <button disabled={deletingAll}
+            onClick={async ()=>{
+              if (!window.confirm(`ลบวีดีโอทั้งหมด ${videos.length} คลิปของสาขานี้?\nไม่สามารถกู้คืนได้`)) return;
+              if (!window.confirm(`ยืนยันอีกครั้ง — ลบทั้งหมด ${videos.length} คลิป จริงหรือไม่?`)) return;
+              setDeletingAll(true);
+              try {
+                const r = await callAPI("DELETE", `/api/branch/${branchId}/videos`);
+                if (r.success) { setVideos([]); alert(`เริ่มลบ ${r.total||0} คลิปแล้ว ระบบจะลบไฟล์จริงให้ในพื้นหลัง (ใช้เวลาสักครู่ถ้ามีจำนวนมาก)`); }
+                else alert("ลบไม่สำเร็จ: " + (r.error||""));
+              } catch(e) { alert("เกิดข้อผิดพลาด: " + e.message); }
+              setDeletingAll(false);
+            }}
+            style={{marginLeft:"auto",padding:"5px 12px",borderRadius:8,border:"none",
+              background: deletingAll ? "#9ca3af" : "#dc2626",fontSize:12,fontWeight:700,
+              color:"#fff",cursor: deletingAll ? "not-allowed" : "pointer",
+              fontFamily:"'Noto Sans Thai',sans-serif"}}>
+            {deletingAll ? "⏳ กำลังลบ..." : "🗑 ลบทั้งหมด"}
+          </button>
         )}
       </div>
 
