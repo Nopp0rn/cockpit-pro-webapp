@@ -2412,6 +2412,7 @@ export default function App() {
           {[
             {key:"staff",   label:"👨‍🔧 พนักงาน"},
             {key:"admin",   label:"📺 ข้อมูล"},
+            {key:"videos",  label:"🎥 วิดีโอ"},
           ].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               flex:1, padding:"9px 2px", border:"none", background:"transparent",
@@ -2430,6 +2431,7 @@ export default function App() {
       <div>
         {tab === "staff"   && <StaffView   branchId={branchId} branchName={branchName}/>}
         {tab === "admin"   && <AdminView   branchId={branchId}/>}
+        {tab === "videos"  && <VideoView   branchId={branchId}/>}
       </div>
     </div>
   );
