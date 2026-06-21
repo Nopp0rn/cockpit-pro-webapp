@@ -55,6 +55,7 @@ const callAPI = async (method, path, body) => {
     const r = await fetch(`${API}${path}`, {
       method, headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
+      cache: "no-store",
     });
     try { return await r.json(); }
     catch { return { error: `Server error (${r.status})` }; }
@@ -1477,13 +1478,13 @@ function StaffView({ branchId, branchName: branchNameProp }) {
   const fetch_ = useCallback(async () => {
     if (!branchId) return;
     try {
-      const res = await fetch(`${API}/api/branch/${branchId}`);
+      const res = await fetch(`${API}/api/branch/${branchId}`, { cache: "no-store" });
       const data = await res.json();
       setQueues(data.baysData || {});
       setBranchName(data.name || "Cockpit Pro");
       // ดึงประวัติวันนี้เพื่อแสดงปุ่มคืนสถานะ
       try {
-        const hr = await fetch(`${API}/api/branch/${branchId}/history?limit=50`);
+        const hr = await fetch(`${API}/api/branch/${branchId}/history?limit=50`, { cache: "no-store" });
         const hd = await hr.json();
         const today = new Date().toDateString();
         setTodayHistory((hd.history||[]).filter(h =>
@@ -1628,7 +1629,7 @@ function VideoView({ branchId }) {
     if (!id) return;
     setDetLoad(true); setPlayingId(null);
     try {
-      const r = await fetch(`${API}/api/branch/${id}/videos?limit=60`);
+      const r = await fetch(`${API}/api/branch/${id}/videos?limit=60`, { cache: "no-store" });
       const d = await r.json();
       setVideos(d.videos||[]);
     } catch {}
@@ -1795,7 +1796,7 @@ function HistoryView({ branchId, branchName: branchNameProp }) {
     setDetLoad(true);
     try {
       const params = new URLSearchParams({ limit: 500, from, to });
-      const r = await fetch(`${API}/api/branch/${id}/history?${params}`);
+      const r = await fetch(`${API}/api/branch/${id}/history?${params}`, { cache: "no-store" });
       const d = await r.json();
       setHistory((d.history || []).filter(h => !h.cancelled));
     } catch(e) { console.error(e); }
@@ -2112,7 +2113,7 @@ function AdminView({ branchId }) {
     if (!id) return;
     setDetLoad(true);
     try {
-      const r = await fetch(`${API}/api/branch/${id}`);
+      const r = await fetch(`${API}/api/branch/${id}`, { cache: "no-store" });
       setDetail(await r.json());
       setLastUpdate(new Date().toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",second:"2-digit"}));
     } catch {}
@@ -2287,7 +2288,7 @@ export default function App() {
 
   // โหลด overview ครั้งเดียวที่ root
   useEffect(() => {
-    fetch(`${API}/api/admin/overview`)
+    fetch(`${API}/api/admin/overview`, { cache: "no-store" })
       .then(r => r.json())
       .then(d => {
         const list = sortBranches(d.overview || []);
