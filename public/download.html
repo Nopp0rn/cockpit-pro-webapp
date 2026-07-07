@@ -53,7 +53,8 @@
   } else {
     info.textContent = [plate && `🚗 ${plate}`, branch && `📍 ${branch}`].filter(Boolean).join("   ");
     video.src = videoUrl;
-    fallback.innerHTML = `หากปุ่มกดไม่ได้ ให้แตะเมนู "•••" มุมขวาบน แล้วเลือก "เปิดใน Safari/Chrome" จากนั้นกดปุ่มดาวน์โหลดอีกครั้ง<br><br>
+    fallback.innerHTML = `ถ้าเจอ popup "เว็บไซต์นี้พยายามจะเปิดแอปพลิเคชันภายนอก" ให้กด "อนุญาต"<br><br>
+      หากปุ่มกดไม่ได้เลย ให้แตะเมนู "•••" มุมขวาบน แล้วเลือก "เปิดใน Safari/Chrome" จากนั้นกดปุ่มดาวน์โหลดอีกครั้ง<br><br>
       หรือกดค้างที่วิดีโอด้านบนแล้วเลือก "บันทึกวิดีโอ"<br><br>
       <a href="${videoUrl}" target="_blank">เปิดวิดีโอโดยตรง</a>`;
   }
@@ -66,6 +67,19 @@
       const res = await fetch(videoUrl, { mode: "cors" });
       if (!res.ok) throw new Error("โหลดไฟล์ไม่สำเร็จ");
       const blob = await res.blob();
+      const file = new File([blob], fileName, { type: blob.type || "video/mp4" });
+
+      // วิธีที่ 1: Web Share API — เรียก native share sheet ของ iOS/Android ตรงๆ
+      // ไม่ผ่านการ "นำทาง" ไป blob: URL เลย จึงไม่โดน LINE webview
+      // ดักจับเป็น "เปิดแอปภายนอก" แบบที่เจอตอนใช้ anchor+blob
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: fileName });
+        status.textContent = "✅ เลือก \"บันทึกวิดีโอ\" ในเมนูแชร์เพื่อเก็บลงเครื่อง";
+        btn.disabled = false;
+        return;
+      }
+
+      // วิธีสำรอง: anchor + blob (ใช้ได้ดีใน Chrome/Safari ปกติ แต่ LINE webview อาจมี popup กวน)
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
