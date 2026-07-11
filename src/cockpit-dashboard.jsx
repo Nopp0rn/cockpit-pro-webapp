@@ -80,6 +80,8 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const [recorder, setRecorder]     = useState(null);
   const [paused, setPaused]         = useState(false);
   const [facingMode, setFacingMode] = useState("environment");
+  const [torchOn, setTorchOn]           = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
   const [videoBlob, setVideoBlob]   = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [timer, setTimer]           = useState(0);
@@ -134,6 +136,13 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         audio: true
       });
       streamRef.current = s;
+      // เช็คว่ากล้องตัวนี้รองรับไฟแฟลช (torch) ไหม — ส่วนใหญ่มีแค่กล้องหลัง
+      try {
+        const vTrack = s.getVideoTracks()[0];
+        const caps = vTrack?.getCapabilities?.();
+        setTorchSupported(!!caps?.torch);
+      } catch { setTorchSupported(false); }
+      setTorchOn(false);
       setPhase("ready");   // render video element ก่อน
       // delay เพื่อให้ video element mount แล้วค่อย set stream
       setTimeout(() => {
@@ -178,6 +187,12 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         ]);
         streamRef.current = combined;
         setStream(combined);
+        // เปลี่ยนกล้องแล้วไฟแฟลชต้องปิด + เช็ครองรับใหม่ (กล้องหน้าแทบไม่มี torch)
+        setTorchOn(false);
+        try {
+          const caps = newVidStream.getVideoTracks()[0]?.getCapabilities?.();
+          setTorchSupported(!!caps?.torch);
+        } catch { setTorchSupported(false); }
         // อัปเดต video element → canvas draw loop จะรับโดยอัตโนมัติ
         if (videoRef.current) {
           videoRef.current.srcObject = combined;
@@ -187,6 +202,18 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       }
     } catch(e) {
       setError("สลับกล้องไม่สำเร็จ: " + e.message);
+    }
+  };
+
+  // ── Toggle flashlight/torch (กล้องหลังส่วนใหญ่เท่านั้น) ──
+  const toggleTorch = async () => {
+    const vTrack = streamRef.current?.getVideoTracks?.()[0];
+    if (!vTrack) return;
+    try {
+      await vTrack.applyConstraints({ advanced: [{ torch: !torchOn }] });
+      setTorchOn(!torchOn);
+    } catch (e) {
+      console.error("เปิดแฟลชไม่สำเร็จ:", e.message);
     }
   };
 
@@ -548,6 +575,22 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                     fontSize:11,fontWeight:700,cursor:"pointer",
                     display:"flex",alignItems:"center",gap:4}}>
                     🔄 {facingMode==="environment" ? "กล้องหน้า" : "กล้องหลัง"}
+                  </button>
+                )}
+
+                {/* Flash/Torch toggle — ใต้ปุ่มสลับกล้อง, โชว์เฉพาะกล้องที่รองรับ */}
+                {(phase==="ready" || phase==="recording") && torchSupported && (
+                  <button onClick={toggleTorch} style={{
+                    position:"absolute",
+                    top: phase==="ready" ? "10%" : "2%",
+                    right:"4%",zIndex:50,
+                    background: torchOn ? "#FFE000" : "rgba(0,0,0,0.75)",
+                    border:"1px solid rgba(255,255,255,0.3)",
+                    borderRadius:20,padding:"4px 10px",
+                    color: torchOn ? "#1A1A1A" : "#fff",
+                    fontSize:11,fontWeight:700,cursor:"pointer",
+                    display:"flex",alignItems:"center",gap:4}}>
+                    {torchOn ? "🔦 ปิดไฟ" : "🔦 เปิดไฟ"}
                   </button>
                 )}
 
