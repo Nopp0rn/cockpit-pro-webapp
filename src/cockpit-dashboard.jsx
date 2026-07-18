@@ -1668,6 +1668,38 @@ function VideoView({ branchId }) {
   const [playingId, setPlayingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
+
+  // ดาวน์โหลดวิดีโอ — ใช้ fetch→blob แทน fl_attachment link ตรงๆ
+  // เพราะ iOS Safari ไม่ยอม force-download cross-origin link ผ่าน <a download>
+  // ลองใช้ Web Share API ก่อน (เปิด native share sheet ให้กด "บันทึกวิดีโอ")
+  // ถ้าไม่รองรับค่อย fallback เป็น blob + anchor download
+  const handleDownloadVideo = async (v) => {
+    setDownloadingId(v.id);
+    try {
+      const dlExt = (v.video_url||"").includes(".mp4") ? "mp4"
+        : (v.video_url||"").includes(".mov") ? "mov" : "webm";
+      const fileName = `cockpitsure_${v.plate}.${dlExt}`;
+      const res = await fetch(v.video_url);
+      if (!res.ok) throw new Error("โหลดไฟล์ไม่สำเร็จ");
+      const blob = await res.blob();
+      const file = new File([blob], fileName, { type: blob.type || `video/${dlExt}` });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: fileName });
+      } else {
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl; a.download = fileName;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      }
+    } catch (e) {
+      alert("ดาวน์โหลดไม่สำเร็จ: " + e.message + "\nลองกด 'เปิด' แล้วกดค้างที่วิดีโอเพื่อบันทึกแทน");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const loadVideos = useCallback(async (id) => {
     if (!id) return;
@@ -1798,21 +1830,13 @@ function VideoView({ branchId }) {
                     fontFamily:"'Noto Sans Thai',sans-serif"}}>
                   🔗 เปิด
                 </a>
-                <button onClick={()=>{
-                    const dlUrl = v.video_url.replace('/upload/','/upload/fl_attachment/');
-                    const a = document.createElement('a');
-                    a.href = dlUrl;
-                    a.target = '_blank';
-                    const dlExt = (v.video_url||"").includes(".mp4") ? "mp4"
-                      : (v.video_url||"").includes(".mov") ? "mov" : "webm";
-                    a.download = `cockpitsure_${v.plate}.${dlExt}`;
-                    a.click();
-                  }}
+                <button onClick={()=>handleDownloadVideo(v)}
+                  disabled={downloadingId === v.id}
                   style={{flex:1,padding:"6px 0",borderRadius:8,border:"none",
                     background:"#1A1A1A",color:"#FFE000",fontSize:12,fontWeight:700,
                     cursor:"pointer",textAlign:"center",
                     fontFamily:"'Noto Sans Thai',sans-serif"}}>
-                  ⬇ โหลด
+                  {downloadingId === v.id ? "⏳ กำลังโหลด..." : "⬇ โหลด"}
                 </button>
                 <button
                   disabled={deletingId === v.id}
