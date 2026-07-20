@@ -326,7 +326,9 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         const canvasStream = canvas.captureStream(24); // 24fps
         stream.getAudioTracks().forEach(t => canvasStream.addTrack(t));
 
-        const bitsPerSecond = isMobile ? 800000 : 2000000;
+        // ลด bitrate เพื่อช่วยให้ไฟล์เล็กลง (จุดคุมขนาดจริงอยู่ที่ backend
+        // ซึ่งบีบอัดซ้ำอีกชั้นตอนส่ง — ดู VIDEO_MAX_BITRATE_KBPS ใน server.js)
+        const bitsPerSecond = isMobile ? 600000 : 1000000;
         const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
           ? "video/mp4;codecs=h264,aac"
           : MediaRecorder.isTypeSupported("video/mp4")
