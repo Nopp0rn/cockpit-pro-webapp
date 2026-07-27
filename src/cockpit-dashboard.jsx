@@ -1527,15 +1527,22 @@ function StaffView({ branchId, branchName: branchNameProp }) {
       const data = await res.json();
       setQueues(data.baysData || {});
       setBranchName(data.name || "Cockpit Pro");
-      // ดึงประวัติวันนี้เพื่อแสดงปุ่มคืนสถานะ
-      try {
-        const hr = await fetch(`${API}/api/branch/${branchId}/history?limit=50`, { cache: "no-store" });
-        const hd = await hr.json();
-        const today = new Date().toDateString();
-        setTodayHistory((hd.history||[]).filter(h =>
-          h.closed_at && new Date(h.closed_at).toDateString() === today && !h.cancelled
-        ));
-      } catch {}
+      // ประวัติวันนี้ (ใช้โชว์ปุ่มคืนสถานะ) — backend ส่งมาให้พร้อมกันใน response เดียวแล้ว
+      // ไม่ต้องยิงอีก request เหมือนเดิม ลดทั้งจำนวน request และขนาดข้อมูล
+      if (Array.isArray(data.todayHistory)) {
+        setTodayHistory(data.todayHistory);
+      } else {
+        // backend รุ่นเก่ายังไม่ส่ง todayHistory มา — ถอยไปใช้วิธีเดิม
+        // (กันพังกรณี deploy webapp ก่อน backend)
+        try {
+          const hr = await fetch(`${API}/api/branch/${branchId}/history?limit=50`, { cache: "no-store" });
+          const hd = await hr.json();
+          const today = new Date().toDateString();
+          setTodayHistory((hd.history||[]).filter(h =>
+            h.closed_at && new Date(h.closed_at).toDateString() === today && !h.cancelled
+          ));
+        } catch {}
+      }
     } catch {}
     setLoading(false);
   }, [branchId]);
