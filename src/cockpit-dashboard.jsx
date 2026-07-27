@@ -1555,8 +1555,32 @@ function StaffView({ branchId, branchName: branchNameProp }) {
     if (!branchId) return;
     setLoading(true); setQueues({});
     fetch_();
-    const t = setInterval(fetch_, 15000);
-    return () => clearInterval(t);
+    // ── ลดโควตา Supabase ──
+    // เดิม poll ทุก 15 วิ ตลอดเวลา แม้ผู้ใช้สลับแท็บ/ล็อกจอ หรือเปิดค้างไว้ทั้งวันโดยไม่มีคนดู
+    // จอคิวหน้าร้านต้องสด จึงคงรอบ 15 วิ ไว้เหมือนเดิม แต่ข้ามรอบเมื่อไม่ได้อยู่หน้าจอ
+    // และพักเมื่อไม่มีการใช้งานเกิน 30 นาที (แตะจอ/ขยับเมาส์ = กลับมาทำงานทันที)
+    const IDLE_MS = 30 * 60 * 1000;
+    let lastAct = Date.now();
+    const bump = () => {
+      const wasIdle = Date.now() - lastAct > IDLE_MS;
+      lastAct = Date.now();
+      if (wasIdle && !document.hidden) fetch_();
+    };
+    const onVis = () => { if (!document.hidden) { lastAct = Date.now(); fetch_(); } };
+    ['pointerdown','keydown','wheel','touchstart','mousemove'].forEach(ev =>
+      window.addEventListener(ev, bump, { passive: true }));
+    document.addEventListener('visibilitychange', onVis);
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      if (Date.now() - lastAct > IDLE_MS) return;
+      fetch_();
+    }, 15000);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVis);
+      ['pointerdown','keydown','wheel','touchstart','mousemove'].forEach(ev =>
+        window.removeEventListener(ev, bump));
+    };
   }, [fetch_, branchId]);
 
   const qList = Object.values(queues);
@@ -2216,8 +2240,29 @@ function AdminView({ branchId }) {
   useEffect(() => { loadBranch(branchId); }, [branchId, loadBranch]);
   useEffect(() => {
     if (!branchId) return;
-    const t = setInterval(() => loadBranch(branchId), 20000);
-    return () => clearInterval(t);
+    // ลดโควตา Supabase — หลักการเดียวกับด้านบน: ไม่ดึงเมื่อไม่ได้อยู่หน้าจอ / ไม่มีคนใช้เกิน 30 นาที
+    const IDLE_MS = 30 * 60 * 1000;
+    let lastAct = Date.now();
+    const bump = () => {
+      const wasIdle = Date.now() - lastAct > IDLE_MS;
+      lastAct = Date.now();
+      if (wasIdle && !document.hidden) loadBranch(branchId);
+    };
+    const onVis = () => { if (!document.hidden) { lastAct = Date.now(); loadBranch(branchId); } };
+    ['pointerdown','keydown','wheel','touchstart','mousemove'].forEach(ev =>
+      window.addEventListener(ev, bump, { passive: true }));
+    document.addEventListener('visibilitychange', onVis);
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      if (Date.now() - lastAct > IDLE_MS) return;
+      loadBranch(branchId);
+    }, 20000);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVis);
+      ['pointerdown','keydown','wheel','touchstart','mousemove'].forEach(ev =>
+        window.removeEventListener(ev, bump));
+    };
   }, [branchId, loadBranch]);
 
   if (loading) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>⏳</div>;
