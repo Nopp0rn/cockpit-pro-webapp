@@ -257,6 +257,8 @@
 
 <script>
 const API = "https://cockpit-pro-backend.onrender.com";
+// เวอร์ชันของหน้าจอแสดงผล — แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่
+const DISPLAY_VERSION = "v1.2";
 let currentBranch = null;
 let refreshTimer = null;
 let countdown = 20;
@@ -379,7 +381,8 @@ function startCountdown() {
   clearInterval(refreshTimer);
   refreshTimer = setInterval(() => {
     countdown--;
-    document.getElementById("next-refresh").textContent = `รีเฟรชใน ${countdown}s`;
+    // แสดงเวอร์ชันคู่กับตัวนับถอยหลัง — รู้ได้ทันทีว่าจอนี้รันเวอร์ชันไหน
+    document.getElementById("next-refresh").textContent = `รีเฟรชใน ${countdown}s · ${DISPLAY_VERSION}`;
     if (countdown <= 0) {
       // จอนี้เป็นจอแสดงผลหน้าร้าน ต้องสดตลอด จึงคงรอบ 20 วิ ไว้
       // แต่ถ้าถูกเปิดค้างเป็นแท็บเบื้องหลัง (ไม่มีใครเห็น) ไม่ต้องดึงข้อมูล — ประหยัดโควตา
