@@ -381,7 +381,9 @@ function startCountdown() {
     countdown--;
     document.getElementById("next-refresh").textContent = `รีเฟรชใน ${countdown}s`;
     if (countdown <= 0) {
-      loadQueue(currentBranch);
+      // จอนี้เป็นจอแสดงผลหน้าร้าน ต้องสดตลอด จึงคงรอบ 20 วิ ไว้
+      // แต่ถ้าถูกเปิดค้างเป็นแท็บเบื้องหลัง (ไม่มีใครเห็น) ไม่ต้องดึงข้อมูล — ประหยัดโควตา
+      if (!document.hidden) loadQueue(currentBranch);
       countdown = 20;
     }
   }, 1000);
