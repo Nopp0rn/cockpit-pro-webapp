@@ -258,7 +258,7 @@
 <script>
 const API = "https://cockpit-pro-backend.onrender.com";
 // เวอร์ชันของหน้าจอแสดงผล — แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่
-const DISPLAY_VERSION = "v1.2";
+const DISPLAY_VERSION = "v1.3";
 let currentBranch = null;
 let refreshTimer = null;
 let countdown = 20;
@@ -377,7 +377,7 @@ function renderQueue(baysData) {
 
 // ── Auto refresh countdown ────────────────────────────────────
 function startCountdown() {
-  countdown = 20;
+  countdown = 60;   // 2026-07-28: 20 -> 60 วิ เพื่อลด Egress
   clearInterval(refreshTimer);
   refreshTimer = setInterval(() => {
     countdown--;
@@ -387,7 +387,7 @@ function startCountdown() {
       // จอนี้เป็นจอแสดงผลหน้าร้าน ต้องสดตลอด จึงคงรอบ 20 วิ ไว้
       // แต่ถ้าถูกเปิดค้างเป็นแท็บเบื้องหลัง (ไม่มีใครเห็น) ไม่ต้องดึงข้อมูล — ประหยัดโควตา
       if (!document.hidden) loadQueue(currentBranch);
-      countdown = 20;
+      countdown = 60;
     }
   }, 1000);
 }
