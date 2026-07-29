@@ -68,7 +68,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v1.2";
+export const APP_VERSION = "v1.3";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
@@ -1594,7 +1594,7 @@ function StaffView({ branchId, branchName: branchNameProp }) {
       if (document.hidden) return;
       if (Date.now() - lastAct > IDLE_MS) return;
       fetch_();
-    }, 15000);
+    }, 45000);   // 2026-07-28: 15 -> 45 วิ เพื่อลด Egress (backend มี cache + realtime ยังทำงาน)
     return () => {
       clearInterval(t);
       document.removeEventListener('visibilitychange', onVis);
@@ -2296,7 +2296,7 @@ function AdminView({ branchId }) {
       if (document.hidden) return;
       if (Date.now() - lastAct > IDLE_MS) return;
       loadBranch(branchId);
-    }, 20000);
+    }, 60000);   // 2026-07-28: 20 -> 60 วิ เพื่อลด Egress
     return () => {
       clearInterval(t);
       document.removeEventListener('visibilitychange', onVis);
