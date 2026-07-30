@@ -18,24 +18,34 @@ function captureVideoThumb(blob) {
   return new Promise((resolve) => {
     try {
       const v = document.createElement("video");
-      v.preload = "metadata"; v.muted = true; v.playsInline = true;
+      // preload "auto" เพื่อให้มีข้อมูลภาพจริงพร้อมวาด (metadata อย่างเดียวบางเครื่องยังไม่มีเฟรม)
+      v.preload = "auto"; v.muted = true; v.playsInline = true;
+      v.setAttribute("muted", ""); v.setAttribute("playsinline", "");
       const url = URL.createObjectURL(blob);
       let done = false;
-      const finish = (res) => { if (done) return; done = true; URL.revokeObjectURL(url); resolve(res); };
+      const finish = (res) => { if (done) return; done = true; try{URL.revokeObjectURL(url);}catch{} resolve(res); };
       const grab = () => {
+        if (done) return;
         try {
+          const w = v.videoWidth, h = v.videoHeight;
+          if (!w || !h) return;                     // ยังไม่มีขนาดภาพ รอรอบถัดไป
           const c = document.createElement("canvas");
-          const w = v.videoWidth || 854, h = v.videoHeight || 480;
           c.width = w; c.height = h;
           c.getContext("2d").drawImage(v, 0, 0, w, h);
           c.toBlob(b => finish(b), "image/jpeg", 0.7);
-        } catch { finish(null); }
+        } catch { /* ยังวาดไม่ได้ ปล่อยให้ event ถัดไปลองใหม่ */ }
       };
-      v.onloadeddata = () => { try { v.currentTime = 0.1; } catch { grab(); } };
-      v.onseeked = grab;
+      // ลองวาดจากหลายจังหวะ — เครื่องแต่ละรุ่นยิง event ไม่เหมือนกัน
+      // คลิปไฟล์ใหญ่มักยังไม่พร้อมตอน loadeddata จึงต้องดักหลายจุดแทนที่จะพึ่ง seek อย่างเดียว
+      v.onloadeddata  = grab;
+      v.oncanplay     = grab;
+      v.onseeked      = grab;
+      v.onloadedmetadata = () => { try { v.currentTime = 0.1; } catch {} };
       v.onerror = () => finish(null);
-      setTimeout(() => finish(null), 8000);   // กันค้าง — ไม่มีรูปพรีวิวก็ยังส่งได้
+      const poll = setInterval(grab, 500);          // เผื่อ event ไม่ยิงเลย
+      setTimeout(() => { clearInterval(poll); finish(null); }, 20000);  // ไฟล์ใหญ่ต้องให้เวลามากขึ้น
       v.src = url;
+      try { v.load(); } catch {}
     } catch { resolve(null); }
   });
 }
@@ -124,7 +134,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v1.4";
+export const APP_VERSION = "v1.5";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
