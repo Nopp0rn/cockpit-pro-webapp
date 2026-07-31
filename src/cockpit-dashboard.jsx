@@ -134,7 +134,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v1.5";
+export const APP_VERSION = "v1.6";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
@@ -408,13 +408,30 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         // ลด bitrate เพื่อช่วยให้ไฟล์เล็กลง (จุดคุมขนาดจริงอยู่ที่ backend
         // ซึ่งบีบอัดซ้ำอีกชั้นตอนส่ง — ดู VIDEO_MAX_BITRATE_KBPS ใน server.js)
         const bitsPerSecond = isMobile ? 600000 : 1000000;
-        const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")
-          ? "video/mp4;codecs=h264,aac"
-          : MediaRecorder.isTypeSupported("video/mp4")
-          ? "video/mp4"
-          : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-          ? "video/webm;codecs=vp9"
-          : "video/webm";
+        // 2026-07-31: แก้ปัญหาเครื่องคอมบันทึกเป็นไฟล์ .webm ซึ่ง LINE เล่นไม่ได้
+        //   เดิมเช็คแค่ "h264,aac" ซึ่งเป็นชื่อย่อที่ Chrome ไม่รู้จัก จึงตอบว่าไม่รองรับ
+        //   แล้วตกไปใช้ webm ทั้งที่เครื่องนั้นบันทึก mp4 ได้จริง
+        //   จึงไล่เช็คชื่อ codec แบบเต็มตามมาตรฐานก่อน (Chrome/Edge ต้องการรูปแบบนี้)
+        //   ลำดับนี้สำคัญ: ต้องได้ mp4 ให้ได้ก่อน เพราะ Supabase ไม่มีระบบแปลงไฟล์เหมือน Cloudinary เดิม
+        const MP4_CANDIDATES = [
+          'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',  // H.264 Baseline + AAC-LC (ชื่อเต็มมาตรฐาน)
+          'video/mp4;codecs="avc1.4D401E,mp4a.40.2"',  // H.264 Main
+          'video/mp4;codecs="avc1,mp4a"',
+          "video/mp4;codecs=h264,aac",
+          "video/mp4",
+        ];
+        let mimeType = MP4_CANDIDATES.find(t => {
+          try { return MediaRecorder.isTypeSupported(t); } catch { return false; }
+        });
+        if (!mimeType) {
+          // เครื่องนี้บันทึก mp4 ไม่ได้จริงๆ — ใช้ webm ไปก่อน แล้วเตือนตอนจะส่ง
+          mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=h264")
+            ? "video/webm;codecs=h264"
+            : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+            ? "video/webm;codecs=vp9"
+            : "video/webm";
+          console.warn("[CockpitSure] เครื่องนี้บันทึก mp4 ไม่ได้ ใช้", mimeType, "แทน");
+        }
 
         const options = { bitsPerSecond };
         if (mimeType) options.mimeType = mimeType;
@@ -491,6 +508,17 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       const ext = videoBlob.type.includes("mp4") ? "mp4"
         : videoBlob.type.includes("quicktime") ? "mov" : "webm";
       const filename = `cs_${data.plate}_${Date.now()}.${ext}`;
+
+      // ตาข่ายกันพลาด: ไฟล์ webm ลูกค้าเปิดดูใน LINE ไม่ได้ และดาวน์โหลดไปก็เปิดไม่ออก
+      // (เดิม Cloudinary แปลงให้อัตโนมัติ แต่ที่เก็บใหม่ไม่มีระบบแปลงไฟล์)
+      // จึงต้องหยุดไว้ก่อน ดีกว่าส่งไปแล้วลูกค้าเปิดไม่ได้
+      if (ext === "webm") {
+        throw new Error(
+          "เครื่องนี้บันทึกวีดีโอเป็นไฟล์ .webm ซึ่งลูกค้าเปิดดูไม่ได้\n\n" +
+          "กรุณาถ่ายด้วยมือถือหรือแท็บเล็ตแทน\n" +
+          "(หรือแจ้งผู้ดูแลระบบให้อัปเดตเบราว์เซอร์ของเครื่องนี้)"
+        );
+      }
 
       // สร้างรูปพรีวิวจากเฟรมแรก (ทำคู่ขนานไปกับการอัปโหลด จะได้ไม่เสียเวลาเพิ่ม)
       const thumbPromise = captureVideoThumb(videoBlob);
