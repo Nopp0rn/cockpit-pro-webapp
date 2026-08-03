@@ -134,7 +134,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v1.6";
+export const APP_VERSION = "v1.7";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
@@ -166,6 +166,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const [timer, setTimer]           = useState(0);
   const [error, setError]           = useState("");
 
+  const nativeRef  = useRef(null);   // input สำหรับถ่ายด้วยกล้องมือถือ (ได้ mp4 แน่นอน)
   const videoRef   = useRef(null);
   const previewRef = useRef(null);
   const canvasRef  = useRef(null);
@@ -509,16 +510,10 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         : videoBlob.type.includes("quicktime") ? "mov" : "webm";
       const filename = `cs_${data.plate}_${Date.now()}.${ext}`;
 
-      // ตาข่ายกันพลาด: ไฟล์ webm ลูกค้าเปิดดูใน LINE ไม่ได้ และดาวน์โหลดไปก็เปิดไม่ออก
-      // (เดิม Cloudinary แปลงให้อัตโนมัติ แต่ที่เก็บใหม่ไม่มีระบบแปลงไฟล์)
-      // จึงต้องหยุดไว้ก่อน ดีกว่าส่งไปแล้วลูกค้าเปิดไม่ได้
-      if (ext === "webm") {
-        throw new Error(
-          "เครื่องนี้บันทึกวีดีโอเป็นไฟล์ .webm ซึ่งลูกค้าเปิดดูไม่ได้\n\n" +
-          "กรุณาถ่ายด้วยมือถือหรือแท็บเล็ตแทน\n" +
-          "(หรือแจ้งผู้ดูแลระบบให้อัปเดตเบราว์เซอร์ของเครื่องนี้)"
-        );
-      }
+      // 2026-08-03: เดิมบล็อกไฟล์ webm ไม่ให้ส่งเลย ทำให้เครื่องที่บันทึก mp4 ไม่ได้
+      //   (เช่น Samsung Internet) ใช้งานไม่ได้ทั้งสาขา — ร้ายแรงกว่าปัญหาที่จะกัน
+      //   จึงเปลี่ยนเป็น "ให้ส่งได้" แต่เตือนพนักงานให้ใช้ปุ่มถ่ายด้วยกล้องมือถือแทน
+      //   ซึ่งได้ไฟล์ mp4 ที่ลูกค้าเปิดดูและดาวน์โหลดได้แน่นอน
 
       // สร้างรูปพรีวิวจากเฟรมแรก (ทำคู่ขนานไปกับการอัปโหลด จะได้ไม่เสียเวลาเพิ่ม)
       const thumbPromise = captureVideoThumb(videoBlob);
@@ -788,6 +783,41 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                 fontFamily:"'Noto Sans Thai',sans-serif"}}>
                 📷 เปิดกล้อง
               </button>
+
+              {/* ทางเลือกสำรอง: ถ่ายด้วยแอปกล้องของเครื่อง
+                  ใช้เมื่อเบราว์เซอร์บันทึกเป็น .webm ไม่ได้ (เช่น Samsung Internet)
+                  กล้องของเครื่องให้ไฟล์ mp4 ที่ลูกค้าเปิดดูและดาวน์โหลดได้แน่นอน
+                  ข้อแลกเปลี่ยน: ไม่มีเฟรมโลโก้ทับอัตโนมัติ */}
+              <button onClick={()=>nativeRef.current?.click()} style={{width:"100%",marginTop:10,
+                padding:"12px",borderRadius:12,border:"1.5px solid #4b5563",
+                background:"transparent",color:"#d1d5db",
+                fontSize:13,fontWeight:700,cursor:"pointer",
+                fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                📱 ถ่ายด้วยกล้องมือถือ (ถ้าเปิดกล้องไม่ได้)
+              </button>
+              <div style={{fontSize:10.5,color:"#6b7280",marginTop:7,lineHeight:1.6}}>
+                ใช้ปุ่มนี้ถ้าปุ่มด้านบนใช้ไม่ได้ หรือขึ้นเตือนเรื่องไฟล์ .webm
+              </div>
+
+              <input
+                ref={nativeRef}
+                type="file"
+                accept="video/mp4,video/*"
+                capture="environment"
+                onChange={e=>{
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  if (f.size > 200*1024*1024) {
+                    setError(`วีดีโอใหญ่เกินไป (${Math.round(f.size/1024/1024)}MB) กรุณาถ่ายให้สั้นลง`);
+                    return;
+                  }
+                  setVideoBlob(f);
+                  setPreviewUrl(URL.createObjectURL(f));
+                  setPhase("preview");
+                }}
+                style={{display:"none"}}
+              />
             </div>
           )}
 
