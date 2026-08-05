@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
 // ── Cloudinary Config ─────────────────────────────────────────────────────────
 // ⚠️ เปลี่ยนค่านี้เป็น Cloud Name ของคุณ (จาก cloudinary.com → Dashboard)
@@ -146,7 +146,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v1.7";
+export const APP_VERSION = "v2.0";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
@@ -180,7 +180,6 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const [upPct, setUpPct]           = useState(0);      // ความคืบหน้าการอัปโหลด
   const [upMsg, setUpMsg]           = useState("");     // ข้อความบอกขั้นตอนปัจจุบัน
 
-  const nativeRef  = useRef(null);   // input สำหรับถ่ายด้วยกล้องมือถือ (ได้ mp4 แน่นอน)
   const videoRef   = useRef(null);
   const previewRef = useRef(null);
   const canvasRef  = useRef(null);
@@ -525,8 +524,15 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         throw new Error(`วีดีโอใหญ่เกินไป (${Math.round(videoBlob.size/1024/1024)}MB)\nกรุณาบันทึกให้สั้นลง`);
       }
 
-      const ext = videoBlob.type.includes("mp4") ? "mp4"
-        : videoBlob.type.includes("quicktime") ? "mov" : "webm";
+      // ระบบรองรับเฉพาะ mp4 — ชนิดอื่นลูกค้าเปิดดู/ดาวน์โหลดไม่ได้
+      const ext = videoBlob.type.includes("mp4") ? "mp4" : null;
+      if (!ext) {
+        throw new Error(
+          videoBlob.type.includes("quicktime")
+            ? "กล้อง iPhone ให้ไฟล์ .mov ซึ่งลูกค้าเปิดดูไม่ได้\nกรุณาใช้ปุ่ม 🎥 เปิดกล้องในแอป"
+            : "ไฟล์ .webm ลูกค้าเปิดดูไม่ได้\nกรุณาถ่ายใหม่ด้วยปุ่ม 📱 กล้องมือถือ"
+        );
+      }
       const filename = `cs_${data.plate}_${Date.now()}.${ext}`;
 
       // 2026-08-03: เดิมบล็อกไฟล์ webm ไม่ให้ส่งเลย ทำให้เครื่องที่บันทึก mp4 ไม่ได้
@@ -540,7 +546,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       // ── อัปวีดีโอขึ้น Supabase Storage (retry 3 ครั้ง) ──
       const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const videoPath = `${branchId}/cs_${stamp}.${ext}`;
-      const mimeMap = { mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm" };
+      const mimeMap = { mp4: "video/mp4" };
       let videoUrl = null, lastErr = null;
       const sizeMB = (videoBlob.size/1024/1024).toFixed(1);
       for (let attempt = 1; attempt <= 3; attempt++) {
@@ -580,6 +586,24 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
     } catch(e) { setError(e.message); setPhase("error"); }
   };
 
+  /* 2026-08-05: ระบบต้องใช้ไฟล์ mp4 เท่านั้น
+     - .webm  = เบราว์เซอร์เก่าบน Android → ลูกค้าเปิดไม่ได้
+     - .mov   = กล้องของ iPhone → ลูกค้า Android เปิดไม่ได้ และโหลดแล้วเปิดไม่ออก
+     จึงตรวจให้ผ่านเฉพาะ mp4 และแนะนำทางแก้ให้ตรงกับชนิดไฟล์ที่ได้ */
+  /* เครื่องนี้บันทึก mp4 ในแอปได้หรือไม่
+     - iPhone/iPad และ Chrome รุ่นใหม่ = ได้ → ใช้ปุ่มเปิดกล้องปกติ (มีเฟรมโลโก้ด้วย)
+     - Samsung Internet / Chrome เก่า   = ไม่ได้ → ต้องใช้กล้องของเครื่องแทน
+     ซ่อนปุ่มกล้องมือถือบนเครื่องที่ไม่จำเป็น เพราะ iPhone กดแล้วจะได้ .mov ซึ่งใช้ไม่ได้ */
+  const canRecordMp4 = useMemo(() => {
+    try {
+      return ['video/mp4;codecs="avc1.42E01E,mp4a.40.2"','video/mp4;codecs="avc1,mp4a"','video/mp4']
+        .some(t => MediaRecorder.isTypeSupported(t));
+    } catch { return false; }
+  }, []);
+  const blobType = (videoBlob?.type || "").toLowerCase();
+  const isMp4    = /mp4/.test(blobType);
+  const isMov    = /quicktime|x-m4v/.test(blobType);
+  const badFile  = !!videoBlob && !isMp4;
   const pct = Math.round((timer/MAX_SEC)*100);
   const isCameraActive = phase==="ready" || phase==="recording";
 
@@ -803,9 +827,13 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                 พร้อมเฟรมโลโก้อัตโนมัติ<br/>
                 <span style={{color:"#6b7280",fontSize:12}}>⏱ สูงสุด {MAX_SEC} วินาที</span>
               </div>
-              <button onClick={()=>openCamera()} style={{width:"100%",padding:"15px",
-                borderRadius:12,border:"none",background:"#FFE000",color:"#1A1A1A",
-                fontSize:16,fontWeight:900,cursor:"pointer",
+              <button onClick={()=>openCamera()} disabled={!canRecordMp4}
+                style={{width:"100%",padding:"15px",
+                borderRadius:12,border:"none",
+                background: canRecordMp4 ? "#FFE000" : "#4b5563",
+                color: canRecordMp4 ? "#1A1A1A" : "#9ca3af",
+                fontSize:16,fontWeight:900,
+                cursor: canRecordMp4 ? "pointer" : "not-allowed",
                 fontFamily:"'Noto Sans Thai',sans-serif"}}>
                 📷 เปิดกล้อง
               </button>
@@ -814,36 +842,21 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                   ใช้เมื่อเบราว์เซอร์บันทึกเป็น .webm ไม่ได้ (เช่น Samsung Internet)
                   กล้องของเครื่องให้ไฟล์ mp4 ที่ลูกค้าเปิดดูและดาวน์โหลดได้แน่นอน
                   ข้อแลกเปลี่ยน: ไม่มีเฟรมโลโก้ทับอัตโนมัติ */}
-              <button onClick={()=>nativeRef.current?.click()} style={{width:"100%",marginTop:10,
-                padding:"12px",borderRadius:12,border:"1.5px solid #4b5563",
-                background:"transparent",color:"#d1d5db",
-                fontSize:13,fontWeight:700,cursor:"pointer",
-                fontFamily:"'Noto Sans Thai',sans-serif"}}>
-                📱 ถ่ายด้วยกล้องมือถือ (ถ้าเปิดกล้องไม่ได้)
-              </button>
-              <div style={{fontSize:10.5,color:"#6b7280",marginTop:7,lineHeight:1.6}}>
-                ใช้ปุ่มนี้ถ้าปุ่มด้านบนใช้ไม่ได้ หรือขึ้นเตือนเรื่องไฟล์ .webm
-              </div>
+              {/* 2026-08-05: ทุกคลิปต้องมีเฟรมโลโก้ COCKPIT
+                  กล้องของเครื่อง (ปุ่มสำรองเดิม) ซ้อนเฟรมให้ไม่ได้ จึงเอาออก
+                  เครื่องที่บันทึก mp4 ไม่ได้ ต้องเปลี่ยนไปใช้ Chrome เท่านั้น
+                  แจ้งตั้งแต่ก่อนถ่าย จะได้ไม่เสียเวลาถ่ายแล้วส่งไม่ได้ */}
+              {!canRecordMp4 && (
+                <div style={{marginTop:12,background:"#3b1d1d",border:"1px solid #E2231A",
+                  borderRadius:10,padding:"12px 13px",fontSize:12.5,color:"#FFB199",
+                  lineHeight:1.7,textAlign:"left"}}>
+                  ⚠️ <b>เบราว์เซอร์นี้ใช้บันทึกวีดีโอไม่ได้</b><br/>
+                  เครื่องนี้บันทึกได้เฉพาะไฟล์ .webm ซึ่งลูกค้าเปิดดูไม่ได้<br/><br/>
+                  <b>วิธีแก้:</b> เปิดแอปนี้ด้วย <b>Chrome</b> (รุ่นล่าสุด)<br/>
+                  แล้วบันทึกได้ปกติพร้อมเฟรมโลโก้ COCKPIT
+                </div>
+              )}
 
-              <input
-                ref={nativeRef}
-                type="file"
-                accept="video/mp4,video/*"
-                capture="environment"
-                onChange={e=>{
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (!f) return;
-                  if (f.size > 200*1024*1024) {
-                    setError(`วีดีโอใหญ่เกินไป (${Math.round(f.size/1024/1024)}MB) กรุณาถ่ายให้สั้นลง`);
-                    return;
-                  }
-                  setVideoBlob(f);
-                  setPreviewUrl(URL.createObjectURL(f));
-                  setPhase("preview");
-                }}
-                style={{display:"none"}}
-              />
             </div>
           )}
 
@@ -855,6 +868,34 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                 <video ref={previewRef} src={previewUrl} controls playsInline
                   style={{width:"100%",height:"100%",objectFit:"contain"}}/>
               </div>
+              {/* 2026-08-05: กันไฟล์ .webm ตั้งแต่ก่อนส่ง
+                  ลูกค้าเปิดดูและดาวน์โหลดไม่ได้ ส่งไปก็เสียเที่ยว
+                  ต่างจากครั้งก่อนตรงที่คราวนี้มีทางออกให้กดได้ทันที (กล้องมือถือ)
+                  จึงกันได้โดยไม่ทำให้สาขาทำงานไม่ได้ */}
+              {badFile ? (
+                <div>
+                  <div style={{background:"#3b1d1d",border:"1px solid #E2231A",borderRadius:10,
+                    padding:"11px 13px",marginBottom:10,fontSize:12.5,color:"#FFB199",lineHeight:1.65}}>
+                    ⚠️ ไฟล์นี้ <b>ลูกค้าเปิดดูไม่ได้</b> ({isMov ? ".mov" : ".webm"})<br/>
+                    กรุณาเปิดแอปด้วย <b>Chrome รุ่นล่าสุด</b> แล้วถ่ายใหม่
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>{setVideoBlob(null);setPhase("intro");}}
+                      style={{flex:1,padding:"12px",borderRadius:10,
+                        border:"1.5px solid #4b5563",background:"transparent",
+                        color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",
+                        fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                      ยกเลิก
+                    </button>
+                    <button onClick={()=>{setVideoBlob(null);setPhase("intro");}}
+                      style={{flex:2,padding:"12px",borderRadius:10,border:"none",
+                        background:"#FFE000",color:"#1A1A1A",fontSize:13,fontWeight:900,
+                        cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                      🎥 ถ่ายใหม่ในแอป
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <div style={{display:"flex",gap:8}}>
                 <button onClick={()=>{setVideoBlob(null);setPhase("intro");}}
                   style={{flex:1,padding:"12px",borderRadius:10,
@@ -870,6 +911,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                   📤 ส่ง LINE ลูกค้า
                 </button>
               </div>
+              )}
             </div>
           )}
 
