@@ -51,24 +51,36 @@ function captureVideoThumb(blob) {
 }
 
 // อัปไฟล์ขึ้น Supabase Storage แล้วคืน URL สาธารณะ
-async function uploadToSupabase(blob, path, contentType) {
-  const res = await fetch(`${SUPA_URL}/storage/v1/object/${VIDEO_BUCKET}/${path}`, {
-    method: "POST",
-    headers: {
-      apikey: SUPA_KEY,
-      Authorization: `Bearer ${SUPA_KEY}`,
-      "Content-Type": contentType,
-      "x-upsert": "true",
-      "cache-control": "31536000",
-    },
-    body: blob,
+function uploadToSupabase(blob, path, contentType, onProgress) {
+  // ใช้ XMLHttpRequest แทน fetch เพราะ fetch บอกความคืบหน้าการอัปโหลดไม่ได้
+  // วีดีโอ 10+ MB บนเน็ตมือถือใช้เวลาหลายสิบวินาที ถ้าไม่มีตัวเลขบอกจะดูเหมือนแอปค้าง
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${SUPA_URL}/storage/v1/object/${VIDEO_BUCKET}/${path}`);
+    xhr.setRequestHeader("apikey", SUPA_KEY);
+    xhr.setRequestHeader("Authorization", `Bearer ${SUPA_KEY}`);
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.setRequestHeader("x-upsert", "true");
+    xhr.setRequestHeader("cache-control", "31536000");
+    xhr.timeout = 180000;   // 3 นาที เผื่อเน็ตช้า
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(`${SUPA_URL}/storage/v1/object/public/${VIDEO_BUCKET}/${path}`);
+      } else {
+        let msg = `อัปโหลดไม่สำเร็จ (${xhr.status})`;
+        try { const j = JSON.parse(xhr.responseText); if (j.message) msg = j.message; } catch {}
+        reject(new Error(msg));
+      }
+    };
+    xhr.onerror   = () => reject(new Error("เชื่อมต่อไม่ได้ — ตรวจสอบสัญญาณอินเทอร์เน็ต"));
+    xhr.ontimeout = () => reject(new Error("อัปโหลดนานเกินไป — สัญญาณอาจอ่อน ลองใหม่อีกครั้ง"));
+    xhr.send(blob);
   });
-  if (!res.ok) {
-    let msg = `อัปโหลดไม่สำเร็จ (${res.status})`;
-    try { const j = await res.json(); if (j.message) msg = j.message; } catch {}
-    throw new Error(msg);
-  }
-  return `${SUPA_URL}/storage/v1/object/public/${VIDEO_BUCKET}/${path}`;
 }
 
 // CockpitSure logo — clean transparent
@@ -165,6 +177,8 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const [previewUrl, setPreviewUrl] = useState("");
   const [timer, setTimer]           = useState(0);
   const [error, setError]           = useState("");
+  const [upPct, setUpPct]           = useState(0);      // ความคืบหน้าการอัปโหลด
+  const [upMsg, setUpMsg]           = useState("");     // ข้อความบอกขั้นตอนปัจจุบัน
 
   const nativeRef  = useRef(null);   // input สำหรับถ่ายด้วยกล้องมือถือ (ได้ mp4 แน่นอน)
   const videoRef   = useRef(null);
@@ -408,7 +422,12 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
         // ลด bitrate เพื่อช่วยให้ไฟล์เล็กลง (จุดคุมขนาดจริงอยู่ที่ backend
         // ซึ่งบีบอัดซ้ำอีกชั้นตอนส่ง — ดู VIDEO_MAX_BITRATE_KBPS ใน server.js)
+        // 2026-08-03: ไฟล์ใหญ่เกินคาด (บางสาขาเฉลี่ย 13 MB ทั้งที่ควรไม่เกิน 9 MB)
+        //   สาเหตุ: หลายเครื่องไม่สนใจค่า bitsPerSecond รวม ต้องระบุแยกภาพ/เสียงจึงจะมีผล
+        //   ไฟล์เล็กลง = ส่งเข้า LINE เร็วขึ้นมากบนเน็ตมือถือ
         const bitsPerSecond = isMobile ? 600000 : 1000000;
+        const videoBitsPerSecond = isMobile ? 550000 : 950000;
+        const audioBitsPerSecond = 48000;
         // 2026-07-31: แก้ปัญหาเครื่องคอมบันทึกเป็นไฟล์ .webm ซึ่ง LINE เล่นไม่ได้
         //   เดิมเช็คแค่ "h264,aac" ซึ่งเป็นชื่อย่อที่ Chrome ไม่รู้จัก จึงตอบว่าไม่รองรับ
         //   แล้วตกไปใช้ webm ทั้งที่เครื่องนั้นบันทึก mp4 ได้จริง
@@ -434,7 +453,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
           console.warn("[CockpitSure] เครื่องนี้บันทึก mp4 ไม่ได้ ใช้", mimeType, "แทน");
         }
 
-        const options = { bitsPerSecond };
+        const options = { bitsPerSecond, videoBitsPerSecond, audioBitsPerSecond };
         if (mimeType) options.mimeType = mimeType;
 
         const mr = new MediaRecorder(canvasStream, options);
@@ -523,9 +542,12 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       const videoPath = `${branchId}/cs_${stamp}.${ext}`;
       const mimeMap = { mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm" };
       let videoUrl = null, lastErr = null;
+      const sizeMB = (videoBlob.size/1024/1024).toFixed(1);
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          videoUrl = await uploadToSupabase(videoBlob, videoPath, mimeMap[ext] || "video/mp4");
+          setUpMsg(attempt === 1 ? `กำลังส่งวีดีโอ (${sizeMB} MB)` : `ลองใหม่ครั้งที่ ${attempt} (${sizeMB} MB)`);
+          setUpPct(0);
+          videoUrl = await uploadToSupabase(videoBlob, videoPath, mimeMap[ext] || "video/mp4", setUpPct);
           break;
         } catch (err) {
           lastErr = err;
@@ -534,7 +556,12 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
       }
       if (!videoUrl) throw new Error(lastErr?.message || "อัปโหลดวีดีโอไม่สำเร็จ");
 
-      // อัปรูปพรีวิว — ถ้าสร้างไม่สำเร็จก็ข้ามไป (backend จะส่งเป็นข้อความลิงก์แทน)
+      // 2026-08-03 (ให้ถึงลูกค้าเร็วขึ้น): เดิมรออัปรูปพรีวิวเสร็จก่อนจึงค่อยอัปเดตสถานะงาน
+      //   ทำให้เสียเวลาเพิ่มโดยไม่จำเป็น — อัปเดตสถานะงานคู่ขนานไปกับการอัปรูปพรีวิวแทน
+      setUpMsg("กำลังแจ้งลูกค้า"); setUpPct(100);
+      const patchPromise = callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`, { status: "done" });
+
+      // อัปรูปพรีวิว — ถ้าสร้างไม่สำเร็จก็ข้ามไป (backend มีรูปสำรองให้อยู่แล้ว)
       let thumbUrl = null;
       try {
         const thumbBlob = await thumbPromise;
@@ -543,9 +570,8 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         }
       } catch { /* ไม่มีรูปพรีวิวก็ยังส่งวีดีโอได้ */ }
 
-      // PATCH job เป็น done ก่อน → LINE ได้รับ status update
-      await callAPI("PATCH", `/api/branch/${branchId}/bay/${qNo}/job/${jobIdx}`, { status: "done" });
-      await new Promise(r => setTimeout(r, 500));
+      await patchPromise;
+      await new Promise(r => setTimeout(r, 300));
       // ส่ง video link ทาง LINE
       await callAPI("POST", `/api/branch/${branchId}/bay/${qNo}/send-video`,
         { videoUrl, thumbUrl, plate: data.plate });
@@ -852,15 +878,25 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
             <div style={{background:"#1a1a1a",borderRadius:16,padding:32,textAlign:"center"}}>
               <div style={{fontSize:40,marginBottom:10}}>📤</div>
               <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:6}}>
-                กำลังส่งวีดีโอ...
+                {upMsg || "กำลังส่งวีดีโอ..."}
               </div>
               <div style={{fontSize:12,color:"#9ca3af",marginBottom:14}}>
-                อัปโหลดและส่ง LINE ให้ลูกค้า
+                {upPct > 0 && upPct < 100
+                  ? `ส่งแล้ว ${upPct}% — กรุณาอย่าปิดหน้านี้`
+                  : "อัปโหลดและส่ง LINE ให้ลูกค้า"}
               </div>
-              <div style={{height:4,background:"#374151",borderRadius:99,overflow:"hidden"}}>
-                <div style={{height:4,background:"#FFE000",borderRadius:99,width:"60%",
-                  animation:"slideRight 1.2s ease-in-out infinite"}}/>
+              {/* แถบความคืบหน้าจริง — วีดีโอ 10+ MB บนเน็ตมือถือใช้เวลาหลายสิบวินาที
+                  ถ้าไม่มีตัวเลขบอก พนักงานจะคิดว่าแอปค้างแล้วกดซ้ำ/ปิดทิ้ง */}
+              <div style={{height:6,background:"#374151",borderRadius:99,overflow:"hidden"}}>
+                <div style={{height:6,background:"#FFE000",borderRadius:99,
+                  width: upPct > 0 ? `${upPct}%` : "60%",
+                  transition: upPct > 0 ? "width .25s ease" : "none",
+                  ...(upPct > 0 ? {} : { animation:"slideRight 1.2s ease-in-out infinite" })}}/>
               </div>
+              {upPct > 0 && (
+                <div style={{marginTop:8,fontSize:22,fontWeight:900,color:"#FFE000",
+                  fontFamily:"ui-monospace,monospace"}}>{upPct}%</div>
+              )}
             </div>
           )}
 
