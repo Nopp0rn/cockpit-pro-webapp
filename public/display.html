@@ -301,7 +301,10 @@ updateClock();
 
 // ── URL param ─────────────────────────────────────────────────
 const urlParams = new URLSearchParams(location.search);
-const forceBranch = urlParams.get("branch");
+/* อ่านรหัสสาขาจาก 2 ทาง เผื่อลิงก์เก่าที่ส่งให้ลูกค้าไปแล้วเป็นแบบ /tv/BR014
+   (แบบนั้นพึ่ง rewrite ของ Vercel ซึ่งไม่ส่งค่ามาให้จริง) */
+const forceBranch = urlParams.get("branch")
+  || (location.pathname.match(/\/tv\/([A-Za-z0-9_-]+)/)?.[1] || null);
 
 // ── Load branches ─────────────────────────────────────────────
 /* 2026-08-06: เปิดจากลิงก์ที่ส่งให้ลูกค้า (/tv/BR014) ต้องขึ้นคิวของสาขานั้นทันที
