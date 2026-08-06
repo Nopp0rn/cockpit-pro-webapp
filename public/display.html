@@ -96,6 +96,33 @@
   .table-row.in-service { background: rgba(5,150,105,.12); }
   .table-row.waiting    { background: rgba(249,115,22,.06); }
 
+  /* ── จอแคบ (ลูกค้าเปิดจากลิงก์ในไลน์) ──
+     ตารางเดิมออกแบบสำหรับจอทีวีแนวนอน บังคับความกว้างรวม ~540px
+     ซึ่งกว้างกว่าจอมือถือ ทำให้คอลัมน์ "รายการงาน" ถูกตัดออกนอกจอ
+     บนจอแคบจึงเปลี่ยนเป็นเรียงลงมาแบบการ์ด เห็นครบทุกอย่างโดยไม่ต้องปัดข้าง */
+  @media (max-width: 700px) {
+    .table-wrap { padding: 10px 10px 16px; }
+    .table-head { display: none; }
+    .table-row {
+      grid-template-columns: 56px 1fr;
+      grid-template-areas:
+        "bay  plate"
+        "bay  status"
+        "prog prog"
+        "jobs jobs";
+      gap: 6px 10px;
+      padding: 12px;
+      border-bottom: 1px solid #2a2a2a;
+      border-radius: 10px;
+      margin-bottom: 8px;
+    }
+    .table-row > *:nth-child(1) { grid-area: bay;    align-self: start; }
+    .table-row > *:nth-child(2) { grid-area: plate;  min-width: 0; }
+    .table-row > *:nth-child(3) { grid-area: status; }
+    .table-row > *:nth-child(4) { grid-area: jobs;   min-width: 0; }
+    .table-row > *:nth-child(5) { grid-area: prog; }
+  }
+
   .bay-badge {
     width: 46px; height: 46px;
     background: #FFE000;
@@ -235,7 +262,7 @@
   </div>
 </div>
 
-<div class="branch-select-wrap">
+<div class="branch-select-wrap" id="branch-row">
   <label>📍 สาขา:</label>
   <select class="branch-select" id="branch-select" onchange="onBranchChange(this.value)">
     <option value="">-- กำลังโหลด --</option>
@@ -277,7 +304,17 @@ const urlParams = new URLSearchParams(location.search);
 const forceBranch = urlParams.get("branch");
 
 // ── Load branches ─────────────────────────────────────────────
+/* 2026-08-06: เปิดจากลิงก์ที่ส่งให้ลูกค้า (/tv/BR014) ต้องขึ้นคิวของสาขานั้นทันที
+   เดิมต้องรอดึงรายชื่อสาขาทั้งหมดก่อนแล้วค่อยเลือก — ช้าโดยไม่จำเป็น
+   และลูกค้าไม่ควรเปลี่ยนไปดูสาขาอื่นได้ จึงซ่อนช่องเลือกสาขาทิ้ง */
 async function loadBranches() {
+  // มีสาขาระบุมาในลิงก์ → แสดงคิวเลย ไม่ต้องรอโหลดรายชื่อสาขา
+  if (forceBranch) {
+    const row = document.getElementById("branch-row");
+    if (row) row.style.display = "none";
+    onBranchChange(forceBranch);
+    return;
+  }
   try {
     const r = await fetch(`${API}/api/admin/overview`);
     const d = await r.json();
@@ -289,7 +326,7 @@ async function loadBranches() {
       opt.textContent = b.name;
       sel.appendChild(opt);
     });
-    const target = forceBranch || (d.overview?.[0]?.branchId);
+    const target = d.overview?.[0]?.branchId;
     if (target) { sel.value = target; onBranchChange(target); }
   } catch(e) { console.error(e); }
 }
