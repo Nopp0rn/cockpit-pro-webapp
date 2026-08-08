@@ -146,7 +146,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v2.0";
+export const APP_VERSION = "v2.2";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
@@ -180,6 +180,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const [upPct, setUpPct]           = useState(0);      // ความคืบหน้าการอัปโหลด
   const [upMsg, setUpMsg]           = useState("");     // ข้อความบอกขั้นตอนปัจจุบัน
 
+  const nativeRef  = useRef(null);   // กล้องของเครื่อง — ทางสำรองสำหรับเครื่องที่บันทึก mp4 ในแอปไม่ได้
   const videoRef   = useRef(null);
   const previewRef = useRef(null);
   const canvasRef  = useRef(null);
@@ -827,13 +828,18 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                 พร้อมเฟรมโลโก้อัตโนมัติ<br/>
                 <span style={{color:"#6b7280",fontSize:12}}>⏱ สูงสุด {MAX_SEC} วินาที</span>
               </div>
-              <button onClick={()=>openCamera()} disabled={!canRecordMp4}
+              {/* 2026-08-08: ปุ่มเดียว ระบบเลือกวิธีถ่ายให้เอง
+                  เดิมเครื่องที่บันทึกในแอปไม่ได้จะเจอปุ่มสีเทากดไม่ได้ + คำเตือนสีแดง
+                  พนักงานเลยไม่กล้าถ่ายต่อ กลายเป็นส่งลูกค้าไม่ได้เลย
+                  ตอนนี้กดปุ่มเดียวได้ทุกเครื่อง:
+                    - เครื่องที่บันทึก mp4 ในแอปได้ → ใช้ตัวบันทึกในแอป (มีเฟรมโลโก้)
+                    - เครื่องที่ไม่ได้            → เปิดกล้องของเครื่องให้อัตโนมัติ (ได้ mp4)
+                  ไม่มีขั้นตอนเพิ่ม ไม่เสียเวลาเพิ่ม */}
+              <button
+                onClick={()=>{ canRecordMp4 ? openCamera() : nativeRef.current?.click(); }}
                 style={{width:"100%",padding:"15px",
-                borderRadius:12,border:"none",
-                background: canRecordMp4 ? "#FFE000" : "#4b5563",
-                color: canRecordMp4 ? "#1A1A1A" : "#9ca3af",
-                fontSize:16,fontWeight:900,
-                cursor: canRecordMp4 ? "pointer" : "not-allowed",
+                borderRadius:12,border:"none",background:"#FFE000",color:"#1A1A1A",
+                fontSize:16,fontWeight:900,cursor:"pointer",
                 fontFamily:"'Noto Sans Thai',sans-serif"}}>
                 📷 เปิดกล้อง
               </button>
@@ -846,21 +852,47 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                   กล้องของเครื่อง (ปุ่มสำรองเดิม) ซ้อนเฟรมให้ไม่ได้ จึงเอาออก
                   เครื่องที่บันทึก mp4 ไม่ได้ ต้องเปลี่ยนไปใช้ Chrome เท่านั้น
                   แจ้งตั้งแต่ก่อนถ่าย จะได้ไม่เสียเวลาถ่ายแล้วส่งไม่ได้ */}
+              {/* 2026-08-08: เครื่องที่บันทึก mp4 ในแอปไม่ได้ ต้องมีทางทำงานต่อได้
+                  ไม่งั้นสาขาหยุดชะงัก — ให้ถ่ายด้วยกล้องของเครื่องแทน (ได้ mp4 แน่นอน)
+                  ข้อแลกเปลี่ยน: ไม่มีเฟรมโลโก้ จึงบอกวิธีได้เฟรมคืนไว้ด้วย */}
               {!canRecordMp4 && (
-                <div style={{marginTop:12,background:"#3b1d1d",border:"1px solid #E2231A",
-                  borderRadius:10,padding:"12px 13px",fontSize:12.5,color:"#FFB199",
-                  lineHeight:1.7,textAlign:"left"}}>
-                  ⚠️ <b>เบราว์เซอร์นี้ใช้บันทึกวีดีโอไม่ได้</b><br/>
-                  เครื่องนี้บันทึกได้เฉพาะไฟล์ .webm ซึ่งลูกค้าเปิดดูไม่ได้<br/><br/>
-                  <b>วิธีแก้:</b> เปิดแอปนี้ด้วย <b>Chrome</b> (รุ่นล่าสุด)<br/>
-                  แล้วบันทึกได้ปกติพร้อมเฟรมโลโก้ COCKPIT
-                </div>
+                <>
+                  {/* หมายเหตุเล็กๆ ไม่ขวางการทำงาน — บอกแค่ว่าคลิปจากเครื่องนี้ไม่มีเฟรม */}
+                  <div style={{fontSize:10.5,color:"#9ca3af",marginTop:9,lineHeight:1.6}}>
+                    เครื่องนี้จะใช้กล้องของเครื่องถ่ายให้อัตโนมัติ (คลิปไม่มีเฟรมโลโก้)<br/>
+                    อยากได้เฟรมโลโก้ — เปิดแอปด้วย Chrome รุ่นล่าสุด
+                  </div>
+
+                </>
               )}
 
             </div>
           )}
 
-          {/* ── PREVIEW ── */}
+          {/* กล้องของเครื่อง — ใช้ได้ทุกขั้นตอน ทั้งตอนเริ่มถ่ายและตอนถ่ายใหม่
+          เพราะให้ไฟล์ mp4 แน่นอน จึงเป็นทางออกสุดท้ายที่พึ่งได้เสมอ */}
+      <input
+        ref={nativeRef}
+        type="file"
+        accept="video/mp4,video/*"
+        capture="environment"
+        onChange={e=>{
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (!f) return;
+          if (f.size > 200*1024*1024) {
+            setError(`วีดีโอใหญ่เกินไป (${Math.round(f.size/1024/1024)}MB) กรุณาถ่ายให้สั้นลง`);
+            setPhase("error");
+            return;
+          }
+          setVideoBlob(f);
+          setPreviewUrl(URL.createObjectURL(f));
+          setPhase("preview");
+        }}
+        style={{display:"none"}}
+      />
+
+      {/* ── PREVIEW ── */}
           {phase==="preview" && (
             <div>
               <div style={{borderRadius:14,overflow:"hidden",marginBottom:10,
@@ -877,7 +909,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                   <div style={{background:"#3b1d1d",border:"1px solid #E2231A",borderRadius:10,
                     padding:"11px 13px",marginBottom:10,fontSize:12.5,color:"#FFB199",lineHeight:1.65}}>
                     ⚠️ ไฟล์นี้ <b>ลูกค้าเปิดดูไม่ได้</b> ({isMov ? ".mov" : ".webm"})<br/>
-                    กรุณาเปิดแอปด้วย <b>Chrome รุ่นล่าสุด</b> แล้วถ่ายใหม่
+                    กรุณากดปุ่มด้านล่างเพื่อถ่ายใหม่ด้วยกล้องของเครื่อง
                   </div>
                   <div style={{display:"flex",gap:8}}>
                     <button onClick={()=>{setVideoBlob(null);setPhase("intro");}}
@@ -887,11 +919,14 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                         fontFamily:"'Noto Sans Thai',sans-serif"}}>
                       ยกเลิก
                     </button>
-                    <button onClick={()=>{setVideoBlob(null);setPhase("intro");}}
+                    {/* ถ่ายใหม่ด้วยกล้องของเครื่องเสมอ — ได้ mp4 แน่นอน
+                        ถ้าให้ถ่ายในแอปซ้ำ เครื่องที่เพิ่งให้ไฟล์ผิดชนิดก็จะให้ผิดซ้ำอีก วนไม่จบ */}
+                    <button
+                      onClick={()=>nativeRef.current?.click()}
                       style={{flex:2,padding:"12px",borderRadius:10,border:"none",
                         background:"#FFE000",color:"#1A1A1A",fontSize:13,fontWeight:900,
                         cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
-                      🎥 ถ่ายใหม่ในแอป
+                      📱 ถ่ายใหม่ด้วยกล้องมือถือ
                     </button>
                   </div>
                 </div>
