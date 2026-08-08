@@ -14,6 +14,50 @@ const VIDEO_BUCKET = "cockpit-videos";
 
 // สร้างรูปพรีวิวจากเฟรมแรกของคลิป (LINE บังคับต้องมีรูปพรีวิวสำหรับข้อความวีดีโอ)
 // เดิม Cloudinary สร้างให้ด้วยคำสั่ง so_0 — ตอนนี้ทำเองในเบราว์เซอร์
+/* 2026-08-09: วาดเฟรมโลโก้ลงบน "รูปพรีวิว" ที่ส่งไปกับข้อความไลน์
+   เหตุผล: การฝังเฟรมลงในตัววีดีโอที่ถ่ายมาแล้ว ต้องเข้ารหัสไฟล์ใหม่ทั้งไฟล์
+     ซึ่งกินเวลาเท่าความยาวคลิป (หรือต้องเสียเงินค่าเซิร์ฟเวอร์)
+     แต่รูปพรีวิวเป็นภาพนิ่ง วาดทับได้ทันทีไม่กี่มิลลิวินาที ฟรี และได้ทุกเครื่อง
+   ผล: ทุกคลิปที่ส่งลูกค้ามีแบรนด์ COCKPIT ให้เห็นในแชท แม้คลิปที่อัปจากไฟล์ */
+const _frameLogo = typeof Image !== "undefined" ? new Image() : null;
+const _frameBs   = typeof Image !== "undefined" ? new Image() : null;
+if (_frameLogo) _frameLogo.src = COCKPITSURE_LOGO;
+if (_frameBs)   _frameBs.src   = BRIDGESTONE_LOGO;
+
+function drawCockpitFrame(ctx, cW, cH) {
+  // ① พื้นเหลือง (มุมบนซ้าย)
+  ctx.fillStyle = "#FDF10F";
+  ctx.fillRect(0, Math.round(cH * 0.000178), Math.round(cW * 0.44906), Math.round(cH * 0.05644));
+  ctx.beginPath();
+  ctx.moveTo(cW * 0.42866, cH * -0.03509);
+  ctx.lineTo(cW * 0.50675, cH * -0.01532);
+  ctx.lineTo(cW * 0.44939, cH * 0.05644);
+  ctx.lineTo(cW * 0.37130, cH * 0.03667);
+  ctx.closePath();
+  ctx.fill();
+  // ② โลโก้ COCKPIT-SURE
+  if (_frameLogo && _frameLogo.complete && _frameLogo.naturalWidth > 0) {
+    ctx.drawImage(_frameLogo, 0, Math.round(cH * 0.002431),
+                  Math.round(cW * 0.48336), Math.round(cH * 0.05321));
+  }
+  // ③ พื้นขาว (มุมล่างขวา)
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(Math.round(cW * 0.53181), Math.round(cH * 0.92725),
+               cW - Math.round(cW * 0.53181), cH - Math.round(cH * 0.92725));
+  ctx.beginPath();
+  ctx.moveTo(cW * 0.53163, cH * 0.92725);
+  ctx.lineTo(cW * 0.60972, cH * 0.94702);
+  ctx.lineTo(cW * 0.55237, Math.min(cH, cH * 1.01879));
+  ctx.lineTo(cW * 0.47427, cH * 0.99902);
+  ctx.closePath();
+  ctx.fill();
+  // ④ โลโก้ Bridgestone
+  if (_frameBs && _frameBs.complete && _frameBs.naturalWidth > 0) {
+    ctx.drawImage(_frameBs, Math.round(cW * 0.53999), Math.round(cH * 0.94722),
+                  Math.round(cW * 0.43502), Math.round(cH * 0.03038));
+  }
+}
+
 function captureVideoThumb(blob) {
   return new Promise((resolve) => {
     try {
@@ -31,7 +75,9 @@ function captureVideoThumb(blob) {
           if (!w || !h) return;                     // ยังไม่มีขนาดภาพ รอรอบถัดไป
           const c = document.createElement("canvas");
           c.width = w; c.height = h;
-          c.getContext("2d").drawImage(v, 0, 0, w, h);
+          const cx2 = c.getContext("2d");
+          cx2.drawImage(v, 0, 0, w, h);
+          try { drawCockpitFrame(cx2, w, h); } catch {}   // เฟรมโลโก้บนรูปพรีวิว
           c.toBlob(b => finish(b), "image/jpeg", 0.7);
         } catch { /* ยังวาดไม่ได้ ปล่อยให้ event ถัดไปลองใหม่ */ }
       };
@@ -177,7 +223,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v2.4";
+export const APP_VERSION = "v2.5";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
