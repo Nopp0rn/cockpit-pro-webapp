@@ -51,10 +51,41 @@ function captureVideoThumb(blob) {
 }
 
 // อัปไฟล์ขึ้น Supabase Storage แล้วคืน URL สาธารณะ
+/* 2026-08-09: ไฟล์ที่เลือกจากคลังภาพอัปขึ้นไปเป็น 0 ไบต์
+   สาเหตุ: บน iPhone ถ้าวีดีโอยังอยู่บน iCloud ไม่ได้โหลดลงเครื่อง
+     ตัวไฟล์จะ "รายงานขนาดปกติ" แต่พออ่านจริงกลับไม่มีข้อมูล
+     ตัวดักขนาดเดิม (size < 1000) จึงจับไม่ได้ เพราะดูจากขนาดที่รายงานมา
+   แก้: อ่านไฟล์เข้าหน่วยความจำให้เสร็จก่อน แล้วตรวจจำนวนไบต์จริง
+     ถ้าอ่านไม่ได้หรือได้ 0 ไบต์ ให้แจ้งพนักงานทันที ไม่ปล่อยขึ้นระบบ */
+async function materializeFile(f) {
+  let buf;
+  try {
+    buf = await f.arrayBuffer();
+  } catch (e) {
+    throw new Error(
+      "อ่านไฟล์วีดีโอไม่ได้\n\n" +
+      "ถ้าเป็นวีดีโอที่เก็บบน iCloud กรุณาเปิดดูในแอปรูปภาพให้โหลดเสร็จก่อน\n" +
+      "แล้วค่อยเลือกไฟล์อีกครั้ง"
+    );
+  }
+  if (!buf || buf.byteLength < 1000) {
+    throw new Error(
+      "ไฟล์วีดีโอไม่สมบูรณ์ (อ่านได้ " + (buf ? buf.byteLength : 0) + " ไบต์)\n\n" +
+      "ถ้าเป็นวีดีโอที่เก็บบน iCloud กรุณาเปิดดูในแอปรูปภาพให้โหลดเสร็จก่อน\n" +
+      "แล้วค่อยเลือกไฟล์อีกครั้ง"
+    );
+  }
+  return new Blob([buf], { type: f.type || "video/mp4" });
+}
+
 function uploadToSupabase(blob, path, contentType, onProgress) {
   // ใช้ XMLHttpRequest แทน fetch เพราะ fetch บอกความคืบหน้าการอัปโหลดไม่ได้
   // วีดีโอ 10+ MB บนเน็ตมือถือใช้เวลาหลายสิบวินาที ถ้าไม่มีตัวเลขบอกจะดูเหมือนแอปค้าง
   return new Promise((resolve, reject) => {
+    if (!blob || blob.size < 1) {
+      reject(new Error("ไฟล์ว่างเปล่า — ไม่สามารถอัปโหลดได้"));
+      return;
+    }
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${SUPA_URL}/storage/v1/object/${VIDEO_BUCKET}/${path}`);
     xhr.setRequestHeader("apikey", SUPA_KEY);
@@ -146,7 +177,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v2.3";
+export const APP_VERSION = "v2.4";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
@@ -887,7 +918,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         ref={fileRef}
         type="file"
         accept="video/mp4,video/*"
-        onChange={e=>{
+        onChange={async e=>{
           const f = e.target.files?.[0];
           e.target.value = "";
           if (!f) return;
@@ -896,9 +927,15 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
             setPhase("error");
             return;
           }
-          setVideoBlob(f);
-          setPreviewUrl(URL.createObjectURL(f));
-          setPhase("preview");
+          try {
+            const blob = await materializeFile(f);   // อ่านให้เสร็จก่อน กันไฟล์ 0 ไบต์
+            setVideoBlob(blob);
+            setPreviewUrl(URL.createObjectURL(blob));
+            setPhase("preview");
+          } catch (err) {
+            setError(err.message);
+            setPhase("error");
+          }
         }}
         style={{display:"none"}}
       />
@@ -908,7 +945,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
         type="file"
         accept="video/mp4,video/*"
         capture="environment"
-        onChange={e=>{
+        onChange={async e=>{
           const f = e.target.files?.[0];
           e.target.value = "";
           if (!f) return;
@@ -917,9 +954,15 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
             setPhase("error");
             return;
           }
-          setVideoBlob(f);
-          setPreviewUrl(URL.createObjectURL(f));
-          setPhase("preview");
+          try {
+            const blob = await materializeFile(f);
+            setVideoBlob(blob);
+            setPreviewUrl(URL.createObjectURL(blob));
+            setPhase("preview");
+          } catch (err) {
+            setError(err.message);
+            setPhase("error");
+          }
         }}
         style={{display:"none"}}
       />
