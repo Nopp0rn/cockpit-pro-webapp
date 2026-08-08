@@ -19,12 +19,19 @@ const VIDEO_BUCKET = "cockpit-videos";
      ซึ่งกินเวลาเท่าความยาวคลิป (หรือต้องเสียเงินค่าเซิร์ฟเวอร์)
      แต่รูปพรีวิวเป็นภาพนิ่ง วาดทับได้ทันทีไม่กี่มิลลิวินาที ฟรี และได้ทุกเครื่อง
    ผล: ทุกคลิปที่ส่งลูกค้ามีแบรนด์ COCKPIT ให้เห็นในแชท แม้คลิปที่อัปจากไฟล์ */
-const _frameLogo = typeof Image !== "undefined" ? new Image() : null;
-const _frameBs   = typeof Image !== "undefined" ? new Image() : null;
-if (_frameLogo) _frameLogo.src = COCKPITSURE_LOGO;
-if (_frameBs)   _frameBs.src   = BRIDGESTONE_LOGO;
+/* 2026-08-09 (แก้แอปเปิดไม่ได้): เดิมสร้างรูปโลโก้ตรงนี้เลย
+   แต่ค่าโลโก้ถูกประกาศอยู่ด้านล่างของไฟล์ จึงเรียกใช้ก่อนประกาศ
+   ทำให้เกิดข้อผิดพลาดตั้งแต่ตอนโหลดแอป → เปิดแอปไม่ได้ทั้งหน้า
+   แก้เป็นสร้างตอนใช้งานครั้งแรกแทน (ตอนนั้นค่าโลโก้พร้อมแล้วแน่นอน) */
+let _frameLogo = null, _frameBs = null;
+function ensureFrameImages() {
+  if (typeof Image === "undefined") return;
+  if (!_frameLogo) { _frameLogo = new Image(); _frameLogo.src = COCKPITSURE_LOGO; }
+  if (!_frameBs)   { _frameBs   = new Image(); _frameBs.src   = BRIDGESTONE_LOGO; }
+}
 
 function drawCockpitFrame(ctx, cW, cH) {
+  ensureFrameImages();
   // ① พื้นเหลือง (มุมบนซ้าย)
   ctx.fillStyle = "#FDF10F";
   ctx.fillRect(0, Math.round(cH * 0.000178), Math.round(cW * 0.44906), Math.round(cH * 0.05644));
@@ -223,7 +230,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v2.5";
+export const APP_VERSION = "v2.6";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
