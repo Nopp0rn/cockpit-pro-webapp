@@ -146,7 +146,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v2.2";
+export const APP_VERSION = "v2.3";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
@@ -181,6 +181,7 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
   const [upMsg, setUpMsg]           = useState("");     // ข้อความบอกขั้นตอนปัจจุบัน
 
   const nativeRef  = useRef(null);   // กล้องของเครื่อง — ทางสำรองสำหรับเครื่องที่บันทึก mp4 ในแอปไม่ได้
+  const fileRef    = useRef(null);   // เลือกวีดีโอที่ถ่ายเก็บไว้แล้วในเครื่อง
   const videoRef   = useRef(null);
   const previewRef = useRef(null);
   const canvasRef  = useRef(null);
@@ -844,6 +845,15 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
                 📷 เปิดกล้อง
               </button>
 
+              {/* ถ่ายเก็บไว้ก่อนแล้วค่อยส่ง — ใช้ได้ทุกเครื่อง */}
+              <button onClick={()=>fileRef.current?.click()} style={{width:"100%",marginTop:9,
+                padding:"12px",borderRadius:12,border:"1.5px solid #4b5563",
+                background:"transparent",color:"#d1d5db",
+                fontSize:13,fontWeight:700,cursor:"pointer",
+                fontFamily:"'Noto Sans Thai',sans-serif"}}>
+                📁 เลือกวีดีโอที่ถ่ายไว้แล้ว
+              </button>
+
               {/* ทางเลือกสำรอง: ถ่ายด้วยแอปกล้องของเครื่อง
                   ใช้เมื่อเบราว์เซอร์บันทึกเป็น .webm ไม่ได้ (เช่น Samsung Internet)
                   กล้องของเครื่องให้ไฟล์ mp4 ที่ลูกค้าเปิดดูและดาวน์โหลดได้แน่นอน
@@ -871,6 +881,28 @@ function CockpitSureModal({ qNo, branchId, data, jobIdx, onClose, onSuccess }) {
 
           {/* กล้องของเครื่อง — ใช้ได้ทุกขั้นตอน ทั้งตอนเริ่มถ่ายและตอนถ่ายใหม่
           เพราะให้ไฟล์ mp4 แน่นอน จึงเป็นทางออกสุดท้ายที่พึ่งได้เสมอ */}
+      {/* เลือกวีดีโอที่ถ่ายเก็บไว้แล้ว — ไม่มี capture จึงเปิดคลังวีดีโอให้เลือก
+          ใช้กรณีพนักงานถ่ายเก็บไว้ก่อน แล้วค่อยมาส่งทีหลัง หรือส่งรอบก่อนไม่สำเร็จ */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="video/mp4,video/*"
+        onChange={e=>{
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (!f) return;
+          if (f.size > 200*1024*1024) {
+            setError(`วีดีโอใหญ่เกินไป (${Math.round(f.size/1024/1024)}MB) กรุณาเลือกไฟล์ที่สั้นลง`);
+            setPhase("error");
+            return;
+          }
+          setVideoBlob(f);
+          setPreviewUrl(URL.createObjectURL(f));
+          setPhase("preview");
+        }}
+        style={{display:"none"}}
+      />
+
       <input
         ref={nativeRef}
         type="file"
