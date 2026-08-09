@@ -23,15 +23,30 @@ const VIDEO_BUCKET = "cockpit-videos";
    แต่ค่าโลโก้ถูกประกาศอยู่ด้านล่างของไฟล์ จึงเรียกใช้ก่อนประกาศ
    ทำให้เกิดข้อผิดพลาดตั้งแต่ตอนโหลดแอป → เปิดแอปไม่ได้ทั้งหน้า
    แก้เป็นสร้างตอนใช้งานครั้งแรกแทน (ตอนนั้นค่าโลโก้พร้อมแล้วแน่นอน) */
-let _frameLogo = null, _frameBs = null;
-function ensureFrameImages() {
-  if (typeof Image === "undefined") return;
-  if (!_frameLogo) { _frameLogo = new Image(); _frameLogo.src = COCKPITSURE_LOGO; }
-  if (!_frameBs)   { _frameBs   = new Image(); _frameBs.src   = BRIDGESTONE_LOGO; }
+let _frameLogo = null, _frameBs = null, _framePromise = null;
+
+/* 2026-08-09 (แก้โลโก้ไม่ขึ้นบนรูปพรีวิว):
+   เดิมสร้างรูปแล้ววาดทันที แต่รูปยังโหลดไม่เสร็จ (complete = false)
+   โค้ดจึงข้ามการวาดโลโก้ เหลือแต่แถบสีเหลือง/ขาว
+   แก้เป็นรอให้รูปโหลดเสร็จก่อนแล้วค่อยวาด */
+function loadFrameImages() {
+  if (_framePromise) return _framePromise;
+  _framePromise = new Promise(resolve => {
+    if (typeof Image === "undefined") { resolve(); return; }
+    let left = 2;
+    const done = () => { if (--left <= 0) resolve(); };
+    _frameLogo = new Image();
+    _frameLogo.onload = done; _frameLogo.onerror = done;
+    _frameLogo.src = COCKPITSURE_LOGO;
+    _frameBs = new Image();
+    _frameBs.onload = done; _frameBs.onerror = done;
+    _frameBs.src = BRIDGESTONE_LOGO;
+    setTimeout(resolve, 3000);   // กันค้าง — ไม่มีโลโก้ก็ยังได้แถบสี
+  });
+  return _framePromise;
 }
 
 function drawCockpitFrame(ctx, cW, cH) {
-  ensureFrameImages();
   // ① พื้นเหลือง (มุมบนซ้าย)
   ctx.fillStyle = "#FDF10F";
   ctx.fillRect(0, Math.round(cH * 0.000178), Math.round(cW * 0.44906), Math.round(cH * 0.05644));
@@ -75,6 +90,7 @@ function captureVideoThumb(blob) {
       const url = URL.createObjectURL(blob);
       let done = false;
       const finish = (res) => { if (done) return; done = true; try{URL.revokeObjectURL(url);}catch{} resolve(res); };
+      loadFrameImages();          // เริ่มโหลดโลโก้ล่วงหน้าทันที
       const grab = () => {
         if (done) return;
         try {
@@ -84,8 +100,11 @@ function captureVideoThumb(blob) {
           c.width = w; c.height = h;
           const cx2 = c.getContext("2d");
           cx2.drawImage(v, 0, 0, w, h);
-          try { drawCockpitFrame(cx2, w, h); } catch {}   // เฟรมโลโก้บนรูปพรีวิว
-          c.toBlob(b => finish(b), "image/jpeg", 0.7);
+          // รอให้โลโก้โหลดเสร็จก่อนวาด ไม่งั้นจะได้แค่แถบสีไม่มีโลโก้
+          loadFrameImages().then(() => {
+            try { drawCockpitFrame(cx2, w, h); } catch {}
+            c.toBlob(b => finish(b), "image/jpeg", 0.7);
+          });
         } catch { /* ยังวาดไม่ได้ ปล่อยให้ event ถัดไปลองใหม่ */ }
       };
       // ลองวาดจากหลายจังหวะ — เครื่องแต่ละรุ่นยิง event ไม่เหมือนกัน
@@ -230,7 +249,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v2.6";
+export const APP_VERSION = "v2.7";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
