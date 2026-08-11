@@ -249,7 +249,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v2.7";
+export const APP_VERSION = "v2.8";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
@@ -2636,6 +2636,21 @@ function useIsNarrow(bp = 640) {
   return narrow;
 }
 
+/* 2026-08-11: หน้า "ข้อมูล" ค้างที่ ⏳ ตลอดไป
+   สาเหตุ: fetch ไม่มีการจำกัดเวลา ถ้าเซิร์ฟเวอร์หลับ (Render ปลุกใช้เวลาถึง 1 นาที)
+     หรือสัญญาณขาด คำสั่งจะค้างไม่จบ setLoading(false) จึงไม่ถูกเรียก
+     พนักงานเห็นแค่นาฬิกาทรายโดยไม่รู้ว่าเกิดอะไรขึ้น
+   แก้: จำกัดเวลา 20 วินาที แล้วแจ้งผลพร้อมปุ่มลองใหม่ */
+async function fetchWithTimeout(url, ms = 20000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { cache: "no-store", signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 function AdminView({ branchId }) {
   const narrow = useIsNarrow();
   const [detail, setDetail]         = useState(null);
@@ -2643,16 +2658,26 @@ function AdminView({ branchId }) {
   const [detLoad, setDetLoad]       = useState(false);
   const [lastUpdate, setLastUpdate] = useState("");
 
+  const [loadErr, setLoadErr] = useState("");
+
   const loadBranch = useCallback(async (id) => {
-    if (!id) return;
-    setDetLoad(true);
+    if (!id) { setLoading(false); return; }   // ไม่มีสาขา ก็ต้องเลิกหมุน ไม่ค้าง
+    setDetLoad(true); setLoadErr("");
     try {
-      const r = await fetch(`${API}/api/branch/${id}`, { cache: "no-store" });
+      const r = await fetchWithTimeout(`${API}/api/branch/${id}`);
+      if (!r.ok) throw new Error(`เซิร์ฟเวอร์ตอบกลับ ${r.status}`);
       setDetail(await r.json());
       setLastUpdate(new Date().toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",second:"2-digit"}));
-    } catch {}
-    setDetLoad(false);
-    setLoading(false);
+    } catch (e) {
+      setLoadErr(
+        e?.name === "AbortError"
+          ? "เซิร์ฟเวอร์ตอบช้าผิดปกติ (อาจกำลังเริ่มระบบ)\nกรุณากดลองใหม่อีกครั้ง"
+          : "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบสัญญาณอินเทอร์เน็ต"
+      );
+    } finally {
+      setDetLoad(false);
+      setLoading(false);      // ไม่ว่าสำเร็จหรือไม่ ต้องเลิกหมุนเสมอ
+    }
   }, []);
 
   const refresh = () => loadBranch(branchId);
@@ -2685,7 +2710,26 @@ function AdminView({ branchId }) {
     };
   }, [branchId, loadBranch]);
 
-  if (loading) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>⏳</div>;
+  if (loading) return (
+    <div style={{textAlign:"center",padding:40,color:"#9ca3af",fontSize:15}}>
+      ⏳ กำลังโหลดข้อมูล...
+    </div>
+  );
+
+  // โหลดไม่สำเร็จ — บอกสาเหตุและให้กดลองใหม่ ดีกว่าปล่อยให้จอว่าง
+  if (loadErr && !detail) return (
+    <div style={{textAlign:"center",padding:"36px 20px"}}>
+      <div style={{fontSize:34,marginBottom:10}}>📡</div>
+      <div style={{fontSize:14,color:"#4b5563",fontWeight:700,lineHeight:1.8,whiteSpace:"pre-line"}}>
+        {loadErr}
+      </div>
+      <button onClick={refresh} style={{marginTop:16,padding:"11px 26px",borderRadius:10,
+        border:"none",background:"#FFE000",color:"#1A1A1A",fontSize:14,fontWeight:900,
+        cursor:"pointer",fontFamily:"'Noto Sans Thai',sans-serif"}}>
+        🔄 ลองใหม่
+      </button>
+    </div>
+  );
   if (!branchId) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>ไม่พบสาขา</div>;
 
   const cars = Object.entries(detail?.baysData||{}).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
