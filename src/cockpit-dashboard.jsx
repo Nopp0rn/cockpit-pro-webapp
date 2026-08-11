@@ -80,6 +80,21 @@ function drawCockpitFrame(ctx, cW, cH) {
   }
 }
 
+/* 2026-08-11: หน้า "ข้อมูล" ค้างที่ ⏳ ตลอดไป
+   สาเหตุ: fetch ไม่มีการจำกัดเวลา ถ้าเซิร์ฟเวอร์หลับ (Render ปลุกใช้เวลาถึง 1 นาที)
+     หรือสัญญาณขาด คำสั่งจะค้างไม่จบ setLoading(false) จึงไม่ถูกเรียก
+     พนักงานเห็นแค่นาฬิกาทรายโดยไม่รู้ว่าเกิดอะไรขึ้น
+   แก้: จำกัดเวลา 20 วินาที แล้วแจ้งผลพร้อมปุ่มลองใหม่ */
+async function fetchWithTimeout(url, ms = 20000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { cache: "no-store", signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 function captureVideoThumb(blob) {
   return new Promise((resolve) => {
     try {
@@ -249,7 +264,7 @@ const callAPI = async (method, path, body) => {
 // APP_VERSION = เลขเวอร์ชันที่คนอ่านเข้าใจ (แก้ตัวเลขนี้ทุกครั้งที่ปล่อยของใหม่)
 // BUILD_ID    = hash ที่ Vite ใส่ในชื่อไฟล์ตอน build (เช่น index-BRVE0itH.js)
 //               อ่านจากไฟล์ที่กำลังรันอยู่จริง ๆ จึงใช้ยืนยันได้ว่าเครื่องนี้รันบิลด์ไหน
-export const APP_VERSION = "v2.8";
+export const APP_VERSION = "v2.9";
 export function getBuildId() {
   try {
     const src = document.querySelector('script[type="module"]')?.getAttribute("src") || "";
@@ -1905,6 +1920,7 @@ function StaffView({ branchId, branchName: branchNameProp }) {
   const [queues, setQueues]         = useState({});
   const [branchName, setBranchName] = useState(branchNameProp || "Cockpit Pro");
   const [loading, setLoading]       = useState(true);
+  const [queueErr, setQueueErr] = useState("");   // ข้อความเมื่อดึงคิวไม่สำเร็จ
   const [openModal, setOpenModal]   = useState(false);
   const [addTarget, setAddTarget]   = useState(null);
   const [completion, setCompletion] = useState(null);
@@ -1914,10 +1930,11 @@ function StaffView({ branchId, branchName: branchNameProp }) {
   useEffect(() => { if (branchNameProp) setBranchName(branchNameProp); }, [branchNameProp]);
 
   const fetch_ = useCallback(async () => {
-    if (!branchId) return;
+    if (!branchId) { setLoading(false); return; }
     try {
-      const res = await fetch(`${API}/api/branch/${branchId}`, { cache: "no-store" });
+      const res = await fetchWithTimeout(`${API}/api/branch/${branchId}`);
       const data = await res.json();
+      setQueueErr("");
       setQueues(data.baysData || {});
       setBranchName(data.name || "Cockpit Pro");
       // ประวัติวันนี้ (ใช้โชว์ปุ่มคืนสถานะ) — backend ส่งมาให้พร้อมกันใน response เดียวแล้ว
@@ -1936,7 +1953,12 @@ function StaffView({ branchId, branchName: branchNameProp }) {
           ));
         } catch {}
       }
-    } catch {}
+    } catch (e) {
+      // เซิร์ฟเวอร์อาจกำลังตื่นจากโหมดพัก — บอกให้รู้ ดีกว่าค้างเงียบๆ
+      setQueueErr(e?.name === "AbortError"
+        ? "เซิร์ฟเวอร์ตอบช้า (กำลังเริ่มระบบ) — กดรีเฟรชอีกครั้ง"
+        : "เชื่อมต่อไม่ได้ — ตรวจสอบสัญญาณ");
+    }
     setLoading(false);
   }, [branchId]);
 
@@ -2014,6 +2036,17 @@ function StaffView({ branchId, branchName: branchNameProp }) {
       </div>
 
       {loading && <div style={{textAlign:"center",padding:40,fontSize:16,color:"#9ca3af"}}>⏳ กำลังโหลด...</div>}
+      {!loading && queueErr && (
+        <div style={{margin:"10px 12px",padding:"11px 13px",borderRadius:10,
+          background:"#3b2d10",border:"1px solid #B45309",color:"#FFD79A",
+          fontSize:12.5,lineHeight:1.7,display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:18}}>📡</span>
+          <span style={{flex:1}}>{queueErr}</span>
+          <button onClick={fetch_} style={{padding:"7px 14px",borderRadius:8,border:"none",
+            background:"#FFE000",color:"#1A1A1A",fontSize:12,fontWeight:900,cursor:"pointer",
+            fontFamily:"'Noto Sans Thai',sans-serif",whiteSpace:"nowrap"}}>🔄 ลองใหม่</button>
+        </div>
+      )}
       {!loading && total===0 && (
         <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>
           <div style={{fontSize:48,marginBottom:12}}>🅿️</div>
@@ -2634,21 +2667,6 @@ function useIsNarrow(bp = 640) {
     };
   }, [bp]);
   return narrow;
-}
-
-/* 2026-08-11: หน้า "ข้อมูล" ค้างที่ ⏳ ตลอดไป
-   สาเหตุ: fetch ไม่มีการจำกัดเวลา ถ้าเซิร์ฟเวอร์หลับ (Render ปลุกใช้เวลาถึง 1 นาที)
-     หรือสัญญาณขาด คำสั่งจะค้างไม่จบ setLoading(false) จึงไม่ถูกเรียก
-     พนักงานเห็นแค่นาฬิกาทรายโดยไม่รู้ว่าเกิดอะไรขึ้น
-   แก้: จำกัดเวลา 20 วินาที แล้วแจ้งผลพร้อมปุ่มลองใหม่ */
-async function fetchWithTimeout(url, ms = 20000) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, { cache: "no-store", signal: ctrl.signal });
-  } finally {
-    clearTimeout(t);
-  }
 }
 
 function AdminView({ branchId }) {
